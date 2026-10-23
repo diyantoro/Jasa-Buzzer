@@ -1,0 +1,3 @@
+CREATE POLICY "bukti_read" ON storage.objects FOR SELECT TO anon, authenticated USING (bucket_id = 'bukti-pengerjaan');
+CREATE POLICY "bukti_insert" ON storage.objects FOR INSERT TO anon, authenticated WITH CHECK (bucket_id = 'bukti-pengerjaan');
+CREATE POLICY "bukti_update" ON storage.objects FOR UPDATE TO anon, authenticated USING (bucket_id = 'bukti-pengerjaan') WITH CHECK (bucket_id = 'bukti-pengerjaan');

@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.sync_buzzer_rating() FROM PUBLIC, anon, authenticated;
