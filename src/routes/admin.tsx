@@ -228,8 +228,8 @@ const sectionMeta: Record<SectionKey, { title: string; subtitle: string }> = {
     subtitle: "Kelola daftar rekening bank admin untuk penerimaan transfer customer",
   },
   pencairan: {
-    title: "Riwayat Aktivitas",
-    subtitle: "Pantau aktivitas buzzer, customer, dan komisi admin dari job yang selesai",
+    title: "Aktivitas",
+    subtitle: "Pantau tren aktivitas dan performa platform BuzzHub.",
   },
   sosmed: { title: "Kelola Akun Sosial Media", subtitle: "Verifikasi akun sosmed milik buzzer" },
   ulasan: { title: "Ulasan & Rating", subtitle: "Pantau seluruh ulasan customer terhadap buzzer" },
