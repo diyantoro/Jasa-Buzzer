@@ -124,23 +124,26 @@ export function ActivityMetricCard({
         )}
       />
       <div className="flex items-start justify-between gap-2">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+        <p className="text-[10px] font-semibold uppercase leading-tight tracking-[0.08em] text-muted-foreground sm:text-[11px]">
           {label}
         </p>
         <span
-          className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-lg", accentStyle.chip)}
+          className={cn(
+            "grid h-7 w-7 shrink-0 place-items-center rounded-lg sm:h-8 sm:w-8",
+            accentStyle.chip,
+          )}
         >
           {icon}
         </span>
       </div>
-      <p className="mt-2.5 font-display text-2xl font-bold leading-none tracking-tight tabular-nums">
+      <p className="mt-2.5 font-display text-xl font-bold leading-none tracking-tight tabular-nums break-words sm:text-2xl">
         {value}
       </p>
       <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
         {deltaText && (
           <span
             className={cn(
-              "inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[11px] font-semibold",
+              "inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold sm:text-[11px]",
               deltaDirection === "up" && "bg-emerald-500/12 text-emerald-600 dark:text-emerald-400",
               deltaDirection === "down" && "bg-rose-500/12 text-rose-600 dark:text-rose-400",
               (!deltaDirection || deltaDirection === "flat") && "bg-muted text-muted-foreground",
@@ -150,7 +153,7 @@ export function ActivityMetricCard({
             {deltaText}
           </span>
         )}
-        {hint && <span className="text-[11px] text-muted-foreground">{hint}</span>}
+        {hint && <span className="text-[10px] leading-snug text-muted-foreground sm:text-[11px]">{hint}</span>}
       </div>
     </div>
   );
@@ -318,11 +321,9 @@ function TrendTooltip({
 export function ActivityTrendChart({
   data,
   loading,
-  height = 330,
 }: {
   data: TrendPoint[];
   loading?: boolean;
-  height?: number;
 }) {
   const { ref, size } = useMeasuredSize();
   const uid = `trend-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
@@ -330,7 +331,7 @@ export function ActivityTrendChart({
   const plotBottom = Math.max(size.height - X_AXIS_HEIGHT, 1);
 
   return (
-    <div ref={ref} className="relative w-full" style={{ height }}>
+    <div ref={ref} className="relative h-[260px] w-full sm:h-[330px]">
       {loading && <ChartSkeleton className="absolute inset-0 h-full w-full" />}
       {!loading && size.width > 0 && (
         <ResponsiveContainer width="100%" height="100%">

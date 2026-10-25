@@ -213,9 +213,9 @@ function getInitialBuzzerSection(): SectionKey {
   return "jobs";
 }
 
-const navItems: { key: SectionKey; label: string; icon: ReactNode }[] = [
-  { key: "jobs", label: "Job Tersedia", icon: <Briefcase className="h-4 w-4" /> },
-  { key: "sosmed", label: "Akun Sosial Media", icon: <Link2 className="h-4 w-4" /> },
+const navItems: { key: SectionKey; label: string; shortLabel?: string; icon: ReactNode }[] = [
+  { key: "jobs", label: "Job Tersedia", shortLabel: "Jobs", icon: <Briefcase className="h-4 w-4" /> },
+  { key: "sosmed", label: "Akun Sosial Media", shortLabel: "Sosmed", icon: <Link2 className="h-4 w-4" /> },
   { key: "penghasilan", label: "Penghasilan", icon: <Wallet className="h-4 w-4" /> },
   { key: "ulasan", label: "Rating & Ulasan", icon: <Star className="h-4 w-4" /> },
   { key: "profil", label: "Profil", icon: <User className="h-4 w-4" /> },
@@ -406,9 +406,13 @@ function BuzzerPage() {
                 </SheetContent>
               </Sheet>
 
-              <div className="min-w-0 flex flex-col justify-center">
-                <h1 className="truncate font-display text-xl sm:text-2xl font-bold leading-7 tracking-tight">{meta.title}</h1>
-                <p className="truncate text-xs sm:text-sm text-muted-foreground leading-5">{meta.subtitle}</p>
+              <div className="flex min-w-0 flex-col justify-center">
+                <h1 className="truncate font-display text-lg font-bold leading-6 tracking-tight sm:text-2xl sm:leading-7">
+                  {meta.title}
+                </h1>
+                <p className="line-clamp-2 text-[11px] leading-4 text-muted-foreground sm:truncate sm:text-sm sm:leading-5">
+                  {meta.subtitle}
+                </p>
               </div>
             </div>
 
@@ -439,7 +443,12 @@ function BuzzerPage() {
       </div>
 
       {/* Mobile bottom nav */}
-      <MobileBottomNav nav={navItems} activeKey={section} onNavigate={go} />
+      <MobileBottomNav
+        nav={navItems}
+        activeKey={section}
+        onNavigate={go}
+        primaryKeys={["jobs", "sosmed", "penghasilan", "profil"]}
+      />
 
       <BuzzerNotifSheet
         notifState={notifState}
@@ -500,7 +509,7 @@ function RingkasanSection({ store, onGoJobs }: { store: Store; onGoJobs: () => v
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard label="Saldo Tersedia" value={formatIDR(state.balance)} hint="Cair tiap Senin" icon={<Wallet className="h-5 w-5" />} />
         <StatCard label="Job Aktif" value={activeJobs.length.toString()} hint="Sedang berjalan" icon={<Inbox className="h-5 w-5" />} />
         <StatCard label="Job Selesai" value={jobsDone.toString()} hint="Total karier" icon={<CheckCircle2 className="h-5 w-5" />} />

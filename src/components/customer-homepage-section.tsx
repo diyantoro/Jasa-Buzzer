@@ -305,7 +305,7 @@ export function CustomerHomepageSection({
     return (
       <div className="space-y-4">
         <Skeleton className="h-44 rounded-3xl" />
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <Skeleton key={i} className="h-28 rounded-2xl" />
           ))}
@@ -379,7 +379,7 @@ export function CustomerHomepageSection({
       </section>
 
       {/* Ringkasan */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard label="Total Pesanan Aktif" value={stats.aktif.toString()} hint="Sedang berjalan" icon={<TrendingUp className="h-5 w-5" />} />
         <StatCard label="Sedang Dikerjakan" value={stats.dikerjakan.toString()} hint="Buzzer aktif mengerjakan" icon={<Loader2 className="h-5 w-5" />} />
         <StatCard label="Menunggu Verifikasi" value={stats.verifikasi.toString()} hint="Bukti perlu direview" icon={<ClipboardCheck className="h-5 w-5" />} />

@@ -179,7 +179,7 @@ export function AdminSocialSection() {
   return (
     <div className="space-y-6">
       {/* Ringkasan Statistik (Klik untuk filter langsung) */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <button
           type="button"
           onClick={() => setStatus("Semua")}

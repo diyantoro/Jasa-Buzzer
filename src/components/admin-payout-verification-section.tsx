@@ -361,65 +361,65 @@ export function AdminPayoutVerificationSection() {
   return (
     <div className="space-y-6">
       {/* Financial Overview Cards Khusus Pencairan Dana Buzzer */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         {/* Card 1: Menunggu Verifikasi */}
-        <div className="rounded-2xl border border-amber-500/30 bg-card p-5 shadow-sm transition-shadow hover:shadow-md relative overflow-hidden">
-          <div className="flex items-center justify-between">
+        <div className="relative overflow-hidden rounded-2xl border border-amber-500/30 bg-card p-4 shadow-sm transition-shadow hover:shadow-md sm:p-5">
+          <div className="flex items-start justify-between gap-2">
             <div className="flex items-center gap-1.5">
-              <span className="relative flex h-2.5 w-2.5">
+              <span className="relative flex h-2.5 w-2.5 shrink-0">
                 {pendingList.length > 0 && (
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
                 )}
                 <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500" />
               </span>
-              <p className="text-xs font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
+              <p className="text-[10px] font-semibold uppercase leading-tight tracking-wide text-amber-600 dark:text-amber-400 sm:text-xs">
                 Menunggu Verifikasi
               </p>
             </div>
-            <span className="grid h-9 w-9 place-items-center rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400">
-              <Clock className="h-5 w-5" />
+            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400 sm:h-9 sm:w-9">
+              <Clock className="h-4 w-4 sm:h-5 sm:w-5" />
             </span>
           </div>
-          <p className="mt-3 font-display text-2xl font-bold text-foreground">
+          <p className="mt-2.5 font-display text-lg font-bold leading-tight text-foreground sm:mt-3 sm:text-2xl">
             {pendingList.length} Permintaan
           </p>
-          <p className="mt-1 text-xs text-muted-foreground font-medium">
+          <p className="mt-1 text-[11px] font-medium leading-snug text-muted-foreground sm:text-xs">
             Total {formatIDR(totalPendingAmount)}
           </p>
         </div>
 
         {/* Card 2: Pencairan Berhasil */}
-        <div className="rounded-2xl border border-emerald-500/30 bg-card p-5 shadow-sm transition-shadow hover:shadow-md">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
+        <div className="rounded-2xl border border-emerald-500/30 bg-card p-4 shadow-sm transition-shadow hover:shadow-md sm:p-5">
+          <div className="flex items-start justify-between gap-2">
+            <p className="text-[10px] font-semibold uppercase leading-tight tracking-wide text-emerald-600 dark:text-emerald-400 sm:text-xs">
               Pencairan Selesai
             </p>
-            <span className="grid h-9 w-9 place-items-center rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
-              <CheckCircle2 className="h-5 w-5" />
+            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 sm:h-9 sm:w-9">
+              <CheckCircle2 className="h-4 w-4 sm:h-5 sm:w-5" />
             </span>
           </div>
-          <p className="mt-3 font-display text-2xl font-bold text-foreground">
+          <p className="mt-2.5 font-display text-lg font-bold leading-tight text-foreground sm:mt-3 sm:text-2xl">
             {approvedList.length} Selesai
           </p>
-          <p className="mt-1 text-xs text-muted-foreground font-medium">
+          <p className="mt-1 text-[11px] font-medium leading-snug text-muted-foreground sm:text-xs">
             Total {formatIDR(totalApprovedAmount)}
           </p>
         </div>
 
         {/* Card 3: Pencairan Ditolak */}
-        <div className="rounded-2xl border border-rose-500/30 bg-card p-5 shadow-sm transition-shadow hover:shadow-md">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wide text-rose-600 dark:text-rose-400">
+        <div className="rounded-2xl border border-rose-500/30 bg-card p-4 shadow-sm transition-shadow hover:shadow-md sm:p-5">
+          <div className="flex items-start justify-between gap-2">
+            <p className="text-[10px] font-semibold uppercase leading-tight tracking-wide text-rose-600 dark:text-rose-400 sm:text-xs">
               Pengajuan Ditolak
             </p>
-            <span className="grid h-9 w-9 place-items-center rounded-lg bg-rose-500/15 text-rose-600 dark:text-rose-400">
-              <X className="h-5 w-5" />
+            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-rose-500/15 text-rose-600 dark:text-rose-400 sm:h-9 sm:w-9">
+              <X className="h-4 w-4 sm:h-5 sm:w-5" />
             </span>
           </div>
-          <p className="mt-3 font-display text-2xl font-bold text-foreground">
+          <p className="mt-2.5 font-display text-lg font-bold leading-tight text-foreground sm:mt-3 sm:text-2xl">
             {rejectedList.length} Ditolak
           </p>
-          <p className="mt-1 text-xs text-muted-foreground font-medium">
+          <p className="mt-1 text-[11px] font-medium leading-snug text-muted-foreground sm:text-xs">
             Saldo {formatIDR(totalRejectedAmount)} dikembalikan
           </p>
         </div>

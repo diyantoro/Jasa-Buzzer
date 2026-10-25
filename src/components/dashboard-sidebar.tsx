@@ -1,12 +1,25 @@
 import { Link } from "@tanstack/react-router";
-import { LogOut, Megaphone, PanelLeftClose, PanelLeftOpen } from "lucide-react";
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { LogOut, Megaphone, Menu, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
-export type SidebarNavItem<K extends string = string> = { key: K; label: string; icon: ReactNode };
+export type SidebarNavItem<K extends string = string> = {
+  key: K;
+  label: string;
+  /** Label ringkas untuk bottom nav di layar kecil. */
+  shortLabel?: string;
+  icon: ReactNode;
+};
 
 export type SidebarUser = {
   name: string;
@@ -278,33 +291,85 @@ export function SidebarCollapseButton({
   );
 }
 
+const MAX_PRIMARY_NAV = 4;
+
 export function MobileBottomNav<K extends string>({
   nav,
   activeKey,
   onNavigate,
+  primaryKeys,
 }: {
   nav: SidebarNavItem<K>[];
   activeKey: K;
   onNavigate: (key: K) => void;
+  /** Menu yang tampil langsung di bottom nav. Sisanya masuk ke sheet "Lainnya". */
+  primaryKeys?: K[];
 }) {
-  return (
-    <nav
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 backdrop-blur-xl md:hidden"
-      aria-label="Navigasi bawah"
+  const [moreOpen, setMoreOpen] = useState(false);
+
+  const primary = useMemo(() => {
+    if (!primaryKeys?.length) return nav.slice(0, MAX_PRIMARY_NAV);
+    const wanted = new Set(primaryKeys);
+    const ordered = primaryKeys
+      .map((key) => nav.find((item) => item.key === key))
+      .filter((item): item is SidebarNavItem<K> => Boolean(item));
+    return ordered.slice(0, MAX_PRIMARY_NAV);
+  }, [nav, primaryKeys]);
+
+  const overflow = useMemo(
+    () => nav.filter((item) => !primary.some((p) => p.key === item.key)),
+    [nav, primary],
+  );
+  const activeInOverflow = overflow.some((item) => item.key === activeKey);
+
+  const select = (key: K) => {
+    onNavigate(key);
+    setMoreOpen(false);
+  };
+
+  const renderButton = (item: SidebarNavItem<K>, active: boolean) => (
+    <button
+      key={item.key}
+      type="button"
+      data-section={item.key}
+      onClick={() => select(item.key)}
+      aria-current={active ? "page" : undefined}
+      className={cn(
+        "relative flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1.5 text-[10px] font-medium transition-colors min-[380px]:text-[11px]",
+        active ? "text-brand" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+      )}
     >
-      <div className="flex items-stretch gap-1 overflow-x-auto px-2 py-1.5 pb-[calc(0.5rem+env(safe-area-inset-bottom))] scrollbar-none">
-        {nav.map((item) => {
-          const active = activeKey === item.key;
-          return (
+      <span
+        aria-hidden="true"
+        className={cn(
+          "absolute top-0 h-[2px] w-6 rounded-full bg-brand transition-opacity",
+          active ? "opacity-100" : "opacity-0",
+        )}
+      />
+      <span className="[&>svg]:h-[19px] [&>svg]:w-[19px]">{item.icon}</span>
+      <span className="max-w-full truncate leading-tight">
+        {item.shortLabel ?? item.label}
+      </span>
+    </button>
+  );
+
+  return (
+    <>
+      <nav
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 backdrop-blur-xl md:hidden"
+        aria-label="Navigasi bawah"
+      >
+        <div className="flex items-stretch gap-0.5 px-2 py-1.5 pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
+          {primary.map((item) => renderButton(item, activeKey === item.key))}
+          {overflow.length > 0 && (
             <button
-              key={item.key}
               type="button"
-              data-section={item.key}
-              onClick={() => onNavigate(item.key)}
-              aria-current={active ? "page" : undefined}
+              onClick={() => setMoreOpen(true)}
+              aria-haspopup="dialog"
+              aria-expanded={moreOpen}
               className={cn(
-                "relative flex min-w-[56px] flex-1 flex-col items-center justify-center gap-0.5 rounded-lg px-1.5 py-1.5 text-[10px] font-medium transition-colors",
-                active
+                "relative flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1.5 text-[10px] font-medium transition-colors min-[380px]:text-[11px]",
+                activeInOverflow
                   ? "text-brand"
                   : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
               )}
@@ -313,15 +378,57 @@ export function MobileBottomNav<K extends string>({
                 aria-hidden="true"
                 className={cn(
                   "absolute top-0 h-[2px] w-6 rounded-full bg-brand transition-opacity",
-                  active ? "opacity-100" : "opacity-0",
+                  activeInOverflow ? "opacity-100" : "opacity-0",
                 )}
               />
-              <span className="[&>svg]:h-[18px] [&>svg]:w-[18px]">{item.icon}</span>
-              <span className="max-w-full truncate leading-tight">{item.label}</span>
+              <Menu className="h-[19px] w-[19px]" aria-hidden="true" />
+              <span className="max-w-full truncate leading-tight">Lainnya</span>
             </button>
-          );
-        })}
-      </div>
-    </nav>
+          )}
+        </div>
+      </nav>
+
+      <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
+        <SheetContent
+          side="bottom"
+          className="max-h-[80vh] overflow-y-auto rounded-t-2xl pb-[calc(1rem+env(safe-area-inset-bottom))] md:hidden"
+        >
+          <SheetHeader className="text-left">
+            <SheetTitle>Menu Lainnya</SheetTitle>
+            <SheetDescription>Pilih halaman yang ingin dibuka.</SheetDescription>
+          </SheetHeader>
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            {overflow.map((item) => {
+              const active = activeKey === item.key;
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => select(item.key)}
+                  aria-current={active ? "page" : undefined}
+                  className={cn(
+                    "flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left text-sm font-medium transition-colors",
+                    active
+                      ? "border-brand/40 bg-brand/10 text-brand"
+                      : "border-border bg-card text-foreground hover:bg-muted/60",
+                  )}
+                >
+                  <span
+                    aria-hidden="true"
+                    className={cn(
+                      "grid h-8 w-8 shrink-0 place-items-center rounded-lg [&>svg]:h-[18px] [&>svg]:w-[18px]",
+                      active ? "bg-brand/15" : "bg-muted",
+                    )}
+                  >
+                    {item.icon}
+                  </span>
+                  <span className="min-w-0 text-[13px] leading-tight">{item.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </SheetContent>
+      </Sheet>
+    </>
   );
 }

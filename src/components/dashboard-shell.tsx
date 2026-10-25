@@ -209,13 +209,21 @@ export function StatCard({
   icon,
 }: { label: string; value: string; hint?: string; icon: ReactNode }) {
   return (
-    <div className="rounded-2xl border border-border bg-card p-5 shadow-sm transition-shadow hover:shadow-md">
-      <div className="flex items-center justify-between">
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
-        <span className="grid h-9 w-9 place-items-center rounded-lg bg-accent text-accent-foreground">{icon}</span>
+    <div className="rounded-2xl border border-border bg-card p-4 shadow-sm transition-shadow hover:shadow-md sm:p-5">
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-[10px] font-medium uppercase leading-tight tracking-wide text-muted-foreground sm:text-xs">
+          {label}
+        </p>
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-accent text-accent-foreground sm:h-9 sm:w-9">
+          {icon}
+        </span>
       </div>
-      <p className="mt-3 font-display text-2xl font-bold">{value}</p>
-      {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
+      <p className="mt-2.5 font-display text-xl font-bold leading-tight break-words sm:mt-3 sm:text-2xl">
+        {value}
+      </p>
+      {hint && (
+        <p className="mt-1 text-[11px] leading-snug text-muted-foreground sm:text-xs">{hint}</p>
+      )}
     </div>
   );
 }

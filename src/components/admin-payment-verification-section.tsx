@@ -249,7 +249,7 @@ export function AdminPaymentVerificationSection() {
   return (
     <div className="space-y-6">
       {/* Financial Overview Cards - Khusus Verifikasi Pembayaran Customer */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard
           label="Total Pembayaran Masuk"
           value={formatIDR(adminWallet.totalIncoming)}

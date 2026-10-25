@@ -373,10 +373,12 @@ function CustomerPage() {
             <div className="flex min-w-0 items-center gap-2 sm:gap-3">
               <SidebarCollapseButton collapsed={collapsed} onToggle={toggle} />
               <div className="min-w-0 flex flex-col justify-center">
-                <h1 className="truncate font-display text-xl sm:text-2xl font-bold leading-7 tracking-tight">
+                <h1 className="truncate font-display text-lg font-bold leading-6 tracking-tight sm:text-2xl sm:leading-7">
                   {meta.title}
                 </h1>
-                <p className="truncate text-xs sm:text-sm text-muted-foreground leading-5">{meta.subtitle}</p>
+                <p className="line-clamp-2 text-[11px] leading-4 text-muted-foreground sm:truncate sm:text-sm sm:leading-5">
+                  {meta.subtitle}
+                </p>
               </div>
             </div>
 
@@ -453,7 +455,12 @@ function CustomerPage() {
       </div>
 
       {/* Mobile bottom nav */}
-      <MobileBottomNav nav={navItems} activeKey={section} onNavigate={go} />
+      <MobileBottomNav
+        nav={navItems}
+        activeKey={section}
+        onNavigate={go}
+        primaryKeys={["homepage", "pesanan", "katalog", "pembayaran"]}
+      />
 
 
       {/* Logout */}
@@ -617,7 +624,7 @@ function RingkasanSection({
       />
 
       {loading ? (
-        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-2xl" />)}
         </div>
       ) : (
@@ -1458,7 +1465,7 @@ function PembayaranSection({
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
         <StatCard label="Total Pembayaran" value={formatIDR(totalPaid)} hint="Sepanjang masa" icon={<CheckCircle2 className="h-5 w-5" />} />
         {unpaidBills.length > 0 ? (
           <StatCard label="Tagihan Belum Dibayar" value={unpaidBills.length.toString()} hint={formatIDR(unpaidTotal)} icon={<CreditCard className="h-5 w-5" />} />

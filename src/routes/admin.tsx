@@ -188,10 +188,10 @@ type SectionKey =
   | "ulasan"
   | "pengaturan";
 
-const navItems: { key: SectionKey; label: string; icon: ReactNode }[] = [
+const navItems: { key: SectionKey; label: string; shortLabel?: string; icon: ReactNode }[] = [
   { key: "ringkasan", label: "Dashboard", icon: <LayoutDashboard className="h-4 w-4" /> },
   { key: "kampanye", label: "Kampanye", icon: <Megaphone className="h-4 w-4" /> },
-  { key: "manajemen", label: "Manajemen User", icon: <Users className="h-4 w-4" /> },
+  { key: "manajemen", label: "Manajemen User", shortLabel: "Manajemen", icon: <Users className="h-4 w-4" /> },
   { key: "verifikasi", label: "Verifikasi Buzzer", icon: <Shield className="h-4 w-4" /> },
   { key: "verifikasi-pengerjaan", label: "Verifikasi Pengerjaan", icon: <CheckCircle2 className="h-4 w-4" /> },
   { key: "pembayaran", label: "Verifikasi Pembayaran", icon: <CheckCircle2 className="h-4 w-4" /> },
@@ -378,9 +378,13 @@ function AdminPage() {
                 </SheetContent>
               </Sheet>
 
-              <div className="min-w-0 flex flex-col justify-center">
-                <h1 className="truncate font-display text-xl sm:text-2xl font-bold leading-7 tracking-tight">{meta.title}</h1>
-                <p className="truncate text-xs sm:text-sm text-muted-foreground leading-5">{meta.subtitle}</p>
+              <div className="flex min-w-0 flex-col justify-center">
+                <h1 className="truncate font-display text-lg font-bold leading-6 tracking-tight sm:text-2xl sm:leading-7">
+                  {meta.title}
+                </h1>
+                <p className="line-clamp-2 text-[11px] leading-4 text-muted-foreground sm:truncate sm:text-sm sm:leading-5">
+                  {meta.subtitle}
+                </p>
               </div>
             </div>
 
@@ -416,7 +420,12 @@ function AdminPage() {
       </div>
 
       {/* Mobile bottom nav */}
-      <MobileBottomNav nav={navItems} activeKey={section} onNavigate={go} />
+      <MobileBottomNav
+        nav={navItems}
+        activeKey={section}
+        onNavigate={go}
+        primaryKeys={["ringkasan", "kampanye", "manajemen", "pencairan"]}
+      />
 
       <AlertDialog open={logoutOpen} onOpenChange={setLogoutOpen}>
         <AlertDialogContent>
@@ -589,7 +598,7 @@ function RingkasanSection() {
 
   return (
     <>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard
           label="Total Pendapatan"
           value={formatIDR(totalRevenue)}
@@ -663,7 +672,16 @@ function RingkasanSection() {
                 tickLine={false}
                 axisLine={false}
                 tickMargin={8}
-                tickFormatter={(value) => `Rp${(Number(value) / 1000000).toFixed(0)}J`}
+                width={52}
+                tickCount={4}
+                tick={{ fontSize: 11 }}
+                tickFormatter={(value) => {
+                  const juta = Number(value) / 1000000;
+                  const label = Number.isInteger(juta)
+                    ? String(juta)
+                    : juta.toFixed(1).replace(".", ",");
+                  return `Rp${label} jt`;
+                }}
                 domain={[0, "dataMax + 3000000"]}
               />
               <ChartTooltip
@@ -709,12 +727,12 @@ function RingkasanSection() {
               <h3 className="font-display text-lg font-bold">Kampanye Terbaru</h3>
               <p className="text-sm text-muted-foreground">Pantau progress semua kampanye aktif</p>
             </div>
-            <div className="relative">
+            <div className="relative w-full sm:w-auto">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input className="w-56 pl-9" placeholder="Cari kampanye..." />
+              <Input className="w-full pl-9 sm:w-56" placeholder="Cari kampanye..." />
             </div>
           </div>
-          <div className="overflow-x-auto">
+          <div className="hidden overflow-x-auto md:block">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -783,6 +801,54 @@ function RingkasanSection() {
                   })}
               </TableBody>
             </Table>
+          </div>
+
+          {/* Tampilan kartu untuk layar kecil */}
+          <div className="space-y-2 p-3 md:hidden">
+            {dashboardLoading && (
+              <p className="py-6 text-center text-sm text-muted-foreground">
+                Memuat data kampanye…
+              </p>
+            )}
+            {!dashboardLoading && approvedCampaigns.length === 0 && (
+              <p className="py-6 text-center text-sm text-muted-foreground">
+                Belum ada data kampanye.
+              </p>
+            )}
+            {!dashboardLoading &&
+              approvedCampaigns.slice(0, 5).map((c) => {
+                const jobStats = campaignJobStats.get(c.id) ?? { taken: 0, done: 0, total: 0 };
+                const progress = c.slots > 0 ? Math.round((jobStats.taken / c.slots) * 100) : 0;
+                return (
+                  <div key={c.id} className="rounded-xl border border-border p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium">{c.title}</p>
+                        <p className="truncate text-[11px] text-muted-foreground">
+                          {c.customer_name}
+                        </p>
+                      </div>
+                      <StatusBadge status={c.status} />
+                    </div>
+                    <div className="mt-2 flex items-center justify-between gap-3">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <div className="h-1.5 w-16 shrink-0 overflow-hidden rounded-full bg-muted">
+                          <div
+                            className="h-full gradient-brand"
+                            style={{ width: `${Math.min(100, progress)}%` }}
+                          />
+                        </div>
+                        <span className="text-[11px] text-muted-foreground">
+                          {jobStats.taken}/{c.slots} slot
+                        </span>
+                      </div>
+                      <span className="shrink-0 text-sm font-semibold tabular-nums">
+                        {formatIDR(Number(c.budget))}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
           </div>
         </div>
 
@@ -925,7 +991,7 @@ function AdminReviewsSection() {
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard
           label="Total Ulasan"
           value={reviewStats.total.toString()}
@@ -1407,6 +1473,64 @@ function CustomerOrdersSection() {
     toast.success("Data kampanye diekspor ke PDF");
   };
 
+  const renderCampaignActions = (c: Campaign) => (
+    <>
+      <Button
+        size="sm"
+        variant="outline"
+        className="h-8 w-8 p-0"
+        title="Detail"
+        aria-label="Detail"
+        onClick={() => setDetail(c)}
+      >
+        <Eye className="h-4 w-4" />
+      </Button>
+      <Button
+        size="sm"
+        variant="outline"
+        className="h-8 w-8 p-0"
+        title="Edit"
+        aria-label="Edit"
+        disabled={busy === c.id}
+        onClick={() => openEditCampaign(c)}
+      >
+        <Pencil className="h-4 w-4" />
+      </Button>
+      {c.status === "Draft" && (
+        <>
+          <Button
+            size="sm"
+            className="h-8 w-8 p-0 gradient-brand text-brand-foreground"
+            disabled={busy === c.id}
+            onClick={() => handleApprove(c)}
+            title="Setujui / Konfirmasi"
+            aria-label="Setujui"
+          >
+            {busy === c.id ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <CheckCircle2 className="h-4 w-4" />
+            )}
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 w-8 p-0 text-rose-600 hover:bg-rose-50 hover:text-rose-700 dark:hover:bg-rose-950/20"
+            disabled={busy === c.id}
+            onClick={() => {
+              setRejecting(c);
+              setRejectNote("");
+            }}
+            title="Tolak"
+            aria-label="Tolak"
+          >
+            <XCircle className="h-4 w-4" />
+          </Button>
+        </>
+      )}
+    </>
+  );
+
   return (
     <div className="space-y-4">
       <div>
@@ -1442,7 +1566,7 @@ function CustomerOrdersSection() {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="hidden overflow-x-auto md:block">
           <Table>
             <TableHeader>
               <TableRow>
@@ -1508,63 +1632,64 @@ function CustomerOrdersSection() {
                       {formatIDR(Number(c.budget))}
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-8 w-8 p-0"
-                          title="Detail"
-                          aria-label="Detail"
-                          onClick={() => setDetail(c)}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-8 w-8 p-0"
-                          title="Edit"
-                          aria-label="Edit"
-                          disabled={busy === c.id}
-                          onClick={() => openEditCampaign(c)}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        {c.status === "Draft" && (
-                          <>
-                            <Button
-                              size="sm"
-                              className="h-8 w-8 p-0 gradient-brand text-brand-foreground"
-                              disabled={busy === c.id}
-                              onClick={() => handleApprove(c)}
-                              title="Setujui / Konfirmasi"
-                              aria-label="Setujui"
-                            >
-                              {busy === c.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-8 w-8 p-0 text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/20"
-                              disabled={busy === c.id}
-                              onClick={() => {
-                                setRejecting(c);
-                                setRejectNote("");
-                              }}
-                              title="Tolak"
-                              aria-label="Tolak"
-                            >
-                              <XCircle className="h-4 w-4" />
-                            </Button>
-                          </>
-                        )}
-                      </div>
+                      <div className="flex justify-end gap-2">{renderCampaignActions(c)}</div>
                     </TableCell>
                   </TableRow>
                 );
               })}
             </TableBody>
           </Table>
+        </div>
+
+        {/* Tampilan kartu untuk layar kecil */}
+        <div className="space-y-2 p-3 md:hidden">
+          {loading && (
+            <p className="py-6 text-center text-sm text-muted-foreground">Memuat data kampanye…</p>
+          )}
+          {!loading && filtered.length === 0 && (
+            <p className="py-6 text-center text-sm text-muted-foreground">
+              Belum ada kampanye pada filter ini.
+            </p>
+          )}
+          {!loading &&
+            paginated.map((c) => {
+              const st = jobStats.get(c.id) ?? { taken: 0, done: 0, total: 0 };
+              const progress = st.total ? Math.round((st.done / st.total) * 100) : 0;
+              return (
+                <div key={c.id} className="rounded-xl border border-border p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium leading-snug">{c.title}</p>
+                      <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                        {c.platform} · {c.slots} slot
+                        {c.service_type ? ` · ${c.service_type}` : ""}
+                      </p>
+                    </div>
+                    <StatusBadge status={c.status === "Draft" ? "Menunggu" : c.status} />
+                  </div>
+                  <div className="mt-2 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                    <span className="truncate">{c.customer_name}</span>
+                    <span className="shrink-0">{c.deadline || "-"}</span>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between gap-2">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <div className="h-1.5 w-16 shrink-0 overflow-hidden rounded-full bg-muted">
+                        <div className="h-full gradient-brand" style={{ width: `${progress}%` }} />
+                      </div>
+                      <span className="text-[11px] text-muted-foreground">
+                        {st.taken}/{c.slots}
+                      </span>
+                    </div>
+                    <span className="shrink-0 text-sm font-semibold tabular-nums">
+                      {formatIDR(Number(c.budget))}
+                    </span>
+                  </div>
+                  <div className="mt-2.5 flex justify-end gap-2 border-t border-border/70 pt-2.5">
+                    {renderCampaignActions(c)}
+                  </div>
+                </div>
+              );
+            })}
         </div>
         <TablePagination
           currentPage={safePage}
@@ -1885,7 +2010,7 @@ function KampanyeSection() {
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard
           label="Total Kampanye"
           value={campaigns.length.toString()}
@@ -1914,14 +2039,23 @@ function KampanyeSection() {
 
       <Tabs value={tab} onValueChange={onTabChange} className="space-y-4">
         <TabsList className="grid w-full grid-cols-3 sm:w-auto">
-          <TabsTrigger value="pesanan" className="gap-2">
-            <Megaphone className="h-4 w-4" /> Pesanan Customer
+          <TabsTrigger value="pesanan" className="gap-1.5 px-2 text-xs sm:gap-2 sm:px-3 sm:text-sm">
+            <Megaphone className="hidden h-4 w-4 sm:block" />
+            <span className="sm:hidden">Pesanan</span>
+            <span className="hidden sm:inline">Pesanan Customer</span>
           </TabsTrigger>
-          <TabsTrigger value="katalog" className="gap-2">
-            <Layers className="h-4 w-4" /> Katalog Layanan
+          <TabsTrigger value="katalog" className="gap-1.5 px-2 text-xs sm:gap-2 sm:px-3 sm:text-sm">
+            <Layers className="hidden h-4 w-4 sm:block" />
+            <span className="sm:hidden">Katalog</span>
+            <span className="hidden sm:inline">Katalog Layanan</span>
           </TabsTrigger>
-          <TabsTrigger value="harga-sendiri" className="gap-2">
-            <Tag className="h-4 w-4" /> Harga Pesanan Sendiri
+          <TabsTrigger
+            value="harga-sendiri"
+            className="gap-1.5 px-2 text-xs sm:gap-2 sm:px-3 sm:text-sm"
+          >
+            <Tag className="hidden h-4 w-4 sm:block" />
+            <span className="sm:hidden">Harga Sendiri</span>
+            <span className="hidden sm:inline">Harga Pesanan Sendiri</span>
           </TabsTrigger>
         </TabsList>
 
@@ -2828,7 +2962,7 @@ function ManajemenUserSection() {
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard
           label="Total Customer"
           value={stats.totalCustomer.toString()}
@@ -5017,7 +5151,7 @@ function PengaturanSection() {
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard
           label="Peran Akun"
           value="Super Admin"
@@ -5860,7 +5994,7 @@ function VerifikasiSection({ mode = "accounts" }: { mode?: "accounts" | "jobs" }
   return (
     <div className="space-y-6">
       {mode === "accounts" && <>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard
           label="Menunggu"
           value={counts.pending.toString()}
@@ -6037,7 +6171,7 @@ function VerifikasiSection({ mode = "accounts" }: { mode?: "accounts" | "jobs" }
       </>}
 
       {mode === "jobs" && <>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard
           label="Menunggu Review"
           value={pendingJobs.length.toString()}

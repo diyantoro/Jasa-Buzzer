@@ -653,27 +653,36 @@ export function PencairanSection() {
             </div>
           )}
 
-          <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <p className="hidden items-center gap-1.5 text-xs text-muted-foreground sm:flex">
             <CalendarDays className="h-3.5 w-3.5" aria-hidden="true" />
             {rangeLabel(range.from, range.to)}
           </p>
         </div>
 
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleRefresh}
-          disabled={isRefreshing}
-          className="h-9 shrink-0 gap-1.5"
-          title="Muat ulang data aktivitas"
-        >
-          <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin")} aria-hidden="true" />
-          Refresh
-        </Button>
+        <div className="flex items-center justify-between gap-2 sm:justify-end">
+          <p className="flex items-center gap-1.5 text-xs text-muted-foreground sm:hidden">
+            <CalendarDays className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            {rangeLabel(range.from, range.to)}
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="h-9 shrink-0 gap-1.5"
+            title="Muat ulang data aktivitas"
+          >
+            <RefreshCw
+              className={cn("h-4 w-4", isRefreshing && "animate-spin")}
+              aria-hidden="true"
+            />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {/* ------------------------- kartu metrik ------------------------- */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-5">
         {loading ? (
           Array.from({ length: 5 }).map((_, index) => (
             <ChartSkeleton key={index} className="h-[118px] rounded-2xl" />
@@ -780,7 +789,7 @@ export function PencairanSection() {
         ) : trendEmpty ? (
           <ChartEmptyState message="Belum ada aktivitas pada periode ini. Coba pilih rentang tanggal lain." />
         ) : (
-          <ActivityTrendChart data={trendSeries} loading={loading} height={330} />
+          <ActivityTrendChart data={trendSeries} loading={loading} />
         )}
       </ChartCard>
 
@@ -849,9 +858,9 @@ export function PencairanSection() {
               onChange={(event) => setQuery(event.target.value)}
             />
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
             <Select value={category} onValueChange={(value) => setCategory(value)}>
-              <SelectTrigger className="h-10 w-auto min-w-[150px] bg-background text-foreground data-[placeholder]:text-foreground">
+              <SelectTrigger className="h-10 w-full min-w-0 bg-background text-foreground data-[placeholder]:text-foreground sm:w-auto sm:min-w-[150px]">
                 <SelectValue placeholder="Filter Aktivitas" />
               </SelectTrigger>
               <SelectContent>
@@ -863,7 +872,7 @@ export function PencairanSection() {
               </SelectContent>
             </Select>
             <Select value={status} onValueChange={(value) => setStatus(value)}>
-              <SelectTrigger className="h-10 w-auto min-w-[140px] bg-background text-foreground data-[placeholder]:text-foreground">
+              <SelectTrigger className="h-10 w-full min-w-0 bg-background text-foreground data-[placeholder]:text-foreground sm:w-auto sm:min-w-[140px]">
                 <SelectValue placeholder="Filter Status" />
               </SelectTrigger>
               <SelectContent>
@@ -876,7 +885,7 @@ export function PencairanSection() {
             </Select>
             <Input
               type="date"
-              className="h-10 w-auto"
+              className="col-span-2 h-10 w-full sm:col-span-1 sm:w-auto"
               aria-label="Filter tanggal"
               value={date}
               onChange={(event) => setDate(event.target.value)}
@@ -884,7 +893,7 @@ export function PencairanSection() {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="hidden overflow-x-auto md:block">
           <Table>
             <TableHeader>
               <TableRow>
@@ -979,6 +988,76 @@ export function PencairanSection() {
                 ))}
             </TableBody>
           </Table>
+        </div>
+
+        {/* Tampilan kartu untuk layar kecil */}
+        <div className="md:hidden">
+          {loading && (
+            <p className="py-10 text-center text-sm text-muted-foreground">
+              Memuat aktivitas dari Supabase...
+            </p>
+          )}
+          {!loading && filtered.length === 0 && (
+            <div className="flex flex-col items-center gap-1 rounded-xl border border-dashed border-border/70 bg-muted/20 px-4 py-10 text-center text-sm text-muted-foreground">
+              <Inbox className="h-5 w-5" aria-hidden="true" />
+              {chartError
+                ? "Data aktivitas gagal dimuat. Gunakan tombol Coba lagi untuk mengulang."
+                : "Belum ada data aktivitas pada periode ini."}
+            </div>
+          )}
+          {!loading && paginatedActivities.length > 0 && (
+            <ul className="space-y-2">
+              {paginatedActivities.map((item) => (
+                <li key={item.id} className="rounded-xl border border-border bg-card p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      {item.category}
+                    </span>
+                    <span
+                      className={cn(
+                        "inline-flex shrink-0 justify-center whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-semibold",
+                        statusClass(item.status),
+                      )}
+                    >
+                      {statusLabel(item.status)}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-sm font-medium leading-snug">{item.title}</p>
+                  <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                    {item.reference}
+                  </p>
+                  <div className="mt-2.5 flex items-end justify-between gap-2 border-t border-border/70 pt-2.5">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold tabular-nums">{formatIDR(item.amount)}</p>
+                      <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                        {item.actor} · {formatDate(item.time)}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-0.5">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8"
+                        title="Detail"
+                        onClick={() => setSelected(item)}
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                        title="Hapus Aktivitas"
+                        onClick={() => setDeleteConfirm(item)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
         <TablePagination
           currentPage={safePage}
