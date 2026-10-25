@@ -345,13 +345,13 @@ function AdminPage() {
         {/* Desktop sidebar */}
         <aside
           className={cn(
-            "hidden shrink-0 transition-[width] duration-200 md:block",
+            "hidden shrink-0 transition-[width] duration-300 ease-in-out motion-reduce:transition-none md:block",
             collapsed ? "w-[76px]" : "w-64",
           )}
         >
           <div
             className={cn(
-              "sticky top-6 rounded-2xl border border-border bg-card shadow-sm",
+              "sticky top-6 rounded-2xl border border-border bg-card shadow-sm transition-[padding] duration-300 ease-in-out motion-reduce:transition-none",
               collapsed ? "p-2" : "p-4",
             )}
           >

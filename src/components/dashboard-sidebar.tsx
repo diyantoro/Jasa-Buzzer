@@ -72,8 +72,8 @@ function NavButton<K extends string>({
       aria-current={active ? "page" : undefined}
       aria-label={collapsed ? item.label : undefined}
       className={cn(
-        "relative flex w-full items-center rounded-lg text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        collapsed ? "justify-center px-0 py-2.5" : "gap-3 px-3 py-2",
+        "relative flex w-full items-center rounded-lg text-sm transition-[padding,gap,background-color,color] duration-300 ease-in-out motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        collapsed ? "justify-center gap-0 px-0 py-2.5" : "gap-3 px-3 py-2",
         active
           ? "bg-muted font-semibold text-foreground"
           : "font-medium text-muted-foreground hover:bg-muted/60 hover:text-foreground",
@@ -89,7 +89,15 @@ function NavButton<K extends string>({
       <span className={cn("shrink-0 [&>svg]:h-[18px] [&>svg]:w-[18px]", active && "text-brand")}>
         {item.icon}
       </span>
-      {!collapsed ? <span className="truncate">{item.label}</span> : null}
+      <span
+        aria-hidden={collapsed}
+        className={cn(
+          "overflow-hidden whitespace-nowrap transition-[max-width,opacity] duration-300 ease-in-out motion-reduce:transition-none",
+          collapsed ? "max-w-0 opacity-0" : "max-w-[190px] opacity-100",
+        )}
+      >
+        {item.label}
+      </span>
     </button>
   );
 
@@ -120,7 +128,12 @@ export function SidebarNav<K extends string>({
 }) {
   return (
     <div className="flex h-full flex-col">
-      <div className={cn("mb-6 flex items-center gap-2", collapsed ? "justify-center" : "px-1")}>
+      <div
+        className={cn(
+          "mb-6 flex items-center transition-[padding,gap] duration-300 ease-in-out motion-reduce:transition-none",
+          collapsed ? "justify-center gap-0" : "gap-2 px-1",
+        )}
+      >
         <Link
           to="/"
           className={cn("flex min-w-0 items-center gap-2", collapsed && "justify-center")}
@@ -129,9 +142,15 @@ export function SidebarNav<K extends string>({
           <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-brand text-brand-foreground">
             <Megaphone className="h-[18px] w-[18px]" />
           </span>
-          {!collapsed ? (
-            <span className="truncate font-display text-lg font-bold tracking-tight">BuzzHub</span>
-          ) : null}
+          <span
+            aria-hidden={collapsed}
+            className={cn(
+              "overflow-hidden whitespace-nowrap font-display text-lg font-bold tracking-tight transition-[max-width,opacity] duration-300 ease-in-out motion-reduce:transition-none",
+              collapsed ? "max-w-0 opacity-0" : "max-w-[160px] opacity-100",
+            )}
+          >
+            BuzzHub
+          </span>
         </Link>
       </div>
 
@@ -150,51 +169,64 @@ export function SidebarNav<K extends string>({
       </nav>
 
       <div className="mt-6 border-t border-border pt-4">
-        {collapsed ? (
-          <div className="flex flex-col items-center gap-2">
-            <Avatar className="h-9 w-9 border border-border">
-              {user?.avatarUrl ? (
-                <AvatarImage src={user.avatarUrl} alt={user?.name ?? "Pengguna"} />
-              ) : null}
-              <AvatarFallback className="bg-muted text-[11px] font-bold text-foreground">
-                {initials(user?.name ?? "")}
-              </AvatarFallback>
-            </Avatar>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={onLogout}
-              className="h-8 w-8 text-muted-foreground"
-              aria-label="Keluar"
+        <div
+          className={cn(
+            "flex items-center transition-[padding,gap] duration-300 ease-in-out motion-reduce:transition-none",
+            collapsed ? "justify-center gap-0" : "gap-3 px-1",
+          )}
+        >
+          <Avatar
+            className={cn(
+              "shrink-0 border border-border transition-[width,height] duration-300 ease-in-out motion-reduce:transition-none",
+              collapsed ? "h-9 w-9" : "h-10 w-10",
+            )}
+          >
+            {user?.avatarUrl ? (
+              <AvatarImage src={user.avatarUrl} alt={user?.name ?? "Pengguna"} />
+            ) : null}
+            <AvatarFallback
+              className={cn(
+                "text-[11px] font-bold",
+                collapsed ? "bg-muted text-foreground" : "bg-brand text-brand-foreground",
+              )}
             >
-              <LogOut className="h-4 w-4" />
-            </Button>
+              {initials(user?.name ?? "")}
+            </AvatarFallback>
+          </Avatar>
+          <div
+            aria-hidden={collapsed}
+            className={cn(
+              "min-w-0 overflow-hidden transition-[max-width,opacity] duration-300 ease-in-out motion-reduce:transition-none",
+              collapsed ? "max-w-0 opacity-0" : "max-w-[190px] flex-1 opacity-100",
+            )}
+          >
+            <p className="whitespace-nowrap text-[11px] uppercase tracking-wide text-muted-foreground">
+              {user?.roleLabel ? `Masuk sebagai ${user.roleLabel}` : "Masuk sebagai"}
+            </p>
+            <p className="truncate text-sm font-semibold">{user?.name ?? "Tamu"}</p>
+            <p className="truncate text-xs text-muted-foreground">{user?.email ?? ""}</p>
           </div>
-        ) : (
-          <>
-            <div className="flex items-center gap-3 px-1">
-              <Avatar className="h-10 w-10 shrink-0 border border-border">
-                {user?.avatarUrl ? (
-                  <AvatarImage src={user.avatarUrl} alt={user?.name ?? "Pengguna"} />
-                ) : null}
-                <AvatarFallback className="bg-brand text-xs font-bold text-brand-foreground">
-                  {initials(user?.name ?? "")}
-                </AvatarFallback>
-              </Avatar>
-              <div className="min-w-0 flex-1">
-                <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                  {user?.roleLabel ? `Masuk sebagai ${user.roleLabel}` : "Masuk sebagai"}
-                </p>
-                <p className="truncate text-sm font-semibold">{user?.name ?? "Tamu"}</p>
-                <p className="truncate text-xs text-muted-foreground">{user?.email ?? ""}</p>
-              </div>
-            </div>
-            <Button size="sm" variant="outline" className="mt-3 w-full" onClick={onLogout}>
-              <LogOut className="mr-2 h-4 w-4" /> Keluar
-            </Button>
-          </>
-        )}
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={onLogout}
+          aria-label="Keluar"
+          className={cn(
+            "mt-3 transition-[width,padding] duration-300 ease-in-out motion-reduce:transition-none",
+            collapsed ? "mx-auto flex h-8 w-8 items-center justify-center px-0" : "w-full",
+          )}
+        >
+          <LogOut className="h-4 w-4 shrink-0" />
+          <span
+            className={cn(
+              "overflow-hidden whitespace-nowrap transition-[max-width,opacity,margin] duration-300 ease-in-out motion-reduce:transition-none",
+              collapsed ? "ml-0 max-w-0 opacity-0" : "ml-2 max-w-[80px] opacity-100",
+            )}
+          >
+            Keluar
+          </span>
+        </Button>
       </div>
     </div>
   );
@@ -222,11 +254,22 @@ export function SidebarCollapseButton({
             aria-expanded={!collapsed}
             title={label}
           >
-            {collapsed ? (
-              <PanelLeftOpen className="h-4 w-4" />
-            ) : (
-              <PanelLeftClose className="h-4 w-4" />
-            )}
+            <span className="relative grid h-4 w-4 place-items-center">
+              <PanelLeftClose
+                className={cn(
+                  "absolute h-4 w-4 transition-[transform,opacity] duration-300 ease-in-out motion-reduce:transition-none",
+                  collapsed ? "rotate-90 scale-75 opacity-0" : "rotate-0 scale-100 opacity-100",
+                )}
+                aria-hidden="true"
+              />
+              <PanelLeftOpen
+                className={cn(
+                  "absolute h-4 w-4 transition-[transform,opacity] duration-300 ease-in-out motion-reduce:transition-none",
+                  collapsed ? "rotate-0 scale-100 opacity-100" : "-rotate-90 scale-75 opacity-0",
+                )}
+                aria-hidden="true"
+              />
+            </span>
           </Button>
         </TooltipTrigger>
         <TooltipContent side="bottom">{label}</TooltipContent>
