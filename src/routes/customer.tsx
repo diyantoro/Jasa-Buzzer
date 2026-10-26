@@ -33,7 +33,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { StatCard, StatusBadge } from "@/components/dashboard-shell";
-import { MobileBottomNav, SidebarCollapseButton, SidebarNav, useSidebarCollapsed } from "@/components/dashboard-sidebar";
+import { MobileBottomNav, SidebarNav, useSidebarCollapsed } from "@/components/dashboard-sidebar";
 import { CustomerHomepageSection } from "@/components/customer-homepage-section";
 import { CustomerSettingsSection } from "@/components/customer-settings-section";
 import {
@@ -325,7 +325,7 @@ function CustomerPage() {
     email: store.state.profile.email || session.email,
     roleLabel: "customer",
   };
-  const renderSidebar = (isCollapsed = false) => (
+  const renderSidebar = (isCollapsed = false, withToggle = false) => (
     <SidebarNav
       nav={navItems}
       activeKey={section}
@@ -333,6 +333,7 @@ function CustomerPage() {
       user={sidebarUser}
       onLogout={() => setLogoutOpen(true)}
       collapsed={isCollapsed}
+      onToggleCollapse={withToggle ? toggle : undefined}
     />
   );
 
@@ -351,27 +352,27 @@ function CustomerPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/30">
-      <div className="mx-auto flex max-w-[1400px] gap-6 px-3 py-4 sm:px-6 lg:px-8">
+      <div className="flex w-full items-start">
         <aside
           className={cn(
-            "hidden shrink-0 transition-[width] duration-300 ease-in-out motion-reduce:transition-none md:block",
-            collapsed ? "w-[76px]" : "w-64",
+            "sticky top-0 hidden h-screen shrink-0 transition-[width] duration-300 ease-in-out motion-reduce:transition-none md:block",
+            collapsed ? "w-[100px]" : "w-64",
           )}
         >
           <div
             className={cn(
-              "sticky top-6 rounded-2xl border border-border bg-card shadow-sm transition-[padding] duration-300 ease-in-out motion-reduce:transition-none",
+              "sidebar-surface h-full overflow-y-auto overscroll-contain scrollbar-slim border-r border-white/15 shadow-md transition-[padding] duration-300 ease-in-out motion-reduce:transition-none",
               collapsed ? "p-2" : "p-4",
             )}
           >
-            {renderSidebar(collapsed)}
+            {renderSidebar(collapsed, true)}
           </div>
         </aside>
 
         <main className="min-w-0 flex-1 pb-24 md:pb-0">
+          <div className="mx-auto w-full max-w-[1200px] px-3 py-4 sm:px-6 lg:px-8">
           <header className="mb-6 flex min-h-[56px] sm:min-h-[60px] items-center justify-between gap-4">
             <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-              <SidebarCollapseButton collapsed={collapsed} onToggle={toggle} />
               <div className="min-w-0 flex flex-col justify-center">
                 <h1 className="truncate font-display text-lg font-bold leading-6 tracking-tight sm:text-2xl sm:leading-7">
                   {meta.title}
@@ -451,6 +452,7 @@ function CustomerPage() {
               />
             </SectionErrorBoundary>
           )}
+          </div>
         </main>
       </div>
 

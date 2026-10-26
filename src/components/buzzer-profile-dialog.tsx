@@ -6,6 +6,7 @@ import { Star } from "lucide-react";
 import { useBuzzerRatings, averageStars } from "@/lib/rating-store";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
+import { demoBuzzerEmails, demoBuzzers } from "@/lib/demo-data";
 
 function ProfileRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -28,6 +29,30 @@ export function BuzzerProfileDialog({ email, open, onOpenChange }: { email: stri
 
     async function load() {
       const decodedEmail = email.toLowerCase().trim();
+
+      // Fallback data demo: profil buzzer dummy dari dataset Manajemen.
+      const demoIndex = demoBuzzerEmails.findIndex(
+        (item) => item.toLowerCase() === decodedEmail,
+      );
+      if (demoIndex >= 0) {
+        const demo = demoBuzzers[demoIndex];
+        if (active) {
+          setData({
+            name: demo.name,
+            email: decodedEmail,
+            username: demo.username,
+            phone: "-",
+            platform: demo.platform,
+            followers: demo.followers,
+            bio: `Kreator ${demo.platform} dengan ${demo.followers.toLocaleString("id-ID")} followers.`,
+            avatarUrl: null,
+            jobCompleted: demo.jobs,
+          });
+          setLoading(false);
+        }
+        return;
+      }
+
       const [
         { data: accountData },
         { data: walletData },

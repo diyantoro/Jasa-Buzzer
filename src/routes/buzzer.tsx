@@ -35,7 +35,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { StatCard, StatusBadge } from "@/components/dashboard-shell";
-import { MobileBottomNav, SidebarCollapseButton, SidebarNav, useSidebarCollapsed } from "@/components/dashboard-sidebar";
+import { MobileBottomNav, SidebarNav, useSidebarCollapsed } from "@/components/dashboard-sidebar";
 import { BuzzerNameLink } from "@/components/buzzer-name-link";
 import { ProofLink } from "@/components/proof-link";
 import { TablePagination } from "@/components/table-pagination";
@@ -356,7 +356,7 @@ function BuzzerPage() {
     avatarUrl: store.state.profile.avatarUrl || session.avatarUrl,
     roleLabel: "buzzer",
   };
-  const renderSidebar = (isCollapsed = false) => (
+  const renderSidebar = (isCollapsed = false, withToggle = false) => (
     <SidebarNav
       nav={navItems}
       activeKey={section}
@@ -364,6 +364,7 @@ function BuzzerPage() {
       user={sidebarUser}
       onLogout={() => setLogoutOpen(true)}
       collapsed={isCollapsed}
+      onToggleCollapse={withToggle ? toggle : undefined}
     />
   );
 
@@ -371,27 +372,27 @@ function BuzzerPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/30">
-      <div className="mx-auto flex max-w-[1400px] gap-6 px-3 py-4 sm:px-6 lg:px-8">
+      <div className="flex w-full items-start">
         <aside
           className={cn(
-            "hidden shrink-0 transition-[width] duration-300 ease-in-out motion-reduce:transition-none md:block",
-            collapsed ? "w-[76px]" : "w-64",
+            "sticky top-0 hidden h-screen shrink-0 transition-[width] duration-300 ease-in-out motion-reduce:transition-none md:block",
+            collapsed ? "w-[100px]" : "w-64",
           )}
         >
           <div
             className={cn(
-              "sticky top-6 rounded-2xl border border-border bg-card shadow-sm transition-[padding] duration-300 ease-in-out motion-reduce:transition-none",
+              "sidebar-surface h-full overflow-y-auto overscroll-contain scrollbar-slim border-r border-white/15 shadow-md transition-[padding] duration-300 ease-in-out motion-reduce:transition-none",
               collapsed ? "p-2" : "p-4",
             )}
           >
-            {renderSidebar(collapsed)}
+            {renderSidebar(collapsed, true)}
           </div>
         </aside>
 
         <main className="min-w-0 flex-1 pb-24 md:pb-0">
+          <div className="mx-auto w-full max-w-[1200px] px-3 py-4 sm:px-6 lg:px-8">
           <header className="mb-6 flex min-h-[56px] sm:min-h-[60px] items-center justify-between gap-4">
             <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-              <SidebarCollapseButton collapsed={collapsed} onToggle={toggle} />
               {/* Mobile hamburger */}
               <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
                 <SheetTrigger asChild>
@@ -399,8 +400,8 @@ function BuzzerPage() {
                     <Menu className="h-4 w-4" />
                   </Button>
                 </SheetTrigger>
-                <SheetContent side="left" className="w-72 p-0">
-                  <div className="flex h-full flex-col overflow-y-auto p-4">
+                <SheetContent side="left" className="w-72 border-r-white/10 p-0 text-white">
+                  <div className="sidebar-surface h-full overflow-y-auto overscroll-contain scrollbar-slim p-4">
                     {renderSidebar()}
                   </div>
                 </SheetContent>
@@ -439,6 +440,7 @@ function BuzzerPage() {
           {section === "ulasan" && <RatingUlasanSection store={store} />}
           {section === "profil" && <ProfilSection store={store} onGoRatings={() => go("ulasan")} />}
           {section === "pengaturan" && <BuzzerSettingsSection buzzerEmail={session.email} />}
+          </div>
         </main>
       </div>
 

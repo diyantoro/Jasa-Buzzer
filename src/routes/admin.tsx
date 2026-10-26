@@ -98,7 +98,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { StatCard, StatusBadge } from "@/components/dashboard-shell";
-import { MobileBottomNav, SidebarCollapseButton, SidebarNav, useSidebarCollapsed } from "@/components/dashboard-sidebar";
+import { MobileBottomNav, SidebarNav, useSidebarCollapsed } from "@/components/dashboard-sidebar";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { BuzzerNameLink } from "@/components/buzzer-name-link";
 
@@ -107,6 +107,16 @@ import { updateAccountFn } from "@/lib/accounts.functions";
 import { ThemeToggle, useTheme } from "@/components/theme-toggle";
 import { isSupabaseConfigured } from "@/integrations/supabase/client";
 import { buzzers as buzzersSeed, campaigns as campaignsSeed, formatIDR } from "@/lib/mock-data";
+import {
+  demoAdminTotals,
+  demoBuzzerEmails,
+  demoBuzzerProfiles,
+  demoBuzzers,
+  demoCampaignJobs,
+  demoCampaigns,
+  demoCompletedJobs,
+  demoCustomers,
+} from "@/lib/demo-data";
 import {
   approveApplication,
   rejectApplication,
@@ -326,7 +336,7 @@ function AdminPage() {
   }, []);
 
   const sidebarUser = { name: "Admin BuzzHub", email: "admin@buzzhub.id", roleLabel: "admin" };
-  const renderSidebar = (isCollapsed = false) => (
+  const renderSidebar = (isCollapsed = false, withToggle = false) => (
     <SidebarNav
       nav={navItems}
       activeKey={section}
@@ -334,6 +344,7 @@ function AdminPage() {
       user={sidebarUser}
       onLogout={() => setLogoutOpen(true)}
       collapsed={isCollapsed}
+      onToggleCollapse={withToggle ? toggle : undefined}
     />
   );
 
@@ -341,29 +352,29 @@ function AdminPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/30">
-      <div className="mx-auto flex max-w-[1400px] gap-6 px-3 py-4 sm:px-6 lg:px-8">
+      <div className="flex w-full items-start">
         {/* Desktop sidebar */}
         <aside
           className={cn(
-            "hidden shrink-0 transition-[width] duration-300 ease-in-out motion-reduce:transition-none md:block",
-            collapsed ? "w-[76px]" : "w-64",
+            "sticky top-0 hidden h-screen shrink-0 transition-[width] duration-300 ease-in-out motion-reduce:transition-none md:block",
+            collapsed ? "w-[100px]" : "w-64",
           )}
         >
           <div
             className={cn(
-              "sticky top-6 rounded-2xl border border-border bg-card shadow-sm transition-[padding] duration-300 ease-in-out motion-reduce:transition-none",
+              "sidebar-surface h-full overflow-y-auto overscroll-contain scrollbar-slim border-r border-white/15 shadow-md transition-[padding] duration-300 ease-in-out motion-reduce:transition-none",
               collapsed ? "p-2" : "p-4",
             )}
           >
-            {renderSidebar(collapsed)}
+            {renderSidebar(collapsed, true)}
           </div>
         </aside>
 
         {/* Main */}
         <main className="min-w-0 flex-1 pb-24 md:pb-0">
+          <div className="mx-auto w-full max-w-[1200px] px-3 py-4 sm:px-6 lg:px-8">
           <header className="mb-6 flex min-h-[56px] sm:min-h-[60px] items-center justify-between gap-3">
             <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-              <SidebarCollapseButton collapsed={collapsed} onToggle={toggle} />
               {/* Mobile hamburger */}
               <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
                 <SheetTrigger asChild>
@@ -371,8 +382,8 @@ function AdminPage() {
                     <Menu className="h-4 w-4" />
                   </Button>
                 </SheetTrigger>
-                <SheetContent side="left" className="w-72 p-0">
-                  <div className="flex h-full flex-col overflow-y-auto p-4">
+                <SheetContent side="left" className="w-72 border-r-white/10 p-0 text-white">
+                  <div className="sidebar-surface h-full overflow-y-auto overscroll-contain scrollbar-slim p-4">
                     {renderSidebar()}
                   </div>
                 </SheetContent>
@@ -416,6 +427,7 @@ function AdminPage() {
             {section === "ulasan" && <AdminReviewsSection />}
             {section === "pengaturan" && <PengaturanSection />}
           </SectionErrorBoundary>
+          </div>
         </main>
       </div>
 
@@ -507,9 +519,24 @@ function RingkasanSection() {
     };
   }, []);
 
+  const dashboardLoading = campaignsLoading || jobsLoading || completedJobsLoading || adminWallet.loading;
+
+  // Fallback data dummy: dipakai saat database masih kosong supaya dashboard
+  // tetap menampilkan ringkasan yang konsisten (1.284 kampanye, 8.420 buzzer).
+  const demoMode =
+    !dashboardLoading &&
+    campaigns.length === 0 &&
+    jobs.length === 0 &&
+    completedJobs.length === 0 &&
+    buzzerProfiles.length === 0;
+  const viewCampaigns = demoMode ? demoCampaigns : campaigns;
+  const viewJobs = demoMode ? demoCampaignJobs : jobs;
+  const viewCompletedJobs = demoMode ? demoCompletedJobs : completedJobs;
+  const viewBuzzerProfiles = demoMode ? demoBuzzerProfiles : buzzerProfiles;
+
   const campaignJobStats = useMemo(() => {
     const result = new Map<string, { taken: number; done: number; total: number }>();
-    for (const job of jobs) {
+    for (const job of viewJobs) {
       if (!job.campaign_id) continue;
       const current = result.get(job.campaign_id) ?? { taken: 0, done: 0, total: 0 };
       current.total += 1;
@@ -518,7 +545,7 @@ function RingkasanSection() {
       result.set(job.campaign_id, current);
     }
     return result;
-  }, [jobs]);
+  }, [viewJobs]);
 
   const monthlyRevenue = useMemo(() => {
     const now = new Date();
@@ -527,7 +554,7 @@ function RingkasanSection() {
       (_, index) => new Date(now.getFullYear(), now.getMonth() - 11 + index, 1),
     );
     return months.map((month) => {
-      const revenue = completedJobs
+      const revenue = viewCompletedJobs
         .filter((job) => {
           const date = new Date(job.updated_at);
           return date.getFullYear() === month.getFullYear() && date.getMonth() === month.getMonth();
@@ -538,20 +565,20 @@ function RingkasanSection() {
       return {
         month: month.toLocaleDateString("id-ID", { month: "short", year: "2-digit" }),
         revenue,
-        profit: completedJobs
+        profit: viewCompletedJobs
           .filter((job) => { const date = new Date(job.updated_at); return date.getFullYear() === month.getFullYear() && date.getMonth() === month.getMonth(); })
           .reduce((sum, job) => sum + calculateCampaignJobSplit(job).adminShare, 0),
       };
     });
-  }, [completedJobs]);
+  }, [viewCompletedJobs]);
 
-  const totalRevenue = adminWallet.totalRevenue;
-  const totalProfit = adminWallet.totalProfit;
-  const approvedCampaigns = campaigns.filter((campaign) => campaign.payment_status === "Pembayaran Disetujui");
+  const totalRevenue = demoMode ? demoAdminTotals.revenue : adminWallet.totalRevenue;
+  const totalProfit = demoMode ? demoAdminTotals.profit : adminWallet.totalProfit;
+  const approvedCampaigns = viewCampaigns.filter((campaign) => campaign.payment_status === "Pembayaran Disetujui");
   const activeCampaigns = approvedCampaigns.filter((campaign) => campaign.status === "Aktif").length;
 
   const topBuzzers = useMemo(() => {
-    const profileMap = new Map(buzzerProfiles.map((profile) => [profile.email, profile]));
+    const profileMap = new Map(viewBuzzerProfiles.map((profile) => [profile.email, profile]));
     const earnings = new Map<
       string,
       {
@@ -565,9 +592,9 @@ function RingkasanSection() {
       }
     >();
 
-    const combinedJobs = [...completedJobs];
-    const seenJobIds = new Set(completedJobs.map((j) => j.id));
-    for (const j of jobs) {
+    const combinedJobs = [...viewCompletedJobs];
+    const seenJobIds = new Set(viewCompletedJobs.map((j) => j.id));
+    for (const j of viewJobs) {
       if (!seenJobIds.has(j.id) && (j.status === "Selesai" || Boolean((j as any).admin_verified_at) || j.status === "Review" || Boolean(j.proof_url))) {
         combinedJobs.push(j);
         seenJobIds.add(j.id);
@@ -592,9 +619,7 @@ function RingkasanSection() {
       earnings.set(email, current);
     }
     return [...earnings.values()].sort((a, b) => b.earnings - a.earnings).slice(0, 5);
-  }, [buzzerProfiles, completedJobs, jobs]);
-
-  const dashboardLoading = campaignsLoading || jobsLoading || completedJobsLoading || adminWallet.loading;
+  }, [viewBuzzerProfiles, viewCompletedJobs, viewJobs]);
 
   return (
     <>
@@ -613,7 +638,7 @@ function RingkasanSection() {
         />
         <StatCard
           label="Buzzer Aktif"
-          value={buzzerProfiles.length.toLocaleString("id-ID")}
+          value={viewBuzzerProfiles.length.toLocaleString("id-ID")}
           hint="Profil buzzer terdaftar"
           icon={<Users className="h-5 w-5" />}
         />
@@ -2935,7 +2960,7 @@ function ManajemenUserSection() {
   useEffect(() => {
     let active = true;
     Promise.all([
-      supabase.from("app_accounts").select("role, active"),
+      supabase.from("app_accounts").select("role"),
       supabase.from("customer_accounts").select("active"),
       (supabase as any).from("buzzer_profiles").select("email"),
     ]).then(([appRes, custRes, buzRes]) => {
@@ -2950,11 +2975,19 @@ function ManajemenUserSection() {
       );
       const totalBuz = Math.max(buzzers.length, buzRes.data?.length || 0);
       const activeBuz = Math.max(buzzers.filter((a: any) => a.active !== false).length, buzRes.data?.length || 0);
+      // Dataset database masih kosong/kecil → tampilkan angka demo yang konsisten
+      // dengan landing page (312 klien, 8.420 buzzer).
+      const useDemoCustomers = totalCust < 10;
+      const useDemoBuzzers = totalBuz < 10;
       setStats({
-        totalCustomer: totalCust,
-        activeCustomer: activeCust,
-        totalBuzzer: totalBuz,
-        activeBuzzer: activeBuz,
+        totalCustomer: useDemoCustomers ? demoCustomers.length : totalCust,
+        activeCustomer: useDemoCustomers
+          ? demoCustomers.length - 12
+          : activeCust,
+        totalBuzzer: useDemoBuzzers ? demoBuzzers.length : totalBuz,
+        activeBuzzer: useDemoBuzzers
+          ? demoBuzzers.filter((buzzer) => buzzer.status === "Aktif").length
+          : activeBuz,
       });
     });
     return () => { active = false; };
@@ -2965,25 +2998,25 @@ function ManajemenUserSection() {
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard
           label="Total Customer"
-          value={stats.totalCustomer.toString()}
+          value={stats.totalCustomer.toLocaleString("id-ID")}
           hint="Akun brand & klien"
           icon={<ShieldCheck className="h-5 w-5" />}
         />
         <StatCard
           label="Customer Aktif"
-          value={stats.activeCustomer.toString()}
+          value={stats.activeCustomer.toLocaleString("id-ID")}
           hint="Dapat memesan kampanye"
           icon={<CheckCircle2 className="h-5 w-5" />}
         />
         <StatCard
           label="Total Buzzer"
-          value={stats.totalBuzzer.toString()}
+          value={stats.totalBuzzer.toLocaleString("id-ID")}
           hint="Akun buzzer terdaftar"
           icon={<Users className="h-5 w-5" />}
         />
         <StatCard
           label="Buzzer Siap Kerja"
-          value={stats.activeBuzzer.toString()}
+          value={stats.activeBuzzer.toLocaleString("id-ID")}
           hint="Status aktif & terverifikasi"
           icon={<Activity className="h-5 w-5" />}
         />
@@ -3115,9 +3148,119 @@ const mergeBuzzerRows = (prev: BuzzerRow[], incoming: BuzzerRow[]) => {
   return [...map.values()];
 };
 
-const mergeCustomerRows = (_prev: CustomerDetail[], incoming: CustomerDetail[]) => {
-  return incoming;
+/* ------------------ Data demo Manajemen (fallback DB kosong) ------------------ */
+
+const DEMO_CITIES = [
+  "Jakarta Selatan",
+  "Bandung",
+  "Surabaya",
+  "Yogyakarta",
+  "Medan",
+  "Semarang",
+  "Denpasar",
+  "Makassar",
+];
+const DEMO_BANKS = ["BCA •• 8821", "Mandiri •• 4410", "BNI •• 7732", "BRI •• 2190"];
+const DEMO_INDUSTRIES = [
+  "FMCG",
+  "Fashion",
+  "Kuliner",
+  "Fintech",
+  "Kecantikan",
+  "Otomotif",
+  "Pendidikan",
+  "Properti",
+];
+
+const demoDate = (daysAgo: number) =>
+  new Date(Date.now() - daysAgo * 86_400_000).toISOString().slice(0, 10);
+
+const buildDemoBuzzerRows = (): BuzzerRow[] =>
+  demoBuzzers.map((buzzer, index) => ({
+    ...buzzer,
+    id: demoBuzzerEmails[index],
+    avatar_url: null,
+  }));
+
+const buildDemoBuzzerExtra = (row: BuzzerRow): BuzzerExtra => {
+  const index = Math.max(0, demoBuzzerEmails.indexOf(row.id));
+  const jobCount = Math.min(4, Math.max(1, row.jobs));
+  const recentJobs = Array.from({ length: jobCount }, (_, jobIndex) => {
+    const campaign = demoCampaigns[(index * 5 + jobIndex) % demoCampaigns.length];
+    return {
+      id: `demo-job-${index}-${jobIndex}`,
+      title: campaign.title,
+      brand: campaign.customer_name,
+      date: campaign.updated_at.slice(0, 10),
+      status: jobIndex === 0 ? "Review" : "Selesai",
+      payout: campaign.payout_per_buzzer,
+    };
+  });
+  const earnings = recentJobs
+    .filter((job) => job.status === "Selesai")
+    .map((job) => ({
+      id: job.id,
+      date: job.date,
+      source: job.title,
+      amount: job.payout,
+      status: "Berhasil",
+    }));
+  const digits = String(index + 1).padStart(4, "0");
+  return {
+    email: row.id,
+    phone: `+62 812-${digits.slice(0, 2)}${digits.slice(2)}-${String(1000 + (index % 9000))}`,
+    city: DEMO_CITIES[index % DEMO_CITIES.length],
+    joinDate: demoDate(30 + (index % 700)),
+    bio: `Kreator ${row.platform} dengan ${row.followers.toLocaleString("id-ID")} followers. Aktif menerima kampanye brand lokal.`,
+    bank: DEMO_BANKS[index % DEMO_BANKS.length],
+    completionRate: 82 + (index % 19),
+    responseTime: index % 3 === 0 ? "< 1 jam" : "< 2 jam",
+    completedJobsCount: row.jobs,
+    recentJobs,
+    earnings,
+    withdrawals:
+      index % 4 === 0
+        ? [
+            {
+              id: `demo-withdrawal-${index}`,
+              date: demoDate(3 + (index % 20)),
+              amount: Math.round(row.earnings / 2),
+              method: "Transfer Bank",
+              status: "Berhasil",
+            },
+          ]
+        : [],
+    socialAccounts: [
+      {
+        id: `demo-social-${index}`,
+        platform: row.platform,
+        username: row.username,
+        followers: row.followers,
+        verification: "Terverifikasi",
+      },
+    ],
+    level: index % 3 === 0 ? "Gold" : "Silver",
+    verifiedAt: demoDate(20 + (index % 400)),
+    rating: row.rating,
+  };
 };
+
+const buildDemoCustomerRows = (): CustomerDetail[] =>
+  demoCustomers.map((customer, index) => ({
+    id: customer.contact,
+    name: customer.name,
+    contact: customer.contact,
+    campaigns: customer.campaigns,
+    spent: customer.spent,
+    since: customer.since,
+    phone: `+62 812-${String(4000 + (index % 5000))}-${String(1000 + (index % 8000))}`,
+    industry: DEMO_INDUSTRIES[index % DEMO_INDUSTRIES.length],
+    city: DEMO_CITIES[index % DEMO_CITIES.length],
+    address: "-",
+    website: `https://${customer.contact.split("@")[1] ?? "buzzhub.id"}`,
+    status: index % 26 === 0 ? "Nonaktif" : "Aktif",
+    notes: `Klien demo BuzzHub sejak ${customer.since}.`,
+  }));
 
 const buzzerExtras: Record<string, any> = {
   b1: {
@@ -3513,6 +3656,7 @@ function BuzzerSection() {
   const [plat, setPlat] = useState("Semua");
   const [rows, setRows] = useState<BuzzerRow[]>([]);
   const [details, setDetails] = useState<Record<string, BuzzerExtra>>({});
+  const [demoMode, setDemoMode] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [editDraft, setEditDraft] = useState<BuzzerRow | null>(null);
@@ -3782,8 +3926,10 @@ function BuzzerSection() {
         nextDetails[row.email] = detailItem;
         nextDetails[email] = detailItem;
       }
-      setRows(mapped);
-      setDetails(nextDetails);
+      const useDemo = mapped.length < 10;
+      setDemoMode(useDemo);
+      setRows(useDemo ? buildDemoBuzzerRows() : mapped);
+      setDetails(useDemo ? {} : nextDetails);
   }, []);
 
   useEffect(() => {
@@ -3849,7 +3995,7 @@ function BuzzerSection() {
   const extra = current
     ? (details[current.id] ??
       details[current.id.trim().toLowerCase()] ??
-      buildDefaultBuzzerExtra(current))
+      (demoMode ? buildDemoBuzzerExtra(current) : buildDefaultBuzzerExtra(current)))
     : null;
 
   const openEdit = () => {
@@ -3859,6 +4005,12 @@ function BuzzerSection() {
   };
   const saveEdit = async () => {
     if (!editDraft) return;
+    if (demoMode) {
+      setRows((prev) => prev.map((b) => (b.id === editDraft.id ? editDraft : b)));
+      toast.success("Data buzzer berhasil diperbarui.");
+      setEditOpen(false);
+      return;
+    }
     const emailLc = editDraft.id.trim().toLowerCase();
     await Promise.all([
       supabase
@@ -3927,6 +4079,13 @@ function BuzzerSection() {
     event?.preventDefault();
     if (!deleteId) return;
     const name = rows.find((b) => b.id === deleteId)?.name ?? "Buzzer";
+    if (demoMode) {
+      setRows((prev) => prev.filter((b) => b.id !== deleteId));
+      setDeleteId(null);
+      setOpenId(null);
+      toast.success(`Akun ${name} dihapus.`);
+      return;
+    }
     try {
       const { error } = await (supabase as any).rpc("delete_management_account", {
         p_email: deleteId,
@@ -4532,7 +4691,9 @@ function CustomerSection() {
   const [rows, setRows] = useState<CustomerDetail[]>([]);
   const [editDraft, setEditDraft] = useState<CustomerDetail | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
-  const { data: campaignRows } = useCampaigns();
+  const [demoMode, setDemoMode] = useState(false);
+  const { data: campaignRowsRaw } = useCampaigns();
+  const campaignRows = demoMode ? demoCampaigns : campaignRowsRaw;
 
   useEffect(() => {
     let active = true;
@@ -4574,7 +4735,7 @@ function CustomerSection() {
                 status: "-",
                 notes: "-",
               };
-          const campaigns = campaignRows.filter(
+          const campaigns = campaignRowsRaw.filter(
             (campaign) => campaign.customer_email.trim().toLowerCase() === email,
           );
           return {
@@ -4588,7 +4749,9 @@ function CustomerSection() {
             spent: campaigns.reduce((total, campaign) => total + Number(campaign.budget || 0), 0),
           };
         });
-        setRows((prev) => mergeCustomerRows(prev, mapped));
+        const useDemo = mapped.length < 10;
+        setDemoMode(useDemo);
+        setRows(useDemo ? buildDemoCustomerRows() : mapped);
       }
     };
 
@@ -4611,11 +4774,19 @@ function CustomerSection() {
       active = false;
       supabase.removeChannel(channel);
     };
-  }, [campaignRows]);
+  }, [campaignRowsRaw]);
 
   const saveEdit = async () => {
     if (!editDraft) return;
     const phone = editDraft.phone.replace(/\D/g, "");
+    if (demoMode) {
+      const savedDraft = { ...editDraft, id: editDraft.contact, phone };
+      setRows((prev) => prev.map((r) => (r.id === editDraft.id ? savedDraft : r)));
+      setSelected(savedDraft);
+      setEditDraft(null);
+      toast.success("Data customer diperbarui.");
+      return;
+    }
     await supabase
       .from("app_accounts")
       .update({
@@ -4638,6 +4809,13 @@ function CustomerSection() {
     if (!deleteId) return;
     const targetEmail = deleteId.trim().toLowerCase();
     const name = rows.find((r) => r.id.toLowerCase() === targetEmail || r.contact.toLowerCase() === targetEmail)?.name ?? "Customer";
+    if (demoMode) {
+      setRows((prev) => prev.filter((r) => r.id.toLowerCase() !== targetEmail && r.contact.toLowerCase() !== targetEmail));
+      setDeleteId(null);
+      setSelected(null);
+      toast.success(`Akun ${name} berhasil dihapus.`);
+      return;
+    }
     try {
       const { error } = await (supabase as any).rpc("delete_management_account", {
         p_email: targetEmail,

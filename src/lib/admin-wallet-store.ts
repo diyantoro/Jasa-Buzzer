@@ -242,7 +242,8 @@ export function useAdminWallet() {
   }, [fetchWallet, fetchWithdrawals, channelId]);
 
   useEffect(() => {
-    if (!jobsLoading && !paymentsLoading && computedWallet.total_revenue > 0) {
+    if (jobsLoading || paymentsLoading) return;
+    if (computedWallet.total_revenue > 0) {
       setWallet((prev) => {
         if (prev.total_revenue < computedWallet.total_revenue) {
           setCachedWallet(computedWallet);
@@ -250,8 +251,10 @@ export function useAdminWallet() {
         }
         return prev;
       });
-      setLoading(false);
     }
+    // Pastikan loading selesai walau database masih kosong, supaya dashboard
+    // tidak berhenti di skeleton dan fallback data dummy bisa tampil.
+    setLoading(false);
   }, [computedWallet, jobsLoading, paymentsLoading]);
 
   // Use the larger/most complete value between state, cache, and computed

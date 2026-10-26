@@ -58,6 +58,12 @@ import {
 } from "@/lib/campaign-store";
 import { usePayments, formatIDR, formatDate, type Payment } from "@/lib/finance-store";
 import {
+  demoActivityAccounts,
+  demoCampaigns,
+  demoCompletedJobs,
+  demoPayments,
+} from "@/lib/demo-data";
+import {
   ActivityComparisonChart,
   ActivityDistributionChart,
   ActivityMetricCard,
@@ -190,21 +196,25 @@ function buildDelta(current: number, previous: number) {
 }
 
 export function PencairanSection() {
-  const { data: payments, loading: paymentsLoading, refetch: refetchPayments } = usePayments();
   const {
-    data: jobs,
+    data: paymentsRaw,
+    loading: paymentsLoading,
+    refetch: refetchPayments,
+  } = usePayments();
+  const {
+    data: jobsRaw,
     loading: jobsLoading,
     error: jobsError,
     refetch: refetchJobs,
   } = useCompletedCampaignJobs();
   const {
-    data: campaigns,
+    data: campaignsRaw,
     loading: campaignsLoading,
     error: campaignsError,
     refetch: refetchCampaigns,
   } = useCampaigns();
 
-  const [accounts, setAccounts] = useState<AccountRow[]>([]);
+  const [accountsRaw, setAccounts] = useState<AccountRow[]>([]);
   const [accountsLoading, setAccountsLoading] = useState(true);
   const [accountsError, setAccountsError] = useState<string | null>(null);
 
@@ -259,6 +269,19 @@ export function PencairanSection() {
       void supabase.removeChannel(channel);
     };
   }, [loadAccounts]);
+
+  // Fallback data dummy: dipakai saat tabel aktivitas di database masih kosong.
+  const demoMode =
+    !paymentsLoading &&
+    !jobsLoading &&
+    !campaignsLoading &&
+    paymentsRaw.length === 0 &&
+    jobsRaw.length === 0 &&
+    campaignsRaw.length === 0;
+  const payments = demoMode ? demoPayments : paymentsRaw;
+  const jobs = demoMode ? demoCompletedJobs : jobsRaw;
+  const campaigns = demoMode ? demoCampaigns : campaignsRaw;
+  const accounts = demoMode ? demoActivityAccounts : accountsRaw;
 
   /* --------------------- baris aktivitas (real) --------------------- */
   const activities = useMemo<ActivityRow[]>(() => {
@@ -768,33 +791,33 @@ export function PencairanSection() {
         </div>
       )}
 
-      {/* --------------------- grafik tren aktivitas --------------------- */}
-      <ChartCard
-        title="Tren Aktivitas"
-        description="Jumlah aktivitas harian pada periode terpilih"
-        action={
-          <div className="flex items-center gap-4">
-            <span className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
-              <span className="h-2 w-2 rounded-full bg-violet-500" aria-hidden="true" />
-              Aktivitas
-            </span>
-            <span className="rounded-full border border-border bg-muted/40 px-2.5 py-1 text-[11px] font-semibold tabular-nums text-foreground">
-              {totalInRange.toLocaleString("id-ID")} total
-            </span>
-          </div>
-        }
-      >
-        {chartError ? (
-          <ChartErrorState compact message={chartError} />
-        ) : trendEmpty ? (
-          <ChartEmptyState message="Belum ada aktivitas pada periode ini. Coba pilih rentang tanggal lain." />
-        ) : (
-          <ActivityTrendChart data={trendSeries} loading={loading} />
-        )}
-      </ChartCard>
+      {/* --------------------- grafik tren + distribusi --------------------- */}
+      <div className="grid gap-4 lg:grid-cols-3">
+        <ChartCard
+          className="lg:col-span-2"
+          title="Tren Aktivitas"
+          description="Jumlah aktivitas harian pada periode terpilih"
+          action={
+            <div className="flex items-center gap-4">
+              <span className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
+                <span className="h-2 w-2 rounded-full bg-violet-500" aria-hidden="true" />
+                Aktivitas
+              </span>
+              <span className="rounded-full border border-border bg-muted/40 px-2.5 py-1 text-[11px] font-semibold tabular-nums text-foreground">
+                {totalInRange.toLocaleString("id-ID")} total
+              </span>
+            </div>
+          }
+        >
+          {chartError ? (
+            <ChartErrorState compact message={chartError} />
+          ) : trendEmpty ? (
+            <ChartEmptyState message="Belum ada aktivitas pada periode ini. Coba pilih rentang tanggal lain." />
+          ) : (
+            <ActivityTrendChart data={trendSeries} loading={loading} />
+          )}
+        </ChartCard>
 
-      {/* ------------------ donut + bar (satu baris) ------------------ */}
-      <div className="grid gap-4 lg:grid-cols-2">
         <ChartCard
           title="Distribusi Aktivitas"
           description="Komposisi jenis aktivitas pada periode terpilih"
@@ -827,24 +850,24 @@ export function PencairanSection() {
             </>
           )}
         </ChartCard>
-
-        <ChartCard
-          title="Perbandingan Aktivitas"
-          description={
-            trendSeries.length > 31
-              ? "Total aktivitas per minggu pada periode terpilih"
-              : "Total aktivitas per hari pada periode terpilih"
-          }
-        >
-          {chartError ? (
-            <ChartErrorState compact message={chartError} />
-          ) : trendEmpty ? (
-            <ChartEmptyState message="Belum ada aktivitas untuk dibandingkan." />
-          ) : (
-            <ActivityComparisonChart data={barSeries} loading={loading} />
-          )}
-        </ChartCard>
       </div>
+
+      <ChartCard
+        title="Perbandingan Aktivitas"
+        description={
+          trendSeries.length > 31
+            ? "Total aktivitas per minggu pada periode terpilih"
+            : "Total aktivitas per hari pada periode terpilih"
+        }
+      >
+        {chartError ? (
+          <ChartErrorState compact message={chartError} />
+        ) : trendEmpty ? (
+          <ChartEmptyState message="Belum ada aktivitas untuk dibandingkan." />
+        ) : (
+          <ActivityComparisonChart data={barSeries} loading={loading} />
+        )}
+      </ChartCard>
 
       {/* ------------------------- tabel aktivitas ------------------------- */}
       <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">

@@ -112,14 +112,14 @@ function Landing() {
               </div>
             </div>
 
-            <div className="relative min-w-0">
-              <div className="mx-auto max-w-[560px] overflow-hidden rounded-2xl border border-border bg-card p-2 shadow-md sm:p-2.5 lg:max-w-none">
+            <div className="relative flex min-w-0 items-center justify-center">
+              <div className="w-full max-w-[520px] overflow-hidden rounded-2xl border border-border bg-card p-2 shadow-md sm:p-2.5">
                 <img
                   src={heroIllustration}
                   alt="Ilustrasi kampanye viral di Instagram, TikTok, X, YouTube, dan Facebook dengan ribuan buzzer terverifikasi"
                   width={1024}
                   height={1024}
-                  className="mx-auto block h-auto max-h-[min(72vh,680px)] w-auto max-w-full rounded-xl"
+                  className="block aspect-square h-auto w-full rounded-xl object-contain"
                   loading="eager"
                 />
               </div>

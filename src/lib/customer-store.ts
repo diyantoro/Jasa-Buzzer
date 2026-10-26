@@ -478,8 +478,154 @@ export function sortNotifications(notifications: Notification[]): Notification[]
   });
 }
 
+const DEMO_CUSTOMER_EMAIL = "customer@buzzhub.id";
+
+const DEMO_ORDER_STATUSES: OrderStatus[] = [
+  "Berjalan", "Berjalan", "Selesai", "Selesai", "Selesai", "Selesai",
+  "Menunggu", "Diproses", "Berjalan", "Selesai", "Dibatalkan", "Selesai",
+];
+
+/**
+ * Data dummy untuk akun demo `customer@buzzhub.id` supaya dashboard customer
+ * langsung terisi (kampanye berjalan, riwayat pesanan, pembayaran, notifikasi).
+ */
+function demoCustomerState(
+  email: string,
+  name: string,
+  profile: Partial<CustomerProfile> = {},
+): CustomerState {
+  const orders: Order[] = DEMO_ORDER_STATUSES.map((status, index) => {
+    const service = SERVICES[index % SERVICES.length];
+    const tier = service.packages[index % service.packages.length];
+    const platform = service.platforms[index % service.platforms.length];
+    const progress =
+      status === "Selesai" ? 100 : status === "Berjalan" ? 35 + (index * 7) % 50 : 0;
+    const days = 4 + index * 14;
+    const report = makeReport(tier.buzzers, progress, 7);
+    return {
+      id: `ord-demo-${index + 1}`,
+      invoice: `INV-2026-${String(1001 + index)}`,
+      serviceId: service.id,
+      serviceName: service.name,
+      serviceType: service.campaignType,
+      packageTier: tier.tier,
+      packageSnapshotName: `${service.name} · ${tier.tier}`,
+      packageSnapshotPrice: tier.price,
+      packageSnapshotBuzzerCount: tier.buzzers,
+      platform,
+      campaignName: CAMPAIGN_NAMES[index % CAMPAIGN_NAMES.length],
+      description: service.desc,
+      startDate: daysAgo(days + 5),
+      endDate: daysAhead(5 + (index % 12)),
+      buzzers: tier.buzzers,
+      buzzersJoined:
+        status === "Selesai" ? tier.buzzers : Math.round((tier.buzzers * progress) / 100),
+      progress,
+      status,
+      total: tier.price,
+      createdAt: daysAgo(days),
+      report,
+      proofs: makeProofs(report, progress, 7),
+    };
+  });
+
+  const payments: Payment[] = orders
+    .filter((order) => order.status !== "Menunggu")
+    .map((order, index) => {
+      const method = METHODS[index % METHODS.length];
+      return {
+        id: `pay-demo-${index + 1}`,
+        invoice: order.invoice,
+        orderId: order.id,
+        campaignName: order.campaignName,
+        method: method.method,
+        channel: method.channel,
+        amount: order.total,
+        status:
+          order.status === "Dibatalkan"
+            ? "Refund"
+            : order.status === "Diproses"
+              ? "Menunggu Verifikasi"
+              : "Lunas",
+        date: order.createdAt,
+      } satisfies Payment;
+    });
+
+  const notifications: Notification[] = [
+    {
+      id: "ntf-welcome",
+      title: "Selamat datang di BuzzHub",
+      body: "Akun Anda berhasil dibuat. Mulai buat campaign pertama Anda sekarang.",
+      type: "system",
+      date: daysAgo(120),
+      createdAt: daysAgoISO(120),
+      read: true,
+    },
+    {
+      id: "ntf-demo-1",
+      title: "Pesanan Disetujui",
+      body: "Pesanan campaign berhasil disetujui admin dan sedang dikerjakan buzzer.",
+      type: "order",
+      date: daysAgo(3),
+      createdAt: daysAgoISO(3),
+      read: false,
+    },
+    {
+      id: "ntf-demo-2",
+      title: "Laporan Campaign Terbaru",
+      body: "Reach campaign Anda naik 38% dibanding periode sebelumnya.",
+      type: "campaign",
+      date: daysAgo(6),
+      createdAt: daysAgoISO(6),
+      read: false,
+    },
+    {
+      id: "ntf-demo-3",
+      title: "Pembayaran Diterima",
+      body: "Pembayaran invoice INV-2026-1002 telah kami terima.",
+      type: "payment",
+      date: daysAgo(18),
+      createdAt: daysAgoISO(18),
+      read: true,
+    },
+    {
+      id: "ntf-demo-4",
+      title: "Pesanan Selesai",
+      body: "Campaign selesai 100%. Silakan unduh laporan akhir dan beri rating buzzer.",
+      type: "order",
+      date: daysAgo(25),
+      createdAt: daysAgoISO(25),
+      read: true,
+    },
+  ];
+
+  return {
+    profile: {
+      name,
+      email,
+      phone: profile.phone || "+62 812-9000-1234",
+      city: profile.city || "Jakarta Selatan",
+      company: profile.company || "PT Kreatif Digital",
+      balance: 0,
+    },
+    orders,
+    payments,
+    notifications,
+  };
+}
+
+const isDemoCustomer = (email: string) =>
+  email.trim().toLowerCase() === DEMO_CUSTOMER_EMAIL;
+
+function daysAgoISO(n: number) {
+  return new Date(Date.now() - n * 86_400_000).toISOString();
+}
+
 function seed(email: string, name: string, profile: Partial<CustomerProfile> = {}): CustomerState {
+  if (isDemoCustomer(email)) return demoCustomerState(email, name, profile);
+
   // Akun baru dimulai dengan daftar pesanan & pembayaran kosong.
+
   const orders: Order[] = [];
   const payments: Payment[] = [];
 
@@ -531,6 +677,14 @@ function read(email: string, name: string, profile: Partial<CustomerProfile> = {
           ? o
           : { ...o, proofs: o.status === "Dibatalkan" || o.status === "Menunggu" ? [] : makeProofs(o.report, o.progress, 7) },
       );
+
+      // Akun demo yang masih kosong diisi data dummy agar dashboard tidak kosong.
+      if (isDemoCustomer(email) && hydrated.orders.length === 0) {
+        const demo = demoCustomerState(email, name, profile);
+        hydrated.orders = demo.orders;
+        if (!hydrated.payments?.length) hydrated.payments = demo.payments;
+        if (!hydrated.notifications?.length) hydrated.notifications = demo.notifications;
+      }
 
       // Normalisasi & rapikan notifikasi customer sesuai alur:
       // 1. Selamat Datang (genesis akun)

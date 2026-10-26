@@ -327,7 +327,7 @@ export function ActivityTrendChart({
 }) {
   const { ref, size } = useMeasuredSize();
   const uid = `trend-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
-  const showDots = data.length > 0 && data.length <= 14;
+  const showDots = data.length > 0 && data.length <= 31;
   const plotBottom = Math.max(size.height - X_AXIS_HEIGHT, 1);
 
   return (
@@ -416,10 +416,10 @@ export function ActivityTrendChart({
               dot={
                 showDots
                   ? {
-                      r: 2.6,
+                      r: 3.2,
                       fill: `url(#${uid}-dot)`,
-                      stroke: "transparent",
-                      strokeWidth: 0,
+                      stroke: "#ffffff",
+                      strokeWidth: 1.4,
                     }
                   : false
               }
@@ -654,12 +654,18 @@ export function ActivityComparisonChart({
           />
           <Bar
             dataKey="total"
-            fill={`url(#${uid}-fill)`}
             radius={[7, 7, 0, 0]}
             maxBarSize={38}
             isAnimationActive
             animationDuration={550}
-          />
+          >
+            {data.map((_, index) => (
+              <Cell
+                key={index}
+                fill={[CHART_COLORS.violet, CHART_COLORS.pink, CHART_COLORS.blue, CHART_COLORS.cyan][index % 4]}
+              />
+            ))}
+          </Bar>
         </BarChart>
       </ResponsiveContainer>
     </div>

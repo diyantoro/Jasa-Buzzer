@@ -85,21 +85,21 @@ function NavButton<K extends string>({
       aria-current={active ? "page" : undefined}
       aria-label={collapsed ? item.label : undefined}
       className={cn(
-        "relative flex w-full items-center rounded-lg text-sm transition-[padding,gap,background-color,color] duration-300 ease-in-out motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "relative flex w-full items-center rounded-lg text-sm transition-[padding,gap,background-color,color] duration-300 ease-in-out motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70",
         collapsed ? "justify-center gap-0 px-0 py-2.5" : "gap-3 px-3 py-2",
         active
-          ? "bg-muted font-semibold text-foreground"
-          : "font-medium text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+          ? "bg-white/15 font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]"
+          : "font-medium text-white/70 hover:bg-white/10 hover:text-white",
       )}
     >
       <span
         aria-hidden="true"
         className={cn(
-          "absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-brand transition-opacity",
+          "absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-white transition-opacity",
           active ? "opacity-100" : "opacity-0",
         )}
       />
-      <span className={cn("shrink-0 [&>svg]:h-[18px] [&>svg]:w-[18px]", active && "text-brand")}>
+      <span className={cn("shrink-0 [&>svg]:h-[18px] [&>svg]:w-[18px]", active && "text-white")}>
         {item.icon}
       </span>
       <span
@@ -131,6 +131,7 @@ export function SidebarNav<K extends string>({
   user,
   onLogout,
   collapsed = false,
+  onToggleCollapse,
 }: {
   nav: SidebarNavItem<K>[];
   activeKey: K;
@@ -138,33 +139,42 @@ export function SidebarNav<K extends string>({
   user?: SidebarUser;
   onLogout: () => void;
   collapsed?: boolean;
+  /** Bila diisi, tombol buka/ciutkan sidebar tampil di dalam header sidebar. */
+  onToggleCollapse?: () => void;
 }) {
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex min-h-full flex-col text-white">
       <div
         className={cn(
-          "mb-6 flex items-center transition-[padding,gap] duration-300 ease-in-out motion-reduce:transition-none",
-          collapsed ? "justify-center gap-0" : "gap-2 px-1",
+          "mb-6 flex items-center gap-2 transition-[padding,gap] duration-300 ease-in-out motion-reduce:transition-none",
+          collapsed ? "px-0" : "px-1",
+          onToggleCollapse ? "justify-between" : collapsed ? "justify-center" : "",
         )}
       >
         <Link
           to="/"
-          className={cn("flex min-w-0 items-center gap-2", collapsed && "justify-center")}
+          className={cn(
+            "flex min-w-0 items-center",
+            collapsed ? "justify-center gap-0" : "gap-2",
+          )}
           title="BuzzHub"
         >
-          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-brand text-brand-foreground">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white text-brand shadow-sm">
             <Megaphone className="h-[18px] w-[18px]" />
           </span>
           <span
             aria-hidden={collapsed}
             className={cn(
-              "overflow-hidden whitespace-nowrap font-display text-lg font-bold tracking-tight transition-[max-width,opacity] duration-300 ease-in-out motion-reduce:transition-none",
+              "overflow-hidden whitespace-nowrap font-display text-lg font-bold tracking-tight text-white transition-[max-width,opacity] duration-300 ease-in-out motion-reduce:transition-none",
               collapsed ? "max-w-0 opacity-0" : "max-w-[160px] opacity-100",
             )}
           >
             BuzzHub
           </span>
         </Link>
+        {onToggleCollapse && (
+          <SidebarCollapseButton collapsed={collapsed} onToggle={onToggleCollapse} />
+        )}
       </div>
 
       <nav className="flex flex-col gap-1" aria-label="Navigasi utama">
@@ -181,7 +191,7 @@ export function SidebarNav<K extends string>({
         </TooltipProvider>
       </nav>
 
-      <div className="mt-6 border-t border-border pt-4">
+      <div className="mt-6 border-t border-white/15 pt-4">
         <div
           className={cn(
             "flex items-center transition-[padding,gap] duration-300 ease-in-out motion-reduce:transition-none",
@@ -190,7 +200,7 @@ export function SidebarNav<K extends string>({
         >
           <Avatar
             className={cn(
-              "shrink-0 border border-border transition-[width,height] duration-300 ease-in-out motion-reduce:transition-none",
+              "shrink-0 border border-white/25 transition-[width,height] duration-300 ease-in-out motion-reduce:transition-none",
               collapsed ? "h-9 w-9" : "h-10 w-10",
             )}
           >
@@ -200,7 +210,7 @@ export function SidebarNav<K extends string>({
             <AvatarFallback
               className={cn(
                 "text-[11px] font-bold",
-                collapsed ? "bg-muted text-foreground" : "bg-brand text-brand-foreground",
+                collapsed ? "bg-white/20 text-white" : "bg-white/20 text-white",
               )}
             >
               {initials(user?.name ?? "")}
@@ -213,11 +223,11 @@ export function SidebarNav<K extends string>({
               collapsed ? "max-w-0 opacity-0" : "max-w-[190px] flex-1 opacity-100",
             )}
           >
-            <p className="whitespace-nowrap text-[11px] uppercase tracking-wide text-muted-foreground">
+            <p className="whitespace-nowrap text-[11px] uppercase tracking-wide text-white/60">
               {user?.roleLabel ? `Masuk sebagai ${user.roleLabel}` : "Masuk sebagai"}
             </p>
-            <p className="truncate text-sm font-semibold">{user?.name ?? "Tamu"}</p>
-            <p className="truncate text-xs text-muted-foreground">{user?.email ?? ""}</p>
+            <p className="truncate text-sm font-semibold text-white">{user?.name ?? "Tamu"}</p>
+            <p className="truncate text-xs text-white/60">{user?.email ?? ""}</p>
           </div>
         </div>
         <Button
@@ -226,7 +236,7 @@ export function SidebarNav<K extends string>({
           onClick={onLogout}
           aria-label="Keluar"
           className={cn(
-            "mt-3 transition-[width,padding] duration-300 ease-in-out motion-reduce:transition-none",
+            "mt-3 border-white/25 bg-white/10 text-white transition-[width,padding] duration-300 ease-in-out hover:bg-white/20 hover:text-white motion-reduce:transition-none",
             collapsed ? "mx-auto flex h-8 w-8 items-center justify-center px-0" : "w-full",
           )}
         >
@@ -262,7 +272,7 @@ export function SidebarCollapseButton({
             variant="outline"
             size="icon"
             onClick={onToggle}
-            className="hidden h-9 w-9 shrink-0 md:inline-flex"
+            className="hidden h-9 w-9 shrink-0 border-white/25 bg-white/10 text-white hover:bg-white/20 hover:text-white md:inline-flex"
             aria-label={label}
             aria-expanded={!collapsed}
             title={label}

@@ -90,7 +90,76 @@ function today(offset = 0) {
   return d.toISOString().slice(0, 10);
 }
 
+const DEMO_BUZZER_EMAIL = "buzzer@buzzhub.id";
+
+const isDemoBuzzer = (email: string) => email.trim().toLowerCase() === DEMO_BUZZER_EMAIL;
+
+/** Data dummy untuk akun demo `buzzer@buzzhub.id` agar dashboard buzzer terisi. */
+function demoBuzzerState(email: string, name: string): BuzzerState {
+  const jobs: BuzzerJob[] = [
+    { id: "demo-job-1", title: "Launch Produk Skincare Glowin", platform: "Instagram", brief: "Posting story + feed unboxing produk Glowin tag @glowin.id.", deadline: today(-2), payout: 75000, status: "Selesai", proofUrl: "https://buzzhub.id/demo/proof-1.jpg", admin_verified_at: today(-2), updatedAt: today(-2) },
+    { id: "demo-job-2", title: "Hashtag #KopiSenjaPulang", platform: "X (Twitter)", brief: "Tweet pengalaman ngopi sore dengan hashtag, minimum 3 tweet.", deadline: today(-5), payout: 25000, status: "Selesai", proofUrl: "https://buzzhub.id/demo/proof-2.jpg", admin_verified_at: today(-5), updatedAt: today(-5) },
+    { id: "demo-job-3", title: "FinPay Cashback Challenge", platform: "TikTok", brief: "Buat video 15 detik review fitur cashback FinPay dengan hashtag #FinPayCuan.", deadline: today(-8), payout: 90000, status: "Selesai", proofUrl: "https://buzzhub.id/demo/proof-3.jpg", admin_verified_at: today(-8), updatedAt: today(-8) },
+    { id: "demo-job-4", title: "Promo Ramadhan Bunda", platform: "Facebook", brief: "Share post promo ke 5 grup ibu rumah tangga.", deadline: today(-12), payout: 30000, status: "Selesai", proofUrl: "https://buzzhub.id/demo/proof-4.jpg", admin_verified_at: today(-12), updatedAt: today(-12) },
+    { id: "demo-job-5", title: "Review Earphone Sonik", platform: "YouTube", brief: "Ulasan 3 menit kelebihan dan kekurangan Earphone Sonik.", deadline: today(-20), payout: 120000, status: "Selesai", proofUrl: "https://buzzhub.id/demo/proof-5.jpg", admin_verified_at: today(-20), updatedAt: today(-20) },
+    { id: "demo-job-6", title: "Viral TikTok Dance Brand", platform: "TikTok", brief: "Ikuti choreography resmi brand dan upload video duet.", deadline: today(3), payout: 65000, status: "Review", proofUrl: "https://buzzhub.id/demo/proof-6.jpg", updatedAt: today(-1) },
+    { id: "demo-job-7", title: "Boost Reels Skincare", platform: "Instagram", brief: "Upload reels dengan audio trending, minimal 500 views organik.", deadline: today(5), payout: 55000, status: "Diambil", updatedAt: today(0) },
+    { id: "demo-job-8", title: "Community Meetup Devs", platform: "X (Twitter)", brief: "Live tweet thread selama acara komunitas berlangsung.", deadline: today(7), payout: 40000, status: "Revisi", proofUrl: "https://buzzhub.id/demo/proof-8.jpg", rejection_reason: "Thread belum menyebut akun sponsor utama.", rejected_at: today(-1), updatedAt: today(-1) },
+  ];
+
+  const earnings: Earning[] = jobs
+    .filter((job) => job.status === "Selesai")
+    .map((job, index) => ({
+      id: `demo-earning-${index + 1}`,
+      date: job.updatedAt.slice(0, 10),
+      jobId: job.id,
+      jobTitle: job.title,
+      amount: job.payout,
+      status: "Berhasil",
+      platform: job.platform,
+      transactionType: "Payout Job",
+    }));
+
+  earnings.push({
+    id: "demo-earning-6",
+    date: today(-1),
+    jobId: "demo-job-6",
+    jobTitle: "Viral TikTok Dance Brand",
+    amount: 65000,
+    status: "Pending",
+    platform: "TikTok",
+    transactionType: "Payout Job",
+  });
+
+  const withdrawals: Withdrawal[] = [
+    { id: "demo-withdraw-1", date: today(-15), amount: 1500000, method: "BCA •• 8821", status: "Berhasil", accountNo: "8821", accountName: name, completedAt: today(-14) },
+    { id: "demo-withdraw-2", date: today(-2), amount: 500000, method: "BCA •• 8821", status: "Diproses", accountNo: "8821", accountName: name, requestedAt: today(-2) },
+  ];
+
+  return {
+    profile: {
+      name,
+      username: "@buzzerpremium",
+      email,
+      phone: "+62 812-3456-7890",
+      platform: "Instagram",
+      followers: 45200,
+      rating: 4.9,
+      jobsCompleted: 187,
+      bio: "Micro-influencer lifestyle & kuliner. Open collab brand lokal.",
+      buzzerCategory: "Buzzer Online",
+      city: "Jakarta Selatan",
+    },
+    balance: 3250000,
+    jobs,
+    earnings,
+    withdrawals,
+  };
+}
+
 function seed(email: string, name: string, profile: Partial<BuzzerProfile> = {}): BuzzerState {
+  if (isDemoBuzzer(email)) return demoBuzzerState(email, name);
+
   const firstName = name.split(" ")[0] || "Buzzer";
   const uname = (profile.username && profile.username.trim()) || "@" + firstName.toLowerCase().replace(/[^a-z0-9]/g, "");
   // Akun buzzer baru dimulai kosong: tanpa pekerjaan, penghasilan, atau saldo.
@@ -133,17 +202,28 @@ function read(email: string, name: string, profile: Partial<BuzzerProfile> = {})
       const parsed = JSON.parse(raw) as BuzzerState;
       const initialSeed = seed(email, name, profile).profile;
       const cleanInput = cleanDefined(profile);
+      const demo = isDemoBuzzer(email) && (!Array.isArray(parsed.jobs) || parsed.jobs.length === 0);
+      const demoState = demo ? demoBuzzerState(email, name) : null;
       return {
         ...parsed,
-        balance: Number(parsed.balance || 0),
-        withdrawals: Array.isArray(parsed.withdrawals) ? parsed.withdrawals : [],
-        earnings: Array.isArray(parsed.earnings) ? parsed.earnings : [],
-        jobs: Array.isArray(parsed.jobs) ? parsed.jobs : [],
+        balance: demoState ? demoState.balance : Number(parsed.balance || 0),
+        withdrawals: demoState
+          ? demoState.withdrawals
+          : Array.isArray(parsed.withdrawals)
+            ? parsed.withdrawals
+            : [],
+        earnings: demoState
+          ? demoState.earnings
+          : Array.isArray(parsed.earnings)
+            ? parsed.earnings
+            : [],
+        jobs: demoState ? demoState.jobs : Array.isArray(parsed.jobs) ? parsed.jobs : [],
         profile: {
           ...initialSeed,
+          ...(demoState ? demoState.profile : {}),
           ...parsed.profile,
           ...cleanInput,
-          name: cleanInput.name || parsed.profile?.name || name,
+          name: cleanInput.name || parsed.profile?.name || initialSeed.name || name,
           email: cleanInput.email || parsed.profile?.email || email,
           avatarUrl: cleanInput.avatarUrl || parsed.profile?.avatarUrl || initialSeed.avatarUrl,
         },
