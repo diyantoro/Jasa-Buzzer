@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useId } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { notifyPayoutUpdate } from "@/lib/buzzer-notification-store";
+import { getCachedRows, isCacheFresh, loadCachedRows } from "@/lib/query-cache";
 
 export type PaymentStatus = "Pending" | "Menunggu Pembayaran" | "Menunggu Verifikasi" | "Berhasil" | "Lunas" | "Gagal" | "Refund";
 export type WithdrawalStatus = "Menunggu" | "Disetujui" | "Diproses" | "Berhasil" | "Ditolak";
@@ -102,46 +103,58 @@ function useRealtimeList<T>(
   table: string,
   order: { column: string; ascending: boolean },
   rpcName?: string,
-): { data: T[]; loading: boolean; refetch: () => void } {
+): { data: T[]; loading: boolean; refetch: () => Promise<void> } {
   const instanceId = useId().replace(/[^a-zA-Z0-9_-]/g, "");
   const [channelKey] = useState(() => `${table}-${instanceId}-${++realtimeListSeq}`);
-  const [data, setData] = useState<T[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cacheKey = rpcName ? `rpc:${rpcName}` : `${table}:${order.column}:${order.ascending}`;
+  const [data, setData] = useState<T[]>(() => getCachedRows<T>(cacheKey) ?? []);
+  const [loading, setLoading] = useState(() => !getCachedRows<T>(cacheKey));
   const [, setError] = useState<unknown>(null);
 
-  const fetchAll = useCallback(async () => {
+  const fetchAll = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) setLoading(true);
     setError(null);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const client = supabase as any;
-    const result = rpcName
-      ? await client.rpc(rpcName)
-      : await client.from(table).select("*").order(order.column, { ascending: order.ascending }).limit(500);
-    const { data: rows, error: queryError } = result;
-    if (queryError) {
+    try {
+      const rows = await loadCachedRows<T>(cacheKey, async () => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const client = supabase as any;
+        const result = rpcName
+          ? await client.rpc(rpcName)
+          : await client.from(table).select("*").order(order.column, { ascending: order.ascending }).limit(500);
+        const { data: rows, error: queryError } = result;
+        if (queryError) throw queryError;
+        return (rows as T[]) ?? [];
+      });
+      setData(rows);
+    } catch (queryError) {
       console.error(`[Supabase] Failed to load ${table}:`, queryError);
       setError(queryError);
-      setData([]);
+      if (!getCachedRows<T>(cacheKey)) setData([]);
+    } finally {
       setLoading(false);
-      return;
     }
-    setData((rows as T[]) ?? []);
-    setLoading(false);
-  }, [table, order.column, order.ascending, rpcName]);
+  }, [table, order.column, order.ascending, rpcName, cacheKey]);
 
   useEffect(() => {
-    void fetchAll();
+    const hasCache = Boolean(getCachedRows<T>(cacheKey));
+    if (!hasCache) {
+      void fetchAll();
+    } else if (!isCacheFresh(cacheKey)) {
+      void fetchAll({ silent: true });
+    }
     const ch = supabase
       .channel(`rt-${channelKey}`)
       .on("postgres_changes", { event: "*", schema: "public", table }, () => {
-        void fetchAll();
+        void fetchAll({ silent: true });
       })
       .subscribe();
     return () => {
       void supabase.removeChannel(ch);
     };
-  }, [table, fetchAll, channelKey]);
+  }, [table, fetchAll, channelKey, cacheKey]);
 
-  return { data, loading, refetch: fetchAll };
+  const refetch = useCallback(() => fetchAll(), [fetchAll]);
+  return { data, loading, refetch };
 }
 
 export const usePayments = () =>

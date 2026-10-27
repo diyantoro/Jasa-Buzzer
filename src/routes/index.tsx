@@ -51,7 +51,7 @@ function Landing() {
         <div className="absolute -top-40 right-0 -z-10 h-[500px] w-[500px] rounded-full bg-brand/20 blur-3xl" />
         <div className="absolute -bottom-40 -left-20 -z-10 h-[400px] w-[400px] rounded-full bg-brand-glow/20 blur-3xl" />
 
-        <div className="mx-auto flex min-h-[calc(100svh-var(--navbar-height)-4rem)] max-w-7xl items-center px-4 py-8 sm:px-6 sm:py-10 lg:py-12">
+        <div className="mx-auto flex min-h-[calc(100svh-var(--navbar-height)-8rem)] max-w-7xl items-center px-4 pb-8 pt-4 sm:px-6 sm:pb-10 sm:pt-5 lg:pb-12 lg:pt-6">
           <div className="grid w-full items-center gap-8 sm:gap-10 lg:grid-cols-2 lg:gap-[clamp(2rem,4vw,4rem)]">
             <div className="min-w-0 max-w-[680px]">
               <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-[11px] font-semibold text-foreground shadow-xs sm:px-3.5 sm:text-xs">

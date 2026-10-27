@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { notifyTaskApproved, notifyTaskRejected, notifyNewTaskAvailable } from "@/lib/buzzer-notification-store";
 import { getBuzzerPercentageForLevel } from "@/lib/buzzer-level";
+import { getCachedRows, isCacheFresh, loadCachedRows } from "@/lib/query-cache";
 
 export type CampaignPlatform = "TikTok" | "Instagram" | "X (Twitter)" | "Facebook" | "YouTube" | "Telegram" | "LinkedIn";
 export type CampaignStatus = "Draft" | "Aktif" | "Review" | "Selesai" | "Dibatalkan";
@@ -149,18 +150,26 @@ function useRealtime<T>(table: string, order: { column: string; ascending: boole
   // forbids adding callbacks to an already subscribed channel with the same
   // topic, therefore each hook instance needs its own channel name.
   const channelId = useId().replace(/[^a-zA-Z0-9_-]/g, "");
-  const [data, setData] = useState<T[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cacheKey = `${table}:${order.column}:${order.ascending}`;
+  const [data, setData] = useState<T[]>(() => getCachedRows<T>(cacheKey) ?? []);
+  const [loading, setLoading] = useState(() => !getCachedRows<T>(cacheKey));
   const [error, setError] = useState<string | null>(null);
-  const fetchAll = useCallback(async () => {
-    setLoading(true);
+  const fetchAll = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) setLoading(true);
     setError(null);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const client = supabase as any;
     try {
-      const { data: rows, error: queryError } = await client.from(table).select("*").order(order.column, { ascending: order.ascending }).limit(500);
-      if (queryError) throw queryError;
-      setData((rows as T[]) ?? []);
+      const rows = await loadCachedRows<T>(cacheKey, async () => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const client = supabase as any;
+        const { data: rows, error: queryError } = await client
+          .from(table)
+          .select("*")
+          .order(order.column, { ascending: order.ascending })
+          .limit(500);
+        if (queryError) throw queryError;
+        return (rows as T[]) ?? [];
+      });
+      setData(rows);
     } catch (queryError) {
       const message = queryError instanceof Error
         ? queryError.message
@@ -168,18 +177,29 @@ function useRealtime<T>(table: string, order: { column: string; ascending: boole
           ? queryError.message
           : String(queryError);
       console.error(`[Supabase] Failed to load ${table}:`, queryError);
-      setData([]);
+      if (!getCachedRows<T>(cacheKey)) setData([]);
       setError(message);
     } finally {
       setLoading(false);
     }
-  }, [table, order.column, order.ascending]);
+  }, [table, order.column, order.ascending, cacheKey]);
   useEffect(() => {
-    fetchAll();
-    const ch = supabase.channel(`rt-${table}-${channelId}`).on("postgres_changes", { event: "*", schema: "public", table }, () => fetchAll()).subscribe();
+    const hasCache = Boolean(getCachedRows<T>(cacheKey));
+    if (!hasCache) {
+      void fetchAll();
+    } else if (!isCacheFresh(cacheKey)) {
+      void fetchAll({ silent: true });
+    }
+    const ch = supabase
+      .channel(`rt-${table}-${channelId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table }, () => {
+        void fetchAll({ silent: true });
+      })
+      .subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, [table, fetchAll, channelId]);
-  return { data, loading, error, refetch: fetchAll };
+  }, [table, fetchAll, channelId, cacheKey]);
+  const refetch = useCallback(() => fetchAll(), [fetchAll]);
+  return { data, loading, error, refetch };
 }
 
 export const useCampaigns = () => useRealtime<Campaign>("campaigns", { column: "created_at", ascending: false });
@@ -260,43 +280,54 @@ export const useCampaignJobSubmissions = () => useRealtime<CampaignJobSubmission
 
 export function useCompletedCampaignJobs() {
   const channelId = useId().replace(/[^a-zA-Z0-9_-]/g, "");
-  const [data, setData] = useState<CampaignJob[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cacheKey = "campaign_jobs:completed:updated_at:desc";
+  const [data, setData] = useState<CampaignJob[]>(() => getCachedRows<CampaignJob>(cacheKey) ?? []);
+  const [loading, setLoading] = useState(() => !getCachedRows<CampaignJob>(cacheKey));
   const [error, setError] = useState<string | null>(null);
 
-  const fetchCompleted = useCallback(async () => {
-    setLoading(true);
+  const fetchCompleted = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) setLoading(true);
     setError(null);
     try {
-      const { data: rows, error: queryError } = await (supabase as any)
-        .from("campaign_jobs")
-        .select("*")
-        .or("status.eq.Selesai,admin_verified_at.not.is.null")
-        .order("updated_at", { ascending: false });
-      if (queryError) throw queryError;
-      setData((rows as CampaignJob[]) ?? []);
+      const rows = await loadCachedRows<CampaignJob>(cacheKey, async () => {
+        const { data: rows, error: queryError } = await (supabase as any)
+          .from("campaign_jobs")
+          .select("*")
+          .or("status.eq.Selesai,admin_verified_at.not.is.null")
+          .order("updated_at", { ascending: false });
+        if (queryError) throw queryError;
+        return (rows as CampaignJob[]) ?? [];
+      });
+      setData(rows);
     } catch (err: any) {
       console.error("[Supabase] Failed to load completed campaign_jobs:", err);
+      if (!getCachedRows<CampaignJob>(cacheKey)) setData([]);
       setError(err?.message || String(err));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [cacheKey]);
 
   useEffect(() => {
-    void fetchCompleted();
+    const hasCache = Boolean(getCachedRows<CampaignJob>(cacheKey));
+    if (!hasCache) {
+      void fetchCompleted();
+    } else if (!isCacheFresh(cacheKey)) {
+      void fetchCompleted({ silent: true });
+    }
     const ch = supabase
       .channel(`rt-completed-jobs-${channelId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "campaign_jobs" }, () => {
-        void fetchCompleted();
+        void fetchCompleted({ silent: true });
       })
       .subscribe();
     return () => {
       void supabase.removeChannel(ch);
     };
-  }, [fetchCompleted, channelId]);
+  }, [fetchCompleted, channelId, cacheKey]);
 
-  return { data, loading, error, refetch: fetchCompleted };
+  const refetch = useCallback(() => fetchCompleted(), [fetchCompleted]);
+  return { data, loading, error, refetch };
 }
 
 export function useBuzzerCampaignJobs(buzzerEmail: string) {

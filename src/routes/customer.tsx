@@ -205,9 +205,16 @@ function CustomerPage() {
     company: session.company ?? "",
   } : {});
   const [section, setSection] = useState<SectionKey>(getInitialCustomerSection);
+  // Section yang pernah dibuka tetap ter-mount (disembunyikan) supaya
+  // perpindahan menu berikutnya tidak memuat ulang data dari awal.
+  const [visitedSections, setVisitedSections] = useState<SectionKey[]>(() => [section]);
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const { collapsed, toggle } = useSidebarCollapsed("customer");
+
+  const markVisited = useCallback((key: SectionKey) => {
+    setVisitedSections((prev) => (prev.includes(key) ? prev : [...prev, key]));
+  }, []);
 
   // Cross-section dialogs
   const [proofOrder, setProofOrder] = useState<Order | null>(null);
@@ -270,6 +277,7 @@ function CustomerPage() {
   const unread = notifPrefs.inApp ? visibleNotifications.filter((n) => !n.read).length : 0;
 
   useEffect(() => {
+    markVisited(section);
     if (typeof window !== "undefined") {
       try {
         localStorage.setItem("buzzhub.active_section.customer", section);
@@ -281,18 +289,19 @@ function CustomerPage() {
       }
     }
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
-  }, [section]);
+  }, [section, markVisited]);
 
   useEffect(() => {
     const handlePopState = () => {
       const sp = new URLSearchParams(window.location.search).get("section") as SectionKey | null;
       if (sp && CUSTOMER_SECTIONS.includes(sp)) {
+        markVisited(sp);
         setSection(sp);
       }
     };
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, []);
+  }, [markVisited]);
 
   if (!session) {
     return (
@@ -316,6 +325,7 @@ function CustomerPage() {
   };
 
   const go = (k: SectionKey) => {
+    markVisited(k);
     setSection(k);
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
   };
@@ -330,6 +340,7 @@ function CustomerPage() {
       nav={navItems}
       activeKey={section}
       onNavigate={go}
+      onPrefetch={markVisited}
       user={sidebarUser}
       onLogout={() => setLogoutOpen(true)}
       collapsed={isCollapsed}
@@ -396,62 +407,65 @@ function CustomerPage() {
           </header>
 
 
-          {section === "homepage" && (
-            <SectionErrorBoundary title="Homepage gagal dimuat">
-              <CustomerHomepageSection
-                email={session.email}
-                name={store.state.profile.name || session.name}
-                onOrder={(svc) => openNewOrder(svc)}
-                onGoPesanan={() => go("pesanan")}
-              />
-            </SectionErrorBoundary>
-          )}
-
-          {section === "pesanan" && (
-            <SectionErrorBoundary title="Pesanan gagal dimuat">
-              <PesananSection
-                store={store}
-                customerEmail={session.email}
-                onNew={() => openNewOrder()}
-                onDetail={setDetailOrder}
-                onProof={(o) => setProofOrder(o)}
-              />
-            </SectionErrorBoundary>
-          )}
-          {section === "katalog" && (
-            <SectionErrorBoundary title="Katalog layanan gagal dimuat">
-              <KatalogSection
-                store={store}
-                onDetail={setDetailService}
-                onOrder={(svc) => openNewOrder(svc)}
-              />
-            </SectionErrorBoundary>
-          )}
-          {section === "pembayaran" && (
-            <SectionErrorBoundary title="Pembayaran gagal dimuat">
-              <PembayaranSection
-                store={store}
-                customerEmail={session.email}
-                onPay={setPayDialog}
-                onInvoice={setInvoiceDialog}
-              />
-            </SectionErrorBoundary>
-          )}
-          {section === "ulasan" && (
-            <SectionErrorBoundary title="Ulasan gagal dimuat">
-              <UlasanSection
-                customerEmail={session.email}
-                customerName={session.name}
-              />
-            </SectionErrorBoundary>
-          )}
-          {section === "pengaturan" && (
-            <SectionErrorBoundary title="Pengaturan gagal dimuat">
-              <CustomerSettingsSection
-                customerEmail={session.email}
-              />
-            </SectionErrorBoundary>
-          )}
+          {visitedSections.map((key) => (
+            <div key={key} hidden={section !== key}>
+              {key === "homepage" && (
+                <SectionErrorBoundary title="Homepage gagal dimuat">
+                  <CustomerHomepageSection
+                    email={session.email}
+                    name={store.state.profile.name || session.name}
+                    onOrder={(svc) => openNewOrder(svc)}
+                    onGoPesanan={() => go("pesanan")}
+                  />
+                </SectionErrorBoundary>
+              )}
+              {key === "pesanan" && (
+                <SectionErrorBoundary title="Pesanan gagal dimuat">
+                  <PesananSection
+                    store={store}
+                    customerEmail={session.email}
+                    onNew={() => openNewOrder()}
+                    onDetail={setDetailOrder}
+                    onProof={(o) => setProofOrder(o)}
+                  />
+                </SectionErrorBoundary>
+              )}
+              {key === "katalog" && (
+                <SectionErrorBoundary title="Katalog layanan gagal dimuat">
+                  <KatalogSection
+                    store={store}
+                    onDetail={setDetailService}
+                    onOrder={(svc) => openNewOrder(svc)}
+                  />
+                </SectionErrorBoundary>
+              )}
+              {key === "pembayaran" && (
+                <SectionErrorBoundary title="Pembayaran gagal dimuat">
+                  <PembayaranSection
+                    store={store}
+                    customerEmail={session.email}
+                    onPay={setPayDialog}
+                    onInvoice={setInvoiceDialog}
+                  />
+                </SectionErrorBoundary>
+              )}
+              {key === "ulasan" && (
+                <SectionErrorBoundary title="Ulasan gagal dimuat">
+                  <UlasanSection
+                    customerEmail={session.email}
+                    customerName={session.name}
+                  />
+                </SectionErrorBoundary>
+              )}
+              {key === "pengaturan" && (
+                <SectionErrorBoundary title="Pengaturan gagal dimuat">
+                  <CustomerSettingsSection
+                    customerEmail={session.email}
+                  />
+                </SectionErrorBoundary>
+              )}
+            </div>
+          ))}
           </div>
         </main>
       </div>
@@ -461,6 +475,7 @@ function CustomerPage() {
         nav={navItems}
         activeKey={section}
         onNavigate={go}
+        onPrefetch={markVisited}
         primaryKeys={["homepage", "pesanan", "katalog", "pembayaran"]}
       />
 

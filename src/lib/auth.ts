@@ -8,6 +8,42 @@ export type { Role };
 
 const KEY = "buzzhub.session";
 
+/** Cache lookup avatar agar beberapa komponen yang memakai useSession tidak
+ *  menembak query yang sama berulang-ulang. */
+const AVATAR_CACHE_TTL = 60_000;
+const avatarCache = new Map<string, { url: string | null; at: number }>();
+const avatarInflight = new Map<string, Promise<string | null>>();
+
+function loadAvatarUrl(email: string): Promise<string | null> {
+  const key = email.trim().toLowerCase();
+  const cached = avatarCache.get(key);
+  if (cached && Date.now() - cached.at < AVATAR_CACHE_TTL) {
+    return Promise.resolve(cached.url);
+  }
+  const pending = avatarInflight.get(key);
+  if (pending) return pending;
+
+  const promise = (async () => {
+    try {
+      const { data } = await supabase
+        .from("app_accounts")
+        .select("avatar_url")
+        .eq("email", key)
+        .maybeSingle();
+      const url = data?.avatar_url ?? null;
+      avatarCache.set(key, { url, at: Date.now() });
+      return url;
+    } catch {
+      return null;
+    } finally {
+      avatarInflight.delete(key);
+    }
+  })();
+
+  avatarInflight.set(key, promise);
+  return promise;
+}
+
 export type Session = {
   role: Role;
   name: string;
@@ -34,10 +70,11 @@ export function getSession(): Session | null {
 }
 
 export function setSession(s: Session) {
-  localStorage.setItem(KEY, JSON.stringify({
-    ...s,
-    email: s.email.trim().toLowerCase(),
-  }));
+  const email = s.email.trim().toLowerCase();
+  localStorage.setItem(KEY, JSON.stringify({ ...s, email }));
+  if (s.avatarUrl) {
+    avatarCache.set(email, { url: s.avatarUrl, at: Date.now() });
+  }
   window.dispatchEvent(new Event("buzzhub:session"));
 }
 
@@ -122,19 +159,14 @@ export function useSession() {
     const s = getSession();
     setS(s);
     if (s?.email && !s.avatarUrl) {
-      void supabase
-        .from("app_accounts")
-        .select("avatar_url")
-        .eq("email", s.email.trim().toLowerCase())
-        .maybeSingle()
-        .then(({ data }) => {
-          if (data?.avatar_url) {
-            const current = getSession();
-            if (current && current.email.toLowerCase() === s.email.toLowerCase() && !current.avatarUrl) {
-              setSession({ ...current, avatarUrl: data.avatar_url });
-            }
+      void loadAvatarUrl(s.email).then((avatarUrl) => {
+        if (avatarUrl) {
+          const current = getSession();
+          if (current && current.email.toLowerCase() === s.email.toLowerCase() && !current.avatarUrl) {
+            setSession({ ...current, avatarUrl });
           }
-        });
+        }
+      });
     }
     const handler = () => setS(getSession());
     window.addEventListener("buzzhub:session", handler);

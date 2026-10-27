@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Bell, Briefcase, CheckCircle2, Clock, DollarSign, Edit3, Eye, LayoutDashboard,
   LogOut, Megaphone, Menu, Search, Star, Trophy, Upload, User, Wallet,
@@ -50,7 +50,7 @@ import {
 } from "@/lib/campaign-store";
 import { notifyTaskSubmitted } from "@/lib/buzzer-notification-store";
 import { useBuzzerRatings, averageStars } from "@/lib/rating-store";
-import { buzzers as leaderboardSeed } from "@/lib/mock-data";
+import { demoBuzzers as leaderboardSeed } from "@/lib/demo-data";
 import { exportToExcel, exportToPDF } from "@/lib/export-utils";
 import { cn } from "@/lib/utils";
 import buzzerHero from "@/assets/buzzer-hero.jpg";
@@ -257,10 +257,17 @@ function BuzzerPage() {
   } : {});
   const [applicationData, setApplicationData] = useState<BuzzerApplication | null>(null);
   const [section, setSection] = useState<SectionKey>(getInitialBuzzerSection);
+  // Section yang pernah dibuka tetap ter-mount (disembunyikan) supaya
+  // perpindahan menu berikutnya tidak memuat ulang data dari awal.
+  const [visitedSections, setVisitedSections] = useState<SectionKey[]>(() => [section]);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const { collapsed, toggle } = useSidebarCollapsed("buzzer");
+
+  const markVisited = useCallback((key: SectionKey) => {
+    setVisitedSections((prev) => (prev.includes(key) ? prev : [...prev, key]));
+  }, []);
   const notifState = useBuzzerNotifications(session?.email);
   const [verificationStatus, setVerificationStatus] = useState<BuzzerAppStatus | null>(null);
   const [verificationLoading, setVerificationLoading] = useState(true);
@@ -299,6 +306,7 @@ function BuzzerPage() {
   const { jobs: allMergedJobs, refetch: refetchJobs } = useMergedJobs(store, true);
 
   useEffect(() => {
+    markVisited(section);
     if (typeof window !== "undefined") {
       try {
         localStorage.setItem("buzzhub.active_section.buzzer", section);
@@ -310,18 +318,19 @@ function BuzzerPage() {
       }
     }
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
-  }, [section]);
+  }, [section, markVisited]);
 
   useEffect(() => {
     const handlePopState = () => {
       const sp = new URLSearchParams(window.location.search).get("section") as SectionKey | null;
       if (sp && BUZZER_SECTIONS.includes(sp)) {
+        markVisited(sp);
         setSection(sp);
       }
     };
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, []);
+  }, [markVisited]);
 
   if (!session || verificationLoading) {
     return (
@@ -345,6 +354,7 @@ function BuzzerPage() {
   };
 
   const go = (k: SectionKey) => {
+    markVisited(k);
     setSection(k);
     setMobileOpen(false);
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
@@ -361,6 +371,7 @@ function BuzzerPage() {
       nav={navItems}
       activeKey={section}
       onNavigate={go}
+      onPrefetch={markVisited}
       user={sidebarUser}
       onLogout={() => setLogoutOpen(true)}
       collapsed={isCollapsed}
@@ -426,20 +437,24 @@ function BuzzerPage() {
             </div>
           </header>
 
-          {section === "jobs" && (
-            <JobsSection
-              store={store}
-              verificationStatus={verificationStatus}
-              onGoProfil={() => go("profil")}
-              onGoSosmed={() => go("sosmed")}
-              sessionAvatar={session.avatarUrl}
-            />
-          )}
-          {section === "sosmed" && <SosmedSection email={session.email} name={session.name} />}
-          {section === "penghasilan" && <PenghasilanSection store={store} />}
-          {section === "ulasan" && <RatingUlasanSection store={store} />}
-          {section === "profil" && <ProfilSection store={store} onGoRatings={() => go("ulasan")} />}
-          {section === "pengaturan" && <BuzzerSettingsSection buzzerEmail={session.email} />}
+          {visitedSections.map((key) => (
+            <div key={key} hidden={section !== key}>
+              {key === "jobs" && (
+                <JobsSection
+                  store={store}
+                  verificationStatus={verificationStatus}
+                  onGoProfil={() => go("profil")}
+                  onGoSosmed={() => go("sosmed")}
+                  sessionAvatar={session.avatarUrl}
+                />
+              )}
+              {key === "sosmed" && <SosmedSection email={session.email} name={session.name} />}
+              {key === "penghasilan" && <PenghasilanSection store={store} />}
+              {key === "ulasan" && <RatingUlasanSection store={store} />}
+              {key === "profil" && <ProfilSection store={store} onGoRatings={() => go("ulasan")} />}
+              {key === "pengaturan" && <BuzzerSettingsSection buzzerEmail={session.email} />}
+            </div>
+          ))}
           </div>
         </main>
       </div>
@@ -449,6 +464,7 @@ function BuzzerPage() {
         nav={navItems}
         activeKey={section}
         onNavigate={go}
+        onPrefetch={markVisited}
         primaryKeys={["jobs", "sosmed", "penghasilan", "profil"]}
       />
 

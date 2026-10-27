@@ -107,8 +107,14 @@ function LoginPage() {
           }
         );
         if (remember) localStorage.setItem("buzzhub.remember", app.email);
+        try {
+          await navigate({ to: `/buzzer` });
+        } catch {
+          setLoading(false);
+          setError("Gagal membuka dashboard. Silakan coba lagi.");
+          return;
+        }
         toast.success(`Selamat datang, ${app.name}!`);
-        navigate({ to: `/buzzer` });
         return;
       }
     }
@@ -121,6 +127,15 @@ function LoginPage() {
 
     setSession(user);
     if (remember) localStorage.setItem("buzzhub.remember", user.email);
+    // Tunggu navigasi dashboard selesai dulu supaya toast tidak muncul
+    // saat form login masih menampilkan loading.
+    try {
+      await navigate({ to: `/${user.role}` as never });
+    } catch {
+      setLoading(false);
+      setError("Gagal membuka dashboard. Silakan coba lagi.");
+      return;
+    }
     if (user.role === "buzzer" && app?.status === "pending") {
       toast.warning("Menunggu Verifikasi Admin", {
         description: "Data pendaftaran Anda sedang diperiksa. Job akan tersedia setelah akun diverifikasi.",
@@ -136,7 +151,6 @@ function LoginPage() {
     } else {
       toast.success(`Selamat datang, ${user.name}!`);
     }
-    navigate({ to: `/${user.role}` as never });
   };
 
   return (

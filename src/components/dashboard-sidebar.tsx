@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { LogOut, Megaphone, Menu, PanelLeftClose, PanelLeftOpen } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -71,17 +71,43 @@ function NavButton<K extends string>({
   active,
   collapsed,
   onNavigate,
+  onPrefetch,
 }: {
   item: SidebarNavItem<K>;
   active: boolean;
   collapsed: boolean;
   onNavigate: (key: K) => void;
+  onPrefetch?: (key: K) => void;
 }) {
+  const prefetchTimer = useRef<number | null>(null);
+
+  const cancelPrefetch = useCallback(() => {
+    if (prefetchTimer.current !== null) {
+      window.clearTimeout(prefetchTimer.current);
+      prefetchTimer.current = null;
+    }
+  }, []);
+
+  const schedulePrefetch = useCallback(() => {
+    if (!onPrefetch) return;
+    cancelPrefetch();
+    prefetchTimer.current = window.setTimeout(() => {
+      prefetchTimer.current = null;
+      onPrefetch(item.key);
+    }, 140);
+  }, [cancelPrefetch, item.key, onPrefetch]);
+
+  useEffect(() => cancelPrefetch, [cancelPrefetch]);
+
   const button = (
     <button
       type="button"
       data-section={item.key}
       onClick={() => onNavigate(item.key)}
+      onMouseEnter={schedulePrefetch}
+      onMouseLeave={cancelPrefetch}
+      onFocus={schedulePrefetch}
+      onBlur={cancelPrefetch}
       aria-current={active ? "page" : undefined}
       aria-label={collapsed ? item.label : undefined}
       className={cn(
@@ -128,6 +154,7 @@ export function SidebarNav<K extends string>({
   nav,
   activeKey,
   onNavigate,
+  onPrefetch,
   user,
   onLogout,
   collapsed = false,
@@ -136,6 +163,8 @@ export function SidebarNav<K extends string>({
   nav: SidebarNavItem<K>[];
   activeKey: K;
   onNavigate: (key: K) => void;
+  /** Dipanggil saat kursor berhenti sebentar di menu, untuk memuat data lebih awal. */
+  onPrefetch?: (key: K) => void;
   user?: SidebarUser;
   onLogout: () => void;
   collapsed?: boolean;
@@ -186,6 +215,7 @@ export function SidebarNav<K extends string>({
               active={activeKey === item.key}
               collapsed={collapsed}
               onNavigate={onNavigate}
+              onPrefetch={onPrefetch}
             />
           ))}
         </TooltipProvider>
@@ -307,11 +337,14 @@ export function MobileBottomNav<K extends string>({
   nav,
   activeKey,
   onNavigate,
+  onPrefetch,
   primaryKeys,
 }: {
   nav: SidebarNavItem<K>[];
   activeKey: K;
   onNavigate: (key: K) => void;
+  /** Dipanggil saat menu disentuh, untuk memuat data lebih awal. */
+  onPrefetch?: (key: K) => void;
   /** Menu yang tampil langsung di bottom nav. Sisanya masuk ke sheet "Lainnya". */
   primaryKeys?: K[];
 }) {
@@ -333,6 +366,7 @@ export function MobileBottomNav<K extends string>({
   const activeInOverflow = overflow.some((item) => item.key === activeKey);
 
   const select = (key: K) => {
+    onPrefetch?.(key);
     onNavigate(key);
     setMoreOpen(false);
   };
@@ -343,6 +377,7 @@ export function MobileBottomNav<K extends string>({
       type="button"
       data-section={item.key}
       onClick={() => select(item.key)}
+      onPointerDown={() => onPrefetch?.(item.key)}
       aria-current={active ? "page" : undefined}
       className={cn(
         "relative flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1.5 text-[10px] font-medium transition-colors min-[380px]:text-[11px]",
@@ -415,6 +450,7 @@ export function MobileBottomNav<K extends string>({
                   key={item.key}
                   type="button"
                   onClick={() => select(item.key)}
+                  onPointerDown={() => onPrefetch?.(item.key)}
                   aria-current={active ? "page" : undefined}
                   className={cn(
                     "flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left text-sm font-medium transition-colors",

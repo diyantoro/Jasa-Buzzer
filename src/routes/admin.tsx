@@ -106,14 +106,16 @@ import { useRequireRole, clearSession, useSession, setSession } from "@/lib/auth
 import { updateAccountFn } from "@/lib/accounts.functions";
 import { ThemeToggle, useTheme } from "@/components/theme-toggle";
 import { isSupabaseConfigured } from "@/integrations/supabase/client";
-import { buzzers as buzzersSeed, campaigns as campaignsSeed, formatIDR } from "@/lib/mock-data";
+import { formatIDR } from "@/lib/mock-data";
 import {
   demoAdminTotals,
   demoBuzzerEmails,
   demoBuzzerProfiles,
+  demoBuzzers as buzzersSeed,
   demoBuzzers,
   demoCampaignJobs,
   demoCampaigns,
+  demoCampaignsLegacy as campaignsSeed,
   demoCompletedJobs,
   demoCustomers,
 } from "@/lib/demo-data";
@@ -276,10 +278,17 @@ function getInitialAdminSection(): SectionKey {
 function AdminPage() {
   useRequireRole("admin");
   const [section, setSection] = useState<SectionKey>(getInitialAdminSection);
+  // Section yang pernah dibuka tetap ter-mount (disembunyikan) supaya
+  // perpindahan menu berikutnya tidak memuat ulang data dari awal.
+  const [visitedSections, setVisitedSections] = useState<SectionKey[]>(() => [section]);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
   const session = useSession();
   const { collapsed, toggle } = useSidebarCollapsed("admin");
+
+  const markVisited = useCallback((key: SectionKey) => {
+    setVisitedSections((prev) => (prev.includes(key) ? prev : [...prev, key]));
+  }, []);
 
   const roleLabel = (() => {
     switch (session?.role) {
@@ -305,12 +314,14 @@ function AdminPage() {
   };
 
   const go = (k: SectionKey) => {
+    markVisited(k);
     setSection(k);
     setMobileOpen(false);
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
   };
 
   useEffect(() => {
+    markVisited(section);
     if (typeof window !== "undefined") {
       try {
         localStorage.setItem("buzzhub.active_section.admin", section);
@@ -322,18 +333,19 @@ function AdminPage() {
       }
     }
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
-  }, [section]);
+  }, [section, markVisited]);
 
   useEffect(() => {
     const handlePopState = () => {
       const sp = new URLSearchParams(window.location.search).get("section") as SectionKey | null;
       if (sp && ADMIN_SECTIONS.includes(sp)) {
+        markVisited(sp);
         setSection(sp);
       }
     };
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, []);
+  }, [markVisited]);
 
   const sidebarUser = { name: "Admin BuzzHub", email: "admin@buzzhub.id", roleLabel: "admin" };
   const renderSidebar = (isCollapsed = false, withToggle = false) => (
@@ -341,6 +353,7 @@ function AdminPage() {
       nav={navItems}
       activeKey={section}
       onNavigate={go}
+      onPrefetch={markVisited}
       user={sidebarUser}
       onLogout={() => setLogoutOpen(true)}
       collapsed={isCollapsed}
@@ -413,20 +426,24 @@ function AdminPage() {
             </div>
           </header>
 
-          <SectionErrorBoundary key={section} title={`${meta.title} gagal dimuat`}>
-            {section === "ringkasan" && <RingkasanSection />}
-            {section === "kampanye" && <KampanyeSection />}
-            {section === "manajemen" && <ManajemenUserSection />}
-            {section === "verifikasi" && <VerifikasiSection />}
-            {section === "verifikasi-pengerjaan" && <VerifikasiSection mode="jobs" />}
-            {section === "pembayaran" && <AdminPaymentVerificationSection />}
-            {section === "verifikasi-pencairan" && <AdminPayoutVerificationSection />}
-            {section === "metode-pembayaran" && <AdminPaymentMethodsSection />}
-            {section === "pencairan" && <PencairanSection />}
-            {section === "sosmed" && <AdminSocialSection />}
-            {section === "ulasan" && <AdminReviewsSection />}
-            {section === "pengaturan" && <PengaturanSection />}
-          </SectionErrorBoundary>
+          {visitedSections.map((key) => (
+            <div key={key} hidden={section !== key}>
+              <SectionErrorBoundary title={`${sectionMeta[key].title} gagal dimuat`}>
+                {key === "ringkasan" && <RingkasanSection />}
+                {key === "kampanye" && <KampanyeSection />}
+                {key === "manajemen" && <ManajemenUserSection />}
+                {key === "verifikasi" && <VerifikasiSection />}
+                {key === "verifikasi-pengerjaan" && <VerifikasiSection mode="jobs" />}
+                {key === "pembayaran" && <AdminPaymentVerificationSection />}
+                {key === "verifikasi-pencairan" && <AdminPayoutVerificationSection />}
+                {key === "metode-pembayaran" && <AdminPaymentMethodsSection />}
+                {key === "pencairan" && <PencairanSection />}
+                {key === "sosmed" && <AdminSocialSection />}
+                {key === "ulasan" && <AdminReviewsSection />}
+                {key === "pengaturan" && <PengaturanSection />}
+              </SectionErrorBoundary>
+            </div>
+          ))}
           </div>
         </main>
       </div>
@@ -436,6 +453,7 @@ function AdminPage() {
         nav={navItems}
         activeKey={section}
         onNavigate={go}
+        onPrefetch={markVisited}
         primaryKeys={["ringkasan", "kampanye", "manajemen", "pencairan"]}
       />
 
@@ -520,15 +538,30 @@ function RingkasanSection() {
   }, []);
 
   const dashboardLoading = campaignsLoading || jobsLoading || completedJobsLoading || adminWallet.loading;
-
-  // Fallback data dummy: dipakai saat database masih kosong supaya dashboard
-  // tetap menampilkan ringkasan yang konsisten (1.284 kampanye, 8.420 buzzer).
-  const demoMode =
-    !dashboardLoading &&
+  const emptyDatabase =
     campaigns.length === 0 &&
     jobs.length === 0 &&
     completedJobs.length === 0 &&
     buzzerProfiles.length === 0;
+
+  // Baca flag setelah mount agar render server & client pertama tetap sama
+  // (menghindari hydration mismatch karena localStorage hanya ada di browser).
+  const [demoDbEmptyCached, setDemoDbEmptyCached] = useState(false);
+  useEffect(() => {
+    setDemoDbEmptyCached(readDemoDbEmpty());
+  }, []);
+
+  // Fallback data dummy: dipakai saat database masih kosong supaya dashboard
+  // tetap menampilkan ringkasan yang konsisten (1.284 kampanye, 8.420 buzzer).
+  // Bila reload sebelumnya database sudah diketahui kosong, data demo langsung
+  // ditampilkan agar tidak ada skeleton yang terasa berat.
+  const demoMode = (!dashboardLoading && emptyDatabase) || (dashboardLoading && demoDbEmptyCached);
+  const showDashboardSkeleton = dashboardLoading && !demoMode;
+
+  useEffect(() => {
+    if (dashboardLoading) return;
+    writeDemoDbEmpty(emptyDatabase);
+  }, [dashboardLoading, emptyDatabase]);
   const viewCampaigns = demoMode ? demoCampaigns : campaigns;
   const viewJobs = demoMode ? demoCampaignJobs : jobs;
   const viewCompletedJobs = demoMode ? demoCompletedJobs : completedJobs;
@@ -769,7 +802,7 @@ function RingkasanSection() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {dashboardLoading && (
+                {showDashboardSkeleton && (
                   <TableRow>
                     <TableCell
                       colSpan={5}
@@ -779,7 +812,7 @@ function RingkasanSection() {
                     </TableCell>
                   </TableRow>
                 )}
-                {!dashboardLoading && approvedCampaigns.length === 0 && (
+                {!showDashboardSkeleton && approvedCampaigns.length === 0 && (
                   <TableRow>
                     <TableCell
                       colSpan={5}
@@ -789,7 +822,7 @@ function RingkasanSection() {
                     </TableCell>
                   </TableRow>
                 )}
-                {!dashboardLoading &&
+                {!showDashboardSkeleton &&
                   approvedCampaigns.slice(0, 5).map((c) => {
                     const jobStats = campaignJobStats.get(c.id) ?? { taken: 0, done: 0, total: 0 };
                     const progress = c.slots > 0 ? Math.round((jobStats.taken / c.slots) * 100) : 0;
@@ -830,17 +863,17 @@ function RingkasanSection() {
 
           {/* Tampilan kartu untuk layar kecil */}
           <div className="space-y-2 p-3 md:hidden">
-            {dashboardLoading && (
+            {showDashboardSkeleton && (
               <p className="py-6 text-center text-sm text-muted-foreground">
                 Memuat data kampanye…
               </p>
             )}
-            {!dashboardLoading && approvedCampaigns.length === 0 && (
+            {!showDashboardSkeleton && approvedCampaigns.length === 0 && (
               <p className="py-6 text-center text-sm text-muted-foreground">
                 Belum ada data kampanye.
               </p>
             )}
-            {!dashboardLoading &&
+            {!showDashboardSkeleton &&
               approvedCampaigns.slice(0, 5).map((c) => {
                 const jobStats = campaignJobStats.get(c.id) ?? { taken: 0, done: 0, total: 0 };
                 const progress = c.slots > 0 ? Math.round((jobStats.taken / c.slots) * 100) : 0;
@@ -2955,15 +2988,21 @@ function ServicePricingManagementSection() {
 
 /* ----------------- MANAJEMEN USER (Customer + Buzzer) ----------------- */
 function ManajemenUserSection() {
-  const [stats, setStats] = useState({ totalCustomer: 0, activeCustomer: 0, totalBuzzer: 0, activeBuzzer: 0 });
+  // Tampilkan angka demo lebih dulu supaya kartu statistik tidak berkedip 0
+  // selama query database berjalan.
+  const [stats, setStats] = useState({
+    totalCustomer: demoCustomers.length,
+    activeCustomer: DEMO_ACTIVE_CUSTOMERS,
+    totalBuzzer: demoBuzzers.length,
+    activeBuzzer: DEMO_ACTIVE_BUZZERS,
+  });
 
   useEffect(() => {
     let active = true;
     Promise.all([
       supabase.from("app_accounts").select("role"),
       supabase.from("customer_accounts").select("active"),
-      (supabase as any).from("buzzer_profiles").select("email"),
-    ]).then(([appRes, custRes, buzRes]) => {
+    ]).then(([appRes, custRes]) => {
       if (!active) return;
       const apps = appRes.data || [];
       const customers = apps.filter((a: any) => a.role === "customer");
@@ -2973,21 +3012,17 @@ function ManajemenUserSection() {
         customers.filter((a: any) => a.active !== false).length,
         custRes.data?.filter((c: any) => c.active !== false).length || 0
       );
-      const totalBuz = Math.max(buzzers.length, buzRes.data?.length || 0);
-      const activeBuz = Math.max(buzzers.filter((a: any) => a.active !== false).length, buzRes.data?.length || 0);
+      const totalBuz = buzzers.length;
+      const activeBuz = buzzers.filter((a: any) => a.active !== false).length;
       // Dataset database masih kosong/kecil → tampilkan angka demo yang konsisten
       // dengan landing page (312 klien, 8.420 buzzer).
       const useDemoCustomers = totalCust < 10;
       const useDemoBuzzers = totalBuz < 10;
       setStats({
         totalCustomer: useDemoCustomers ? demoCustomers.length : totalCust,
-        activeCustomer: useDemoCustomers
-          ? demoCustomers.length - 12
-          : activeCust,
+        activeCustomer: useDemoCustomers ? DEMO_ACTIVE_CUSTOMERS : activeCust,
         totalBuzzer: useDemoBuzzers ? demoBuzzers.length : totalBuz,
-        activeBuzzer: useDemoBuzzers
-          ? demoBuzzers.filter((buzzer) => buzzer.status === "Aktif").length
-          : activeBuz,
+        activeBuzzer: useDemoBuzzers ? DEMO_ACTIVE_BUZZERS : activeBuz,
       });
     });
     return () => { active = false; };
@@ -3171,6 +3206,24 @@ const DEMO_INDUSTRIES = [
   "Pendidikan",
   "Properti",
 ];
+const DEMO_ACTIVE_CUSTOMERS = demoCustomers.length - 12;
+const DEMO_ACTIVE_BUZZERS = demoBuzzers.filter((buzzer) => buzzer.status === "Aktif").length;
+
+/** Ingat apakah database terakhir kali kosong, supaya reload berikutnya bisa
+ *  langsung menampilkan data demo tanpa menunggu query Supabase. */
+const DEMO_DB_EMPTY_KEY = "buzzhub.demo_db_empty";
+function readDemoDbEmpty(): boolean {
+  try {
+    return localStorage.getItem(DEMO_DB_EMPTY_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+function writeDemoDbEmpty(value: boolean): void {
+  try {
+    localStorage.setItem(DEMO_DB_EMPTY_KEY, value ? "1" : "0");
+  } catch {}
+}
 
 const demoDate = (daysAgo: number) =>
   new Date(Date.now() - daysAgo * 86_400_000).toISOString().slice(0, 10);

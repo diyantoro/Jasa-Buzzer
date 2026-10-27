@@ -1,10 +1,3 @@
-import {
-  DEMO_STATS,
-  demoBuzzers,
-  demoCampaignsLegacy,
-  demoCustomers,
-} from "./demo-data";
-
 export type Role = "admin" | "buzzer" | "customer";
 
 export const platforms = ["Instagram", "TikTok", "X (Twitter)", "YouTube", "Facebook"] as const;
@@ -17,15 +10,6 @@ export const services = [
   { id: "s5", name: "Facebook Group Seeding", platform: "Facebook", price: 750000, buzzers: 40, desc: "Distribusi konten ke grup target audiens." },
   { id: "s6", name: "Counter Narrative Campaign", platform: "X (Twitter)", price: 3500000, buzzers: 120, desc: "Manajemen krisis dan narasi tandingan." },
 ];
-
-/** 8.420 buzzer dummy (7 profil unggulan + sisanya dibangkitkan). */
-export const buzzers = demoBuzzers;
-
-/** 312 klien dummy. */
-export const customers = demoCustomers;
-
-/** 1.284 kampanye dummy. */
-export const campaigns = demoCampaignsLegacy;
 
 export const jobsForBuzzer = [
   { id: "j1", title: "FinPay Cashback Challenge", platform: "TikTok", payout: 75000, deadline: "2026-07-12", brief: "Buat video 15 detik review fitur cashback FinPay dengan hashtag #FinPayCuan.", status: "Aktif" },
@@ -48,10 +32,10 @@ export const testimonials = [
 ];
 
 export const stats = {
-  totalCampaigns: DEMO_STATS.totalCampaigns,
-  activeBuzzers: DEMO_STATS.activeBuzzers,
-  satisfiedClients: DEMO_STATS.satisfiedClients,
-  trendingHits: DEMO_STATS.trendingHits,
+  totalCampaigns: 1284,
+  activeBuzzers: 8420,
+  satisfiedClients: 312,
+  trendingHits: 96,
 };
 
 export const formatIDR = (n: number) =>

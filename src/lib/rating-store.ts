@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { notifyRatingReceived } from "@/lib/buzzer-notification-store";
+import { getCachedRows, isCacheFresh, loadCachedRows } from "@/lib/query-cache";
 
 export type BuzzerRating = {
   id: string;
@@ -191,33 +192,58 @@ export async function syncBuzzerRatingFull(buzzerEmail: string): Promise<number>
   return calculatedRating;
 }
 
-export function useBuzzerRatings() {
-  const [data, setData] = useState<BuzzerRating[]>([]);
-  const [loading, setLoading] = useState(true);
+const RATINGS_CACHE_KEY = "buzzer_ratings:all";
 
-  const fetchAll = useCallback(async () => {
-    const { data: rows, error } = await supabase
-      .from("buzzer_ratings")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(500);
-    if (error) {
+export function useBuzzerRatings() {
+  const [data, setData] = useState<BuzzerRating[]>(
+    () => getCachedRows<BuzzerRating>(RATINGS_CACHE_KEY) ?? [],
+  );
+  const [loading, setLoading] = useState(
+    () => !getCachedRows<BuzzerRating>(RATINGS_CACHE_KEY),
+  );
+  // Nama channel harus unik per instance/mount. Kalau tidak, instance kedua
+  // akan menempelkan callback ke channel yang sudah subscribe dan Supabase
+  // melempar error "cannot add postgres_changes callbacks after subscribe()".
+  const [channelId] = useState(() => `ratings-${Math.random().toString(36).slice(2, 10)}`);
+
+  const fetchAll = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) setLoading(true);
+    try {
+      const rows = await loadCachedRows<BuzzerRating>(RATINGS_CACHE_KEY, async () => {
+        const { data: rows, error } = await supabase
+          .from("buzzer_ratings")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(500);
+        if (error) throw error;
+        return (rows as BuzzerRating[]) ?? [];
+      });
+      setData(rows);
+    } catch (error) {
       console.error("Gagal memuat rating buzzer:", error);
+      if (!getCachedRows<BuzzerRating>(RATINGS_CACHE_KEY)) setData([]);
+    } finally {
+      setLoading(false);
     }
-    setData((rows as BuzzerRating[]) ?? []);
-    setLoading(false);
   }, []);
 
   useEffect(() => {
-    fetchAll();
+    const hasCache = Boolean(getCachedRows<BuzzerRating>(RATINGS_CACHE_KEY));
+    if (!hasCache) {
+      void fetchAll();
+    } else if (!isCacheFresh(RATINGS_CACHE_KEY)) {
+      void fetchAll({ silent: true });
+    }
     const ch = supabase
-      .channel("rt-buzzer_ratings")
-      .on("postgres_changes", { event: "*", schema: "public", table: "buzzer_ratings" }, () => fetchAll())
+      .channel(`rt-buzzer_ratings-${channelId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "buzzer_ratings" }, () => {
+        void fetchAll({ silent: true });
+      })
       .subscribe();
     return () => {
       supabase.removeChannel(ch);
     };
-  }, [fetchAll]);
+  }, [fetchAll, channelId]);
 
   return { data, loading, refetch: fetchAll };
 }

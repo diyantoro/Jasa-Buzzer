@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { calculateCampaignJobSplit, useCompletedCampaignJobs } from "@/lib/campaign-store";
 import { usePayments } from "@/lib/finance-store";
@@ -90,6 +90,7 @@ export function useAdminWallet() {
   const [wallet, setWallet] = useState<AdminWallet>(getCachedWallet);
   const [withdrawals, setWithdrawals] = useState<AdminWithdrawal[]>(getCachedWithdrawals);
   const [loading, setLoading] = useState(true);
+  const persistedRef = useRef(false);
 
   // Fallback direct calculations from all completed jobs & payments without truncation
   const { data: completedJobs, loading: jobsLoading } = useCompletedCampaignJobs();
@@ -190,48 +191,63 @@ export function useAdminWallet() {
       setWallet(computedWallet);
       setCachedWallet(computedWallet);
 
-      // Best-effort attempt to persist to admin_wallet table if it exists
-      void (async () => {
-        try {
-          await (supabase as any).from("admin_wallet").upsert({
-            id: "primary",
-            balance: computedWallet.balance,
-            total_revenue: computedWallet.total_revenue,
-            total_buzzer_payout: computedWallet.total_buzzer_payout,
-            total_incoming: computedWallet.total_incoming,
-            completed_jobs_count: computedWallet.completed_jobs_count,
-            updated_at: new Date().toISOString(),
-          });
-        } catch {
-          // Ignore if table not created yet
-        }
-      })();
+      // Best-effort attempt to persist to admin_wallet table if it exists.
+      // Cukup sekali per mount supaya tidak memicu request/realtime berulang.
+      if (!persistedRef.current) {
+        persistedRef.current = true;
+        void (async () => {
+          try {
+            await (supabase as any).from("admin_wallet").upsert({
+              id: "primary",
+              balance: computedWallet.balance,
+              total_revenue: computedWallet.total_revenue,
+              total_buzzer_payout: computedWallet.total_buzzer_payout,
+              total_incoming: computedWallet.total_incoming,
+              completed_jobs_count: computedWallet.completed_jobs_count,
+              updated_at: new Date().toISOString(),
+            });
+          } catch {
+            // Ignore if table not created yet
+          }
+        })();
+      }
     }
   }, [computedWallet, jobsLoading, paymentsLoading]);
 
+  const fetchWalletRef = useRef(fetchWallet);
+  const fetchWithdrawalsRef = useRef(fetchWithdrawals);
+
   useEffect(() => {
-    void fetchWallet();
-    void fetchWithdrawals();
+    fetchWalletRef.current = fetchWallet;
+  }, [fetchWallet]);
+
+  useEffect(() => {
+    fetchWithdrawalsRef.current = fetchWithdrawals;
+  }, [fetchWithdrawals]);
+
+  useEffect(() => {
+    void fetchWalletRef.current();
+    void fetchWithdrawalsRef.current();
 
     const handleLocalUpdate = () => {
       setWithdrawals(getCachedWithdrawals());
-      void fetchWallet();
+      void fetchWalletRef.current();
     };
     window.addEventListener(UPDATE_EVENT, handleLocalUpdate);
 
     const ch = supabase
       .channel(`rt-admin-wallet-${channelId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "admin_wallet" }, () => {
-        void fetchWallet();
+        void fetchWalletRef.current();
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "admin_withdrawals" }, () => {
-        void fetchWithdrawals();
+        void fetchWithdrawalsRef.current();
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "campaign_jobs" }, () => {
-        void fetchWallet();
+        void fetchWalletRef.current();
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "payments" }, () => {
-        void fetchWallet();
+        void fetchWalletRef.current();
       })
       .subscribe();
 
@@ -239,7 +255,7 @@ export function useAdminWallet() {
       window.removeEventListener(UPDATE_EVENT, handleLocalUpdate);
       void supabase.removeChannel(ch);
     };
-  }, [fetchWallet, fetchWithdrawals, channelId]);
+  }, [channelId]);
 
   useEffect(() => {
     if (jobsLoading || paymentsLoading) return;
