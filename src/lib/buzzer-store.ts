@@ -94,17 +94,33 @@ const DEMO_BUZZER_EMAIL = "buzzer@buzzhub.id";
 
 const isDemoBuzzer = (email: string) => email.trim().toLowerCase() === DEMO_BUZZER_EMAIL;
 
+/**
+ * ID demo ini juga dipakai oleh migration Supabase
+ * `20261027000000_connect_demo_buzzer_data.sql` supaya job lokal dan job
+ * Supabase memakai baris yang sama (bukan dua sumber data terpisah).
+ */
+const DEMO_JOB_IDS = {
+  skincare: "bbbbbbbb-0000-4000-8000-000000000001",
+  kopiSenja: "bbbbbbbb-0000-4000-8000-000000000002",
+  finpay: "bbbbbbbb-0000-4000-8000-000000000003",
+  ramadhan: "bbbbbbbb-0000-4000-8000-000000000004",
+  earphone: "bbbbbbbb-0000-4000-8000-000000000005",
+  viralTikTok: "bbbbbbbb-0000-4000-8000-000000000006",
+  boostReels: "bbbbbbbb-0000-4000-8000-000000000007",
+  meetup: "bbbbbbbb-0000-4000-8000-000000000008",
+} as const;
+
 /** Data dummy untuk akun demo `buzzer@buzzhub.id` agar dashboard buzzer terisi. */
 function demoBuzzerState(email: string, name: string): BuzzerState {
   const jobs: BuzzerJob[] = [
-    { id: "demo-job-1", title: "Launch Produk Skincare Glowin", platform: "Instagram", brief: "Posting story + feed unboxing produk Glowin tag @glowin.id.", deadline: today(-2), payout: 75000, status: "Selesai", proofUrl: "https://buzzhub.id/demo/proof-1.jpg", admin_verified_at: today(-2), updatedAt: today(-2) },
-    { id: "demo-job-2", title: "Hashtag #KopiSenjaPulang", platform: "X (Twitter)", brief: "Tweet pengalaman ngopi sore dengan hashtag, minimum 3 tweet.", deadline: today(-5), payout: 25000, status: "Selesai", proofUrl: "https://buzzhub.id/demo/proof-2.jpg", admin_verified_at: today(-5), updatedAt: today(-5) },
-    { id: "demo-job-3", title: "FinPay Cashback Challenge", platform: "TikTok", brief: "Buat video 15 detik review fitur cashback FinPay dengan hashtag #FinPayCuan.", deadline: today(-8), payout: 90000, status: "Selesai", proofUrl: "https://buzzhub.id/demo/proof-3.jpg", admin_verified_at: today(-8), updatedAt: today(-8) },
-    { id: "demo-job-4", title: "Promo Ramadhan Bunda", platform: "Facebook", brief: "Share post promo ke 5 grup ibu rumah tangga.", deadline: today(-12), payout: 30000, status: "Selesai", proofUrl: "https://buzzhub.id/demo/proof-4.jpg", admin_verified_at: today(-12), updatedAt: today(-12) },
-    { id: "demo-job-5", title: "Review Earphone Sonik", platform: "YouTube", brief: "Ulasan 3 menit kelebihan dan kekurangan Earphone Sonik.", deadline: today(-20), payout: 120000, status: "Selesai", proofUrl: "https://buzzhub.id/demo/proof-5.jpg", admin_verified_at: today(-20), updatedAt: today(-20) },
-    { id: "demo-job-6", title: "Viral TikTok Dance Brand", platform: "TikTok", brief: "Ikuti choreography resmi brand dan upload video duet.", deadline: today(3), payout: 65000, status: "Review", proofUrl: "https://buzzhub.id/demo/proof-6.jpg", updatedAt: today(-1) },
-    { id: "demo-job-7", title: "Boost Reels Skincare", platform: "Instagram", brief: "Upload reels dengan audio trending, minimal 500 views organik.", deadline: today(5), payout: 55000, status: "Diambil", updatedAt: today(0) },
-    { id: "demo-job-8", title: "Community Meetup Devs", platform: "X (Twitter)", brief: "Live tweet thread selama acara komunitas berlangsung.", deadline: today(7), payout: 40000, status: "Revisi", proofUrl: "https://buzzhub.id/demo/proof-8.jpg", rejection_reason: "Thread belum menyebut akun sponsor utama.", rejected_at: today(-1), updatedAt: today(-1) },
+    { id: DEMO_JOB_IDS.skincare, title: "Launch Produk Skincare Glowin", platform: "Instagram", brief: "Posting story + feed unboxing produk Glowin tag @glowin.id.", deadline: today(-2), payout: 75000, status: "Selesai", proofUrl: "https://buzzhub.id/demo/proof-1.jpg", admin_verified_at: today(-2), updatedAt: today(-2) },
+    { id: DEMO_JOB_IDS.kopiSenja, title: "Hashtag #KopiSenjaPulang", platform: "X (Twitter)", brief: "Tweet pengalaman ngopi sore dengan hashtag, minimum 3 tweet.", deadline: today(-5), payout: 25000, status: "Selesai", proofUrl: "https://buzzhub.id/demo/proof-2.jpg", admin_verified_at: today(-5), updatedAt: today(-5) },
+    { id: DEMO_JOB_IDS.finpay, title: "FinPay Cashback Challenge", platform: "TikTok", brief: "Buat video 15 detik review fitur cashback FinPay dengan hashtag #FinPayCuan.", deadline: today(-8), payout: 90000, status: "Selesai", proofUrl: "https://buzzhub.id/demo/proof-3.jpg", admin_verified_at: today(-8), updatedAt: today(-8) },
+    { id: DEMO_JOB_IDS.ramadhan, title: "Promo Ramadhan Bunda", platform: "Facebook", brief: "Share post promo ke 5 grup ibu rumah tangga.", deadline: today(-12), payout: 30000, status: "Selesai", proofUrl: "https://buzzhub.id/demo/proof-4.jpg", admin_verified_at: today(-12), updatedAt: today(-12) },
+    { id: DEMO_JOB_IDS.earphone, title: "Review Earphone Sonik", platform: "YouTube", brief: "Ulasan 3 menit kelebihan dan kekurangan Earphone Sonik.", deadline: today(-20), payout: 120000, status: "Selesai", proofUrl: "https://buzzhub.id/demo/proof-5.jpg", admin_verified_at: today(-20), updatedAt: today(-20) },
+    { id: DEMO_JOB_IDS.viralTikTok, title: "Viral TikTok Dance Brand", platform: "TikTok", brief: "Ikuti choreography resmi brand dan upload video duet.", deadline: today(3), payout: 65000, status: "Review", proofUrl: "https://buzzhub.id/demo/proof-6.jpg", updatedAt: today(-1) },
+    { id: DEMO_JOB_IDS.boostReels, title: "Boost Reels Skincare", platform: "Instagram", brief: "Upload reels dengan audio trending, minimal 500 views organik.", deadline: today(5), payout: 55000, status: "Diambil", updatedAt: today(0) },
+    { id: DEMO_JOB_IDS.meetup, title: "Community Meetup Devs", platform: "X (Twitter)", brief: "Live tweet thread selama acara komunitas berlangsung.", deadline: today(7), payout: 40000, status: "Revisi", proofUrl: "https://buzzhub.id/demo/proof-8.jpg", rejection_reason: "Thread belum menyebut akun sponsor utama.", rejected_at: today(-1), updatedAt: today(-1) },
   ];
 
   const earnings: Earning[] = jobs
@@ -123,7 +139,7 @@ function demoBuzzerState(email: string, name: string): BuzzerState {
   earnings.push({
     id: "demo-earning-6",
     date: today(-1),
-    jobId: "demo-job-6",
+    jobId: DEMO_JOB_IDS.viralTikTok,
     jobTitle: "Viral TikTok Dance Brand",
     amount: 65000,
     status: "Pending",
@@ -406,16 +422,28 @@ export function useBuzzerStore(
 
       if (!active || walletError || jobsError) return;
 
-      const earnings = (buzzerJobs ?? []).filter((job: any) => Number(job.buzzer_amount ?? job.payout ?? 0) > 0).map((job: any) => ({
-        id: job.id,
-        date: job.updated_at.slice(0, 10),
-        jobId: job.id,
-        jobTitle: job.campaign_title,
-        amount: Number(job.buzzer_amount ?? job.payout ?? 0),
-        status: "Berhasil" as const,
-        platform: (job.platform ?? "Instagram") as Platform,
-        transactionType: "Payout Buzzer",
-      }));
+      const earnings = (buzzerJobs ?? []).filter((job: any) => Number(job.buzzer_amount ?? job.payout ?? 0) > 0).map((job: any) => {
+        // Status penghasilan harus mengikuti status job, bukan selalu "Berhasil".
+        // Job yang masih Diambil/Revisi/Review belum masuk saldo.
+        const earningStatus: Earning["status"] =
+          job.status === "Selesai"
+            ? "Berhasil"
+            : job.status === "Ditolak"
+              ? "Ditolak"
+              : job.status === "Review"
+                ? "Pending"
+                : "Diproses";
+        return {
+          id: job.id,
+          date: (job.updated_at || job.submitted_at || job.created_at || new Date().toISOString()).slice(0, 10),
+          jobId: job.id,
+          jobTitle: job.campaign_title,
+          amount: Number(job.buzzer_amount ?? job.payout ?? 0),
+          status: earningStatus,
+          platform: (job.platform ?? "Instagram") as Platform,
+          transactionType: "Payout Buzzer",
+        };
+      });
 
       const current = read(email, nm, profile);
       const mergedWithdrawals: Withdrawal[] = (dbWithdrawals && dbWithdrawals.length > 0)

@@ -445,7 +445,205 @@ export async function takeCampaignJob(id: string, buzzerEmail: string, buzzerNam
   });
   if (error) throw new Error(error.message || "Job sudah tidak tersedia.");
 }
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/**
+ * UUID deterministik supaya job lokal yang belum ada di Supabase tidak
+ * menghasilkan baris ganda setiap kali bukti dikirim ulang.
+ */
+function stableUuid(input: string): string {
+  let h1 = 0x811c9dc5;
+  let h2 = 0x01000193;
+  let h3 = 0x9e3779b9;
+  let h4 = 0x85ebca6b;
+  for (let i = 0; i < input.length; i++) {
+    const c = input.charCodeAt(i);
+    h1 = Math.imul(h1 ^ c, 0x01000193);
+    h2 = Math.imul(h2 ^ c, 0x85ebca6b);
+    h3 = Math.imul(h3 ^ c, 0xc2b2ae35);
+    h4 = Math.imul(h4 ^ c, 0x27d4eb2f);
+  }
+  const hex = (n: number) => (n >>> 0).toString(16).padStart(8, "0");
+  const chars = (hex(h1) + hex(h2) + hex(h3) + hex(h4)).split("");
+  chars[12] = "5";
+  chars[16] = ((parseInt(chars[16], 16) & 0x3) | 0x8).toString(16);
+  const value = chars.join("");
+  return `${value.slice(0, 8)}-${value.slice(8, 12)}-${value.slice(12, 16)}-${value.slice(16, 20)}-${value.slice(20)}`;
+}
+
+function campaignIdForLocalJob(jobId: string): string {
+  // Demo jobs use a paired campaign UUID: bbbbbbbb-... -> aaaaaaaa-...
+  if (/^bbbbbbbb-0000-4000-8000-[0-9a-f]{12}$/i.test(jobId)) {
+    return `aaaaaaaa${jobId.slice(8)}`;
+  }
+  return stableUuid(`buzzhub:campaign:${jobId}`);
+}
+
+export type SyncableBuzzerJob = {
+  id: string;
+  title: string;
+  platform: CampaignPlatform;
+  brief: string;
+  deadline: string;
+  payout: number;
+  status: CampaignJobStatus | "Upload";
+  proofUrl?: string;
+  note?: string;
+  rejection_reason?: string;
+  rejected_at?: string;
+  admin_verified_at?: string | null;
+  customer_rated_at?: string | null;
+  updatedAt?: string;
+};
+
+/**
+ * Menyambungkan job demo/lokal ke Supabase sebelum bukti dikirim.
+ *
+ * Job demo tetap bisa tampil dari localStorage ketika database kosong, tetapi
+ * saat buzzer mengirim bukti baris campaign + job dibuat di Supabase dengan ID
+ * deterministik. Dengan begitu bukti, status, dan riwayat tidak tertinggal di
+ * browser saja dan admin/customer bisa melihatnya.
+ */
+export async function ensureCampaignJobInSupabase(
+  job: SyncableBuzzerJob,
+  buzzerEmail: string,
+  buzzerName: string,
+): Promise<string> {
+  const email = buzzerEmail.trim().toLowerCase();
+  if (!email) throw new Error("Email buzzer tidak ditemukan.");
+
+  const localId = job.id.replace(/^db:/, "");
+  const jobId = UUID_PATTERN.test(localId) ? localId : stableUuid(`buzzhub:job:${localId}`);
+  const campaignId = campaignIdForLocalJob(jobId);
+
+  const { data: existing, error: existingError } = await supabase
+    .from("campaign_jobs")
+    .select("id, buzzer_email")
+    .eq("id", jobId)
+    .maybeSingle();
+  if (existingError) throw existingError;
+  if (existing?.id) {
+    if (existing.buzzer_email && existing.buzzer_email.toLowerCase() !== email) {
+      throw new Error("Job ini sudah terhubung ke akun buzzer lain.");
+    }
+    return existing.id;
+  }
+
+  const payout = Math.max(0, Number(job.payout) || 0);
+  // Database caps the buzzer share at 40% of gross_price. Use a 2.5x gross
+  // snapshot so the demo payout shown in the UI stays exactly the same.
+  const grossPrice = Math.max(payout, Math.round(payout * 2.5));
+  const adminAmount = Math.max(0, grossPrice - payout);
+  const buzzerPercentage = grossPrice > 0 ? Math.round((payout / grossPrice) * 100) : 100;
+  const adminPercentage = 100 - buzzerPercentage;
+  const normalizedStatus: CampaignJobStatus =
+    job.status === "Ditolak" ? "Revisi" : job.status === "Upload" ? "Review" : job.status;
+  const campaignStatus = normalizedStatus === "Review" ? "Review" : "Aktif";
+  const deadline = /^\d{4}-\d{2}-\d{2}$/.test(job.deadline)
+    ? job.deadline
+    : new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+  const startDate = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+  const timestamp = job.updatedAt && !Number.isNaN(Date.parse(job.updatedAt))
+    ? job.updatedAt
+    : new Date().toISOString();
+  const proofUrl = job.proofUrl ?? null;
+  const submittedAt = proofUrl ? timestamp : null;
+
+  const campaignPayload = {
+    id: campaignId,
+    title: job.title,
+    customer_email: "customer@buzzhub.id",
+    customer_name: "Customer Utama",
+    platform: job.platform,
+    brief: job.brief,
+    budget: grossPrice,
+    payout_per_buzzer: payout,
+    slots: 1,
+    deadline,
+    status: campaignStatus,
+    payment_status: "Pembayaran Disetujui",
+    start_date: startDate,
+    price_per_buzzer: grossPrice,
+    buzzer_count: 1,
+    total_amount: grossPrice,
+    created_at: timestamp,
+    updated_at: timestamp,
+  };
+
+  const { error: campaignError } = await (supabase as any)
+    .from("campaigns")
+    .upsert(campaignPayload, { onConflict: "id" });
+  if (campaignError) throw campaignError;
+
+  const jobPayload = {
+    id: jobId,
+    campaign_id: campaignId,
+    campaign_title: job.title,
+    platform: job.platform,
+    buzzer_email: email,
+    buzzer_name: buzzerName.trim() || email,
+    payout,
+    deadline,
+    brief: job.brief,
+    status: normalizedStatus,
+    proof_url: proofUrl,
+    note: job.note ?? null,
+    rejection_reason: job.rejection_reason ?? null,
+    rejected_at: job.rejected_at ?? null,
+    rejected_by: job.rejection_reason || normalizedStatus === "Revisi" ? "admin@buzzhub.id" : null,
+    resubmission_count: normalizedStatus === "Revisi" ? 1 : 0,
+    submitted_at: submittedAt,
+    admin_verified_at: job.admin_verified_at ?? null,
+    customer_rated_at: job.customer_rated_at ?? null,
+    gross_price: grossPrice,
+    buzzer_level: null,
+    buzzer_percentage: buzzerPercentage,
+    buzzer_amount: payout,
+    admin_percentage: adminPercentage,
+    admin_amount: adminAmount,
+    created_at: timestamp,
+    updated_at: timestamp,
+  };
+
+  const { error: jobError } = await (supabase as any)
+    .from("campaign_jobs")
+    .insert(jobPayload);
+  if (jobError) {
+    // Tab lain mungkin sudah lebih dulu membuat baris dengan ID deterministik ini.
+    const { data: raced } = await supabase
+      .from("campaign_jobs")
+      .select("id, buzzer_email")
+      .eq("id", jobId)
+      .maybeSingle();
+    if (raced?.id) {
+      if (raced.buzzer_email && raced.buzzer_email.toLowerCase() !== email) {
+        throw new Error("Job ini sudah terhubung ke akun buzzer lain.");
+      }
+      return raced.id;
+    }
+    throw jobError;
+  }
+
+  return jobId;
+}
+
 export async function submitCampaignJobProof(id: string, url: string, buzzerEmail = "") {
+  const email = buzzerEmail.trim().toLowerCase();
+  const { data: job, error: jobLookupError } = await supabase
+    .from("campaign_jobs")
+    .select("id, buzzer_email, status")
+    .eq("id", id)
+    .maybeSingle();
+  if (jobLookupError) throw jobLookupError;
+  if (!job) throw new Error("Job tidak ditemukan di database Supabase.");
+  if (!job.buzzer_email) throw new Error("Job ini belum diambil oleh buzzer.");
+  if (job.buzzer_email.toLowerCase() !== email) {
+    throw new Error("Job ini bukan milik akun buzzer yang sedang masuk.");
+  }
+  if (!["Diambil", "Revisi", "Ditolak"].includes(job.status)) {
+    throw new Error(`Job berstatus ${job.status} tidak dapat menerima bukti baru.`);
+  }
+
   const { data: previous, error: previousError } = await supabase
     .from("campaign_job_submissions")
     .select("submission_number")
@@ -455,13 +653,17 @@ export async function submitCampaignJobProof(id: string, url: string, buzzerEmai
     .maybeSingle();
   if (previousError) throw previousError;
   const submissionNumber = (previous?.submission_number ?? 0) + 1;
-  const { error: submissionError } = await supabase.from("campaign_job_submissions").insert({
-    job_id: id,
-    buzzer_email: buzzerEmail.trim().toLowerCase(),
-    proof_url: url,
-    submission_number: submissionNumber,
-    status: "Review",
-  });
+  const { data: submission, error: submissionError } = await supabase
+    .from("campaign_job_submissions")
+    .insert({
+      job_id: id,
+      buzzer_email: email,
+      proof_url: url,
+      submission_number: submissionNumber,
+      status: "Review",
+    })
+    .select("id")
+    .single();
   if (submissionError) throw submissionError;
 
   const { data, error } = await supabase
@@ -470,14 +672,12 @@ export async function submitCampaignJobProof(id: string, url: string, buzzerEmai
     .eq("id", id)
     .select("id, proof_url, status")
     .maybeSingle();
-  if (error) {
+  if (error || !data?.proof_url) {
+    if (submission?.id) {
+      await supabase.from("campaign_job_submissions").delete().eq("id", submission.id);
+    }
     console.error("[Proof Upload] Supabase campaign_jobs update error:", error);
-    throw error;
-  }
-  if (!data?.proof_url) {
-    const updateError = new Error("Bukti berhasil diunggah tetapi belum tersimpan ke job.");
-    console.error("[Proof Upload] Invalid campaign_jobs update response:", data);
-    throw updateError;
+    throw error ?? new Error("Bukti berhasil diunggah tetapi belum tersimpan ke job.");
   }
 }
 

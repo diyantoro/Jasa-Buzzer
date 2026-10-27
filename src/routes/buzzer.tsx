@@ -6,7 +6,7 @@ import {
   Instagram, Music2, Twitter, Facebook, Youtube, RefreshCw, AlertCircle,
   Camera, Filter, Inbox, ChevronLeft, ChevronRight, Link2, FileSpreadsheet, FileDown, Send,
   Copy, ExternalLink, Heart, MessageCircle, Sparkles, Share2, Users, FileText, Loader2, CalendarDays,
-  Settings, Plus,
+  Settings, Plus, LifeBuoy,
 } from "lucide-react";
 
 import { SosmedSection, LevelCard } from "@/components/social-accounts-section";
@@ -14,6 +14,7 @@ import { useSocialAccounts } from "@/lib/social-store";
 import { useBuzzerLevel, getBuzzerPercentageForLevel } from "@/lib/buzzer-level";
 import { BuzzerNotifBell, BuzzerNotifSheet } from "@/components/buzzer-notif-sheet";
 import { BuzzerSettingsSection } from "@/components/buzzer-settings-section";
+import { HelpSection } from "@/components/help-section";
 import { useBuzzerNotifications } from "@/lib/buzzer-notification-store";
 import { toast } from "sonner";
 import { getApplicationByEmail, getBuzzerVerificationStatus, type BuzzerAppStatus, type BuzzerApplication } from "@/lib/buzzer-verification";
@@ -47,6 +48,7 @@ import {
   useBuzzerCampaignJobs,
   takeCampaignJob,
   submitCampaignJobProof,
+  ensureCampaignJobInSupabase,
 } from "@/lib/campaign-store";
 import { notifyTaskSubmitted } from "@/lib/buzzer-notification-store";
 import { useBuzzerRatings, averageStars } from "@/lib/rating-store";
@@ -190,7 +192,7 @@ export const Route = createFileRoute("/buzzer")({
   component: BuzzerPage,
 });
 
-type SectionKey = "jobs" | "sosmed" | "penghasilan" | "ulasan" | "profil" | "pengaturan";
+type SectionKey = "jobs" | "sosmed" | "penghasilan" | "ulasan" | "profil" | "bantuan" | "pengaturan";
 
 const BUZZER_SECTIONS: SectionKey[] = [
   "jobs",
@@ -198,6 +200,7 @@ const BUZZER_SECTIONS: SectionKey[] = [
   "penghasilan",
   "ulasan",
   "profil",
+  "bantuan",
   "pengaturan",
 ];
 
@@ -219,6 +222,7 @@ const navItems: { key: SectionKey; label: string; shortLabel?: string; icon: Rea
   { key: "penghasilan", label: "Penghasilan", icon: <Wallet className="h-4 w-4" /> },
   { key: "ulasan", label: "Rating & Ulasan", icon: <Star className="h-4 w-4" /> },
   { key: "profil", label: "Profil", icon: <User className="h-4 w-4" /> },
+  { key: "bantuan", label: "Bantuan", icon: <LifeBuoy className="h-4 w-4" /> },
   { key: "pengaturan", label: "Pengaturan", icon: <Settings className="h-4 w-4" /> },
 ];
 
@@ -228,6 +232,7 @@ const sectionMeta: Record<SectionKey, { title: string; subtitle: string }> = {
   penghasilan: { title: "Penghasilan", subtitle: "Riwayat saldo, pembayaran & pencairan" },
   ulasan: { title: "Rating & Ulasan", subtitle: "Penilaian performa & feedback dari customer" },
   profil: { title: "Profil Buzzer", subtitle: "Kelola data & preferensi akun kamu" },
+  bantuan: { title: "Bantuan", subtitle: "Panduan, FAQ, dan kontak support BuzzHub" },
   pengaturan: { title: "Pengaturan", subtitle: "Kelola preferensi notifikasi dan akun buzzer kamu" },
 };
 
@@ -452,6 +457,7 @@ function BuzzerPage() {
               {key === "penghasilan" && <PenghasilanSection store={store} />}
               {key === "ulasan" && <RatingUlasanSection store={store} />}
               {key === "profil" && <ProfilSection store={store} onGoRatings={() => go("ulasan")} />}
+              {key === "bantuan" && <HelpSection role="buzzer" onNavigate={(target) => go(target as SectionKey)} />}
               {key === "pengaturan" && <BuzzerSettingsSection buzzerEmail={session.email} />}
             </div>
           ))}
@@ -1089,6 +1095,12 @@ function JobCard({
   const buzzerPct = getBuzzerPercentageForLevel(job.buzzerLevel ?? lv.level?.name);
   const grossPrice = Math.max(0, job.grossPrice ?? 0);
   const payout = (() => {
+    // Job yang sudah diambil memakai snapshot payout dari database. Ini
+    // mencegah nominal berubah ketika level buzzer naik setelah job diambil.
+    if (currentStatus !== "Tersedia") {
+      const snapshot = Number(job.buzzerAmount ?? job.payout ?? 0);
+      if (snapshot > 0) return Math.round(snapshot);
+    }
     if (grossPrice <= 0) return 0;
     return Math.round((grossPrice * buzzerPct) / 100);
   })();
@@ -1143,15 +1155,18 @@ function JobCard({
   const doUpload = async () => {
     if (!shot) return toast.error("File bukti pengerjaan wajib diunggah (gambar atau PDF)");
     if (!proof.trim()) return toast.error("Link postingan wajib diisi agar admin dapat memverifikasi pengerjaan.");
-    if (!remoteId) {
-      console.error("[Proof Upload] Job tidak memiliki ID campaign_jobs Supabase:", job.id);
-      return toast.error("Job ini belum tersambung ke database Supabase.");
-    }
     setLoading(true);
     try {
+      // Job demo yang masih tersimpan di localStorage disambungkan dulu ke
+      // Supabase supaya bukti dan statusnya tidak hanya tersimpan di browser.
+      const targetJobId = remoteId ?? await ensureCampaignJobInSupabase(
+        job,
+        store.state.profile.email,
+        store.state.profile.name,
+      );
       const shotUrl = await uploadProofScreenshot(shot);
       const value = `${shotUrl} | ${proof.trim()}`;
-      await submitCampaignJobProof(remoteId, value, store.state.profile.email);
+      await submitCampaignJobProof(targetJobId, value, store.state.profile.email);
       store.uploadProof(job.id, value);
       setOptimisticStatus("Review");
       setOptimisticProofUrl(value);
@@ -1161,7 +1176,7 @@ function JobCard({
       void notifyTaskSubmitted({
         buzzerEmail: store.state.profile.email,
         campaignTitle: job.title,
-        jobId: job.id,
+        jobId: targetJobId,
         isResubmit: false,
       });
       await onUpdated?.();
@@ -1177,15 +1192,16 @@ function JobCard({
   const doResubmit = async () => {
     if (!shot) return toast.error("File bukti pengerjaan baru wajib diunggah (gambar atau PDF)");
     if (!proof.trim()) return toast.error("Link postingan wajib diisi agar admin dapat memverifikasi pengerjaan.");
-    if (!remoteId) {
-      console.error("[Proof Upload] Job revisi tidak memiliki ID campaign_jobs Supabase:", job.id);
-      return toast.error("Job ini belum tersambung ke database Supabase.");
-    }
     setLoading(true);
     try {
+      const targetJobId = remoteId ?? await ensureCampaignJobInSupabase(
+        job,
+        store.state.profile.email,
+        store.state.profile.name,
+      );
       const shotUrl = await uploadProofScreenshot(shot);
       const value = `${shotUrl} | ${proof.trim()}`;
-      await submitCampaignJobProof(remoteId, value, store.state.profile.email);
+      await submitCampaignJobProof(targetJobId, value, store.state.profile.email);
       store.resubmitProof(job.id, value);
       setOptimisticStatus("Review");
       setOptimisticProofUrl(value);
@@ -1195,7 +1211,7 @@ function JobCard({
       void notifyTaskSubmitted({
         buzzerEmail: store.state.profile.email,
         campaignTitle: job.title,
-        jobId: job.id,
+        jobId: targetJobId,
         isResubmit: true,
       });
       await onUpdated?.();

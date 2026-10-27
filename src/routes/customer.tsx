@@ -8,7 +8,7 @@ import {
   ChevronLeft, ChevronRight, Inbox, Target, Share2, FileText, Check,
   FileSpreadsheet, FileDown,
   Image as ImageIcon,
-  BarChart3, SlidersHorizontal, Calendar as CalendarIcon, RotateCcw, ExternalLink, Settings,
+  BarChart3, SlidersHorizontal, Calendar as CalendarIcon, RotateCcw, ExternalLink, Settings, LifeBuoy,
 } from "lucide-react";
 import { format } from "date-fns";
 import { jsPDF } from "jspdf";
@@ -36,6 +36,7 @@ import { StatCard, StatusBadge } from "@/components/dashboard-shell";
 import { MobileBottomNav, SidebarNav, useSidebarCollapsed } from "@/components/dashboard-sidebar";
 import { CustomerHomepageSection } from "@/components/customer-homepage-section";
 import { CustomerSettingsSection } from "@/components/customer-settings-section";
+import { HelpSection } from "@/components/help-section";
 import {
   useCustomerNotifPreferences,
   isCustomerNotifEnabled,
@@ -70,7 +71,7 @@ export const Route = createFileRoute("/customer")({
   component: CustomerPage,
 });
 
-type SectionKey = "homepage" | "pesanan" | "katalog" | "pembayaran" | "ulasan" | "pengaturan";
+type SectionKey = "homepage" | "pesanan" | "katalog" | "pembayaran" | "ulasan" | "bantuan" | "pengaturan";
 
 const CUSTOMER_SECTIONS: SectionKey[] = [
   "homepage",
@@ -78,6 +79,7 @@ const CUSTOMER_SECTIONS: SectionKey[] = [
   "katalog",
   "pembayaran",
   "ulasan",
+  "bantuan",
   "pengaturan",
 ];
 
@@ -99,6 +101,7 @@ const navItems: { key: SectionKey; label: string; icon: ReactNode }[] = [
   { key: "katalog", label: "Katalog", icon: <Package className="h-4 w-4" /> },
   { key: "pembayaran", label: "Pembayaran", icon: <CreditCard className="h-4 w-4" /> },
   { key: "ulasan", label: "Ulasan", icon: <Star className="h-4 w-4" /> },
+  { key: "bantuan", label: "Bantuan", icon: <LifeBuoy className="h-4 w-4" /> },
   { key: "pengaturan", label: "Pengaturan", icon: <Settings className="h-4 w-4" /> },
 ];
 
@@ -108,6 +111,7 @@ const sectionMeta: Record<SectionKey, { title: string; subtitle: string }> = {
   katalog: { title: "Katalog", subtitle: "Pilih layanan buzzer yang tersedia" },
   pembayaran: { title: "Pembayaran", subtitle: "Kelola tagihan dan riwayat transaksi pembayaran" },
   ulasan: { title: "Ulasan", subtitle: "Kelola rating dan komentar Anda untuk buzzer" },
+  bantuan: { title: "Bantuan", subtitle: "Panduan, FAQ, dan kontak support BuzzHub" },
   pengaturan: { title: "Pengaturan", subtitle: "Kelola preferensi notifikasi dan akun customer Anda" },
 };
 
@@ -455,6 +459,11 @@ function CustomerPage() {
                     customerEmail={session.email}
                     customerName={session.name}
                   />
+                </SectionErrorBoundary>
+              )}
+              {key === "bantuan" && (
+                <SectionErrorBoundary title="Bantuan gagal dimuat">
+                  <HelpSection role="customer" onNavigate={(target) => go(target as SectionKey)} />
                 </SectionErrorBoundary>
               )}
               {key === "pengaturan" && (
