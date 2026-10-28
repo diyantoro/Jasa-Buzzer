@@ -68,6 +68,11 @@ export function isCustomerNotifEnabled(
   const body = (n.body || "").toLowerCase();
   const text = `${title} ${body}`;
 
+  // Balasan support selalu tampil selama notifikasi in-app aktif.
+  if (n.type === "support" || title.includes("balasan support")) {
+    return true;
+  }
+
   // 1. Pengingat Rating & Ulasan
   if (
     text.includes("rating") ||

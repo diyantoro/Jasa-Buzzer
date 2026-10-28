@@ -12,6 +12,7 @@ export type BuzzerNotificationType =
   | "payout"
   | "rating"
   | "level_up"
+  | "support"
   | "general";
 
 export type BuzzerNotification = {

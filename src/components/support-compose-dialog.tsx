@@ -19,7 +19,6 @@ type SupportComposeDialogProps = {
   onOpenChange: (open: boolean) => void;
   role: "customer" | "buzzer";
   user: { name: string; email: string };
-  onSent?: () => void;
 };
 
 export function SupportComposeDialog({
@@ -27,7 +26,6 @@ export function SupportComposeDialog({
   onOpenChange,
   role,
   user,
-  onSent,
 }: SupportComposeDialogProps) {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
@@ -56,10 +54,9 @@ export function SupportComposeDialog({
         toEmail: SUPPORT_ADMIN_EMAIL,
       });
       toast.success("Pesan terkirim", {
-        description: "Balasan admin akan muncul di menu Pesan.",
+        description: "Balasan admin akan muncul di notifikasi.",
       });
       onOpenChange(false);
-      onSent?.();
     } catch (sendError) {
       const message = sendError instanceof Error ? sendError.message : "Pesan gagal dikirim.";
       setError(message);
@@ -81,7 +78,7 @@ export function SupportComposeDialog({
         <DialogHeader>
           <DialogTitle>Kirim Pesan ke Support</DialogTitle>
           <DialogDescription>
-            Tulis pertanyaan Anda. Balasan admin akan muncul di menu Pesan.
+            Tulis pertanyaan Anda. Balasan admin akan muncul di notifikasi.
           </DialogDescription>
         </DialogHeader>
 

@@ -196,6 +196,37 @@ export async function sendSupportMessage(input: {
     .single();
 
   if (error) throw error;
+
+  // Balasan admin juga dikirim sebagai notifikasi in-app. Customer/buzzer tidak
+  // lagi memiliki menu Pesan, jadi balasan support hanya muncul di lonceng
+  // notifikasi mereka.
+  if (input.fromRole === "admin") {
+    const recipient = (input.toEmail ?? "").trim().toLowerCase();
+    if (recipient) {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error: notifyError } = await (supabase as any).from("notifications").insert({
+          user_id: recipient,
+          buzzer_id: recipient,
+          title: "Balasan Support",
+          message: body,
+          type: "support",
+          is_read: false,
+          metadata: {
+            support: true,
+            from_email: input.fromEmail,
+            to_email: recipient,
+            message_id: (data as SupportMessage | null)?.id ?? null,
+          },
+        });
+        if (notifyError) throw notifyError;
+      } catch (notifyError) {
+        // Pesan tetap terkirim walaupun notifikasi gagal dibuat.
+        console.warn("[Support] Gagal membuat notifikasi balasan admin:", notifyError);
+      }
+    }
+  }
+
   notifySupportChanged();
   return data as SupportMessage;
 }

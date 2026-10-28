@@ -131,7 +131,7 @@ export function SupportChat({
       toast.success(isAdmin ? "Balasan terkirim" : "Pesan terkirim", {
         description: isAdmin
           ? `Pesan dikirim ke ${threadEmail ?? "user"}.`
-          : "Tim support akan membalas di menu Pesan.",
+          : "Tim support akan membalas di notifikasi.",
       });
     } catch (sendFailure) {
       const message = sendFailure instanceof Error ? sendFailure.message : "Pesan gagal dikirim.";

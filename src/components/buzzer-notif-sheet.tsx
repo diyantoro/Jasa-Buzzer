@@ -1,7 +1,7 @@
 import { type ReactNode, useMemo } from "react";
 import {
   Bell, Check, CheckCircle2, XCircle, Megaphone, Wallet, Star,
-  Sparkles, Clock, CheckCheck, Inbox, SlidersHorizontal,
+  Sparkles, Clock, CheckCheck, Inbox, SlidersHorizontal, MessageCircle,
 } from "lucide-react";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -74,6 +74,12 @@ const NOTIF_CONFIG: Record<
     badgeClass: "bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-500/15 dark:text-fuchsia-400 border-fuchsia-200 dark:border-fuchsia-800",
     iconClass: "bg-fuchsia-100 text-fuchsia-600 dark:bg-fuchsia-500/20 dark:text-fuchsia-300",
     icon: <Sparkles className="h-4 w-4" />,
+  },
+  support: {
+    label: "Balasan Support",
+    badgeClass: "bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300 border-sky-200 dark:border-sky-800",
+    iconClass: "bg-sky-100 text-sky-600 dark:bg-sky-500/20 dark:text-sky-300",
+    icon: <MessageCircle className="h-4 w-4" />,
   },
   general: {
     label: "Informasi",
@@ -227,7 +233,8 @@ export function BuzzerNotifSheet({
                   onClick={() => {
                     if (!n.is_read) void markAsRead(n.id);
                     if (onNavigate) {
-                      if (n.type === "payout") onNavigate("penghasilan");
+                      if (n.type === "support") onNavigate("bantuan");
+                      else if (n.type === "payout") onNavigate("penghasilan");
                       else if (n.type === "new_task") onNavigate("tersedia");
                       else if (n.type === "task_approved" || n.type === "task_rejected") onNavigate("riwayat");
                       else if (n.type === "verification_approved" || n.type === "verification_rejected") onNavigate("sosial");

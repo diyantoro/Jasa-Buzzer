@@ -326,6 +326,7 @@ export function HelpSection({ role, user, onNavigate }: HelpSectionProps) {
 
             <p className="mt-3 text-[11px] leading-5 text-muted-foreground">
               Sertakan email akun dan nomor invoice/job agar tim kami bisa membantu lebih cepat.
+              Balasan admin akan muncul di lonceng notifikasi.
             </p>
           </section>
 
@@ -364,7 +365,6 @@ export function HelpSection({ role, user, onNavigate }: HelpSectionProps) {
         onOpenChange={setComposeOpen}
         role={role}
         user={user}
-        onSent={() => onNavigate?.("pesan")}
       />
     </div>
   );

@@ -15,7 +15,6 @@ import { useBuzzerLevel, getBuzzerPercentageForLevel } from "@/lib/buzzer-level"
 import { BuzzerNotifBell, BuzzerNotifSheet } from "@/components/buzzer-notif-sheet";
 import { BuzzerSettingsSection } from "@/components/buzzer-settings-section";
 import { HelpSection } from "@/components/help-section";
-import { SupportMessageSection } from "@/components/support-message-section";
 import { useBuzzerNotifications } from "@/lib/buzzer-notification-store";
 import { toast } from "sonner";
 import { getApplicationByEmail, getBuzzerVerificationStatus, type BuzzerAppStatus, type BuzzerApplication } from "@/lib/buzzer-verification";
@@ -44,7 +43,6 @@ import { TablePagination } from "@/components/table-pagination";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 import { clearSession, useRequireRole, useSession } from "@/lib/auth";
-import { useSupportUnreadCount } from "@/lib/support-store";
 import { useBuzzerStore, formatIDR, terbilangRupiah, type BuzzerJob, type JobStatus, type Platform } from "@/lib/buzzer-store";
 import {
   useBuzzerCampaignJobs,
@@ -194,7 +192,7 @@ export const Route = createFileRoute("/buzzer")({
   component: BuzzerPage,
 });
 
-type SectionKey = "jobs" | "sosmed" | "penghasilan" | "ulasan" | "profil" | "pesan" | "bantuan" | "pengaturan";
+type SectionKey = "jobs" | "sosmed" | "penghasilan" | "ulasan" | "profil" | "bantuan" | "pengaturan";
 
 const BUZZER_SECTIONS: SectionKey[] = [
   "jobs",
@@ -202,18 +200,23 @@ const BUZZER_SECTIONS: SectionKey[] = [
   "penghasilan",
   "ulasan",
   "profil",
-  "pesan",
   "bantuan",
   "pengaturan",
 ];
 
+function normalizeBuzzerSection(value: string | null): SectionKey | null {
+  // URL lama ?section=pesan diarahkan ke Bantuan karena menu Pesan sudah dihapus.
+  if (value === "pesan") return "bantuan";
+  return value && BUZZER_SECTIONS.includes(value as SectionKey) ? (value as SectionKey) : null;
+}
+
 function getInitialBuzzerSection(): SectionKey {
   if (typeof window !== "undefined") {
-    const sp = new URLSearchParams(window.location.search).get("section") as SectionKey | null;
-    if (sp && BUZZER_SECTIONS.includes(sp)) return sp;
+    const sp = normalizeBuzzerSection(new URLSearchParams(window.location.search).get("section"));
+    if (sp) return sp;
     try {
-      const stored = localStorage.getItem("buzzhub.active_section.buzzer") as SectionKey | null;
-      if (stored && BUZZER_SECTIONS.includes(stored)) return stored;
+      const stored = normalizeBuzzerSection(localStorage.getItem("buzzhub.active_section.buzzer"));
+      if (stored) return stored;
     } catch {}
   }
   return "jobs";
@@ -225,7 +228,6 @@ const navItems: { key: SectionKey; label: string; shortLabel?: string; icon: Rea
   { key: "penghasilan", label: "Penghasilan", icon: <Wallet className="h-4 w-4" /> },
   { key: "ulasan", label: "Rating & Ulasan", icon: <Star className="h-4 w-4" /> },
   { key: "profil", label: "Profil", icon: <User className="h-4 w-4" /> },
-  { key: "pesan", label: "Pesan", icon: <MessageCircle className="h-4 w-4" /> },
   { key: "bantuan", label: "Bantuan", icon: <LifeBuoy className="h-4 w-4" /> },
   { key: "pengaturan", label: "Pengaturan", icon: <Settings className="h-4 w-4" /> },
 ];
@@ -236,7 +238,6 @@ const sectionMeta: Record<SectionKey, { title: string; subtitle: string }> = {
   penghasilan: { title: "Penghasilan", subtitle: "Riwayat saldo, pembayaran & pencairan" },
   ulasan: { title: "Rating & Ulasan", subtitle: "Penilaian performa & feedback dari customer" },
   profil: { title: "Profil Buzzer", subtitle: "Kelola data & preferensi akun kamu" },
-  pesan: { title: "Pesan", subtitle: "Chat langsung dengan tim support BuzzHub" },
   bantuan: { title: "Bantuan", subtitle: "Panduan, FAQ, dan kontak support BuzzHub" },
   pengaturan: { title: "Pengaturan", subtitle: "Kelola preferensi notifikasi dan akun buzzer kamu" },
 };
@@ -277,12 +278,6 @@ function BuzzerPage() {
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const { collapsed, toggle } = useSidebarCollapsed("buzzer");
-  const supportUnread = useSupportUnreadCount({ role: "buzzer", email: session?.email });
-  const nav = useMemo(
-    () =>
-      navItems.map((item) => (item.key === "pesan" ? { ...item, badge: supportUnread } : item)),
-    [supportUnread],
-  );
 
   const markVisited = useCallback((key: SectionKey) => {
     setVisitedSections((prev) => (prev.includes(key) ? prev : [...prev, key]));
@@ -351,8 +346,10 @@ function BuzzerPage() {
 
   useEffect(() => {
     const handlePopState = () => {
-      const sp = new URLSearchParams(window.location.search).get("section") as SectionKey | null;
-      if (sp && BUZZER_SECTIONS.includes(sp)) {
+      const sp = normalizeBuzzerSection(
+        new URLSearchParams(window.location.search).get("section"),
+      );
+      if (sp) {
         markVisited(sp);
         setSection(sp);
       }
@@ -397,7 +394,7 @@ function BuzzerPage() {
   };
   const renderSidebar = (isCollapsed = false, withToggle = false) => (
     <SidebarNav
-      nav={nav}
+      nav={navItems}
       activeKey={section}
       onNavigate={go}
       onPrefetch={markVisited}
@@ -481,14 +478,6 @@ function BuzzerPage() {
               {key === "penghasilan" && <PenghasilanSection store={store} />}
               {key === "ulasan" && <RatingUlasanSection store={store} />}
               {key === "profil" && <ProfilSection store={store} onGoRatings={() => go("ulasan")} />}
-              {key === "pesan" && (
-                <SupportMessageSection
-                  role="buzzer"
-                  user={{ name: store.state.profile.name || session.name, email: session.email }}
-                  active={section === "pesan"}
-                  onNavigate={(target) => go(target as SectionKey)}
-                />
-              )}
               {key === "bantuan" && (
                 <HelpSection
                   role="buzzer"
@@ -505,7 +494,7 @@ function BuzzerPage() {
 
       {/* Mobile bottom nav */}
       <MobileBottomNav
-        nav={nav}
+        nav={navItems}
         activeKey={section}
         onNavigate={go}
         onPrefetch={markVisited}

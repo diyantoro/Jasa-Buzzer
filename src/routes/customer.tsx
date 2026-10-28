@@ -37,7 +37,6 @@ import { MobileBottomNav, SidebarNav, useSidebarCollapsed } from "@/components/d
 import { CustomerHomepageSection } from "@/components/customer-homepage-section";
 import { CustomerSettingsSection } from "@/components/customer-settings-section";
 import { HelpSection } from "@/components/help-section";
-import { SupportMessageSection } from "@/components/support-message-section";
 import {
   useCustomerNotifPreferences,
   isCustomerNotifEnabled,
@@ -46,7 +45,6 @@ import { BuzzerNameLink } from "@/components/buzzer-name-link";
 import { SectionErrorBoundary } from "@/components/section-error-boundary";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { clearSession, useRequireRole } from "@/lib/auth";
-import { useSupportUnreadCount } from "@/lib/support-store";
 import {
   useCustomerStore, formatIDR, CAMPAIGN_TYPES,
   type Order, type OrderProof, type OrderStatus, type Payment, type PaymentStatus, type Platform,
@@ -73,7 +71,7 @@ export const Route = createFileRoute("/customer")({
   component: CustomerPage,
 });
 
-type SectionKey = "homepage" | "pesanan" | "katalog" | "pembayaran" | "ulasan" | "pesan" | "bantuan" | "pengaturan";
+type SectionKey = "homepage" | "pesanan" | "katalog" | "pembayaran" | "ulasan" | "bantuan" | "pengaturan";
 
 const CUSTOMER_SECTIONS: SectionKey[] = [
   "homepage",
@@ -81,18 +79,25 @@ const CUSTOMER_SECTIONS: SectionKey[] = [
   "katalog",
   "pembayaran",
   "ulasan",
-  "pesan",
   "bantuan",
   "pengaturan",
 ];
 
+function normalizeCustomerSection(value: string | null): SectionKey | null {
+  // URL lama ?section=pesan diarahkan ke Bantuan karena menu Pesan sudah dihapus.
+  if (value === "pesan") return "bantuan";
+  return value && CUSTOMER_SECTIONS.includes(value as SectionKey) ? (value as SectionKey) : null;
+}
+
 function getInitialCustomerSection(): SectionKey {
   if (typeof window !== "undefined") {
-    const sp = new URLSearchParams(window.location.search).get("section") as SectionKey | null;
-    if (sp && CUSTOMER_SECTIONS.includes(sp)) return sp;
+    const sp = normalizeCustomerSection(new URLSearchParams(window.location.search).get("section"));
+    if (sp) return sp;
     try {
-      const stored = localStorage.getItem("buzzhub.active_section.customer") as SectionKey | null;
-      if (stored && CUSTOMER_SECTIONS.includes(stored)) return stored;
+      const stored = normalizeCustomerSection(
+        localStorage.getItem("buzzhub.active_section.customer"),
+      );
+      if (stored) return stored;
     } catch {}
   }
   return "homepage";
@@ -104,7 +109,6 @@ const navItems: { key: SectionKey; label: string; icon: ReactNode }[] = [
   { key: "katalog", label: "Katalog", icon: <Package className="h-4 w-4" /> },
   { key: "pembayaran", label: "Pembayaran", icon: <CreditCard className="h-4 w-4" /> },
   { key: "ulasan", label: "Ulasan", icon: <Star className="h-4 w-4" /> },
-  { key: "pesan", label: "Pesan", icon: <MessageCircle className="h-4 w-4" /> },
   { key: "bantuan", label: "Bantuan", icon: <LifeBuoy className="h-4 w-4" /> },
   { key: "pengaturan", label: "Pengaturan", icon: <Settings className="h-4 w-4" /> },
 ];
@@ -115,7 +119,6 @@ const sectionMeta: Record<SectionKey, { title: string; subtitle: string }> = {
   katalog: { title: "Katalog", subtitle: "Pilih layanan buzzer yang tersedia" },
   pembayaran: { title: "Pembayaran", subtitle: "Kelola tagihan dan riwayat transaksi pembayaran" },
   ulasan: { title: "Ulasan", subtitle: "Kelola rating dan komentar Anda untuk buzzer" },
-  pesan: { title: "Pesan", subtitle: "Chat langsung dengan tim support BuzzHub" },
   bantuan: { title: "Bantuan", subtitle: "Panduan, FAQ, dan kontak support BuzzHub" },
   pengaturan: { title: "Pengaturan", subtitle: "Kelola preferensi notifikasi dan akun customer Anda" },
 };
@@ -223,12 +226,6 @@ function CustomerPage() {
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const { collapsed, toggle } = useSidebarCollapsed("customer");
-  const supportUnread = useSupportUnreadCount({ role: "customer", email: session?.email });
-  const nav = useMemo(
-    () =>
-      navItems.map((item) => (item.key === "pesan" ? { ...item, badge: supportUnread } : item)),
-    [supportUnread],
-  );
 
   const markVisited = useCallback((key: SectionKey) => {
     setVisitedSections((prev) => (prev.includes(key) ? prev : [...prev, key]));
@@ -321,8 +318,10 @@ function CustomerPage() {
 
   useEffect(() => {
     const handlePopState = () => {
-      const sp = new URLSearchParams(window.location.search).get("section") as SectionKey | null;
-      if (sp && CUSTOMER_SECTIONS.includes(sp)) {
+      const sp = normalizeCustomerSection(
+        new URLSearchParams(window.location.search).get("section"),
+      );
+      if (sp) {
         markVisited(sp);
         setSection(sp);
       }
@@ -365,7 +364,7 @@ function CustomerPage() {
   };
   const renderSidebar = (isCollapsed = false, withToggle = false) => (
     <SidebarNav
-      nav={nav}
+      nav={navItems}
       activeKey={section}
       onNavigate={go}
       onPrefetch={markVisited}
@@ -485,16 +484,6 @@ function CustomerPage() {
                   />
                 </SectionErrorBoundary>
               )}
-              {key === "pesan" && (
-                <SectionErrorBoundary title="Pesan gagal dimuat">
-                  <SupportMessageSection
-                    role="customer"
-                    user={{ name: store.state.profile.name || session.name, email: session.email }}
-                    active={section === "pesan"}
-                    onNavigate={(target) => go(target as SectionKey)}
-                  />
-                </SectionErrorBoundary>
-              )}
               {key === "bantuan" && (
                 <SectionErrorBoundary title="Bantuan gagal dimuat">
                   <HelpSection
@@ -519,7 +508,7 @@ function CustomerPage() {
 
       {/* Mobile bottom nav */}
       <MobileBottomNav
-        nav={nav}
+        nav={navItems}
         activeKey={section}
         onNavigate={go}
         onPrefetch={markVisited}
@@ -2780,7 +2769,10 @@ function NotifSheet({
   const handleNotificationClick = (n: (typeof store.state.notifications)[number]) => {
     store.markNotificationRead(n.id);
     if (onSelectSection) {
-      if (
+      if (n.type === "support" || n.title.toLowerCase().includes("balasan support")) {
+        onSelectSection("bantuan");
+        onOpenChange(false);
+      } else if (
         n.type === "order" ||
         n.type === "campaign" ||
         n.title.toLowerCase().includes("pesanan") ||
@@ -2864,7 +2856,9 @@ function NotifSheet({
                 <span
                   className={cn(
                     "mt-1 grid h-8 w-8 shrink-0 place-items-center rounded-full",
-                    n.type === "system" || n.id === "ntf-welcome" || n.title.toLowerCase().includes("selamat datang")
+                    n.type === "support" || n.title.toLowerCase().includes("balasan support")
+                      ? "bg-sky-500/15 text-sky-400"
+                      : n.type === "system" || n.id === "ntf-welcome" || n.title.toLowerCase().includes("selamat datang")
                       ? "bg-slate-500/15 text-slate-300"
                       : n.title.toLowerCase().includes("disetujui")
                       ? "bg-emerald-500/15 text-emerald-400"
@@ -2877,7 +2871,9 @@ function NotifSheet({
                       : "bg-blue-500/15 text-blue-400"
                   )}
                 >
-                  {n.type === "system" || n.id === "ntf-welcome" || n.title.toLowerCase().includes("selamat datang") ? (
+                  {n.type === "support" || n.title.toLowerCase().includes("balasan support") ? (
+                    <MessageCircle className="h-4 w-4" />
+                  ) : n.type === "system" || n.id === "ntf-welcome" || n.title.toLowerCase().includes("selamat datang") ? (
                     <Bell className="h-4 w-4" />
                   ) : n.title.toLowerCase().includes("disetujui") ? (
                     <CheckCircle2 className="h-4 w-4" />

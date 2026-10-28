@@ -126,7 +126,7 @@ export type Notification = {
   id: string;
   title: string;
   body: string;
-  type: "order" | "campaign" | "payment" | "system";
+  type: "order" | "campaign" | "payment" | "system" | "support";
   date: string;
   createdAt?: string;
   read: boolean;
