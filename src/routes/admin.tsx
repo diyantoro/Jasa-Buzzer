@@ -105,6 +105,7 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/
 import { BuzzerNameLink } from "@/components/buzzer-name-link";
 
 import { useRequireRole, clearSession, useSession, setSession } from "@/lib/auth";
+import { SUPPORT_ADMIN_EMAIL, useSupportUnreadCount } from "@/lib/support-store";
 import { updateAccountFn } from "@/lib/accounts.functions";
 import { ThemeToggle, useTheme } from "@/components/theme-toggle";
 import { isSupabaseConfigured } from "@/integrations/supabase/client";
@@ -297,6 +298,15 @@ function AdminPage() {
   const [logoutOpen, setLogoutOpen] = useState(false);
   const session = useSession();
   const { collapsed, toggle } = useSidebarCollapsed("admin");
+  const supportUnread = useSupportUnreadCount({
+    role: "admin",
+    email: session?.email ?? SUPPORT_ADMIN_EMAIL,
+  });
+  const nav = useMemo(
+    () =>
+      navItems.map((item) => (item.key === "pesan" ? { ...item, badge: supportUnread } : item)),
+    [supportUnread],
+  );
 
   const markVisited = useCallback((key: SectionKey) => {
     setVisitedSections((prev) => (prev.includes(key) ? prev : [...prev, key]));
@@ -372,7 +382,7 @@ function AdminPage() {
   const sidebarUser = { name: "Admin BuzzHub", email: "admin@buzzhub.id", roleLabel: "admin" };
   const renderSidebar = (isCollapsed = false, withToggle = false) => (
     <SidebarNav
-      nav={navItems}
+      nav={nav}
       activeKey={section}
       onNavigate={go}
       onPrefetch={markVisited}
@@ -479,7 +489,7 @@ function AdminPage() {
 
       {/* Mobile bottom nav */}
       <MobileBottomNav
-        nav={navItems}
+        nav={nav}
         activeKey={section}
         onNavigate={go}
         onPrefetch={markVisited}

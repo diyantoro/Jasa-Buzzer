@@ -64,7 +64,7 @@ Aplikasi memiliki tiga dashboard terpisah dengan role-based access, data realtim
 - **Katalog** — paket layanan siap beli dengan harga dan jumlah buzzer tetap.
 - **Pembayaran** — invoice, status pembayaran, dan riwayat transaksi.
 - **Ulasan** — beri rating dan komentar untuk buzzer setelah campaign selesai.
-- **Pesan** — chat support in-app dengan admin; balasan muncul realtime di dashboard.
+- **Pesan** — chat support in-app dengan admin; balasan muncul realtime dan badge menu menandai pesan yang belum dibaca.
 - **Bantuan** — FAQ yang bisa dicari, panduan cepat, tombol kirim pesan, dan channel support alternatif.
 - **Pengaturan** — preferensi notifikasi dan pengaturan akun.
 
@@ -76,7 +76,7 @@ Aplikasi memiliki tiga dashboard terpisah dengan role-based access, data realtim
 - **Penghasilan** — saldo, status payout, riwayat penghasilan, dan pengajuan pencairan.
 - **Rating & Ulasan** — lihat rating dan feedback dari customer.
 - **Profil** — kelola data diri, avatar, dan informasi publik.
-- **Pesan** — chat support in-app untuk kendala job, bukti, dan pencairan.
+- **Pesan** — chat support in-app untuk kendala job, bukti, dan pencairan; badge menu menandai balasan admin yang belum dibaca.
 - **Bantuan** — FAQ seputar job, bukti, dan pencairan, plus tombol kirim pesan ke admin.
 - **Pengaturan** — preferensi notifikasi dan akun.
 
@@ -85,7 +85,7 @@ Aplikasi memiliki tiga dashboard terpisah dengan role-based access, data realtim
 - **Dashboard** — ringkasan kampanye, buzzer aktif, customer, pembayaran, dan grafik aktivitas.
 - **Kampanye** — kelola pesanan, katalog layanan, dan harga pesanan sendiri.
 - **Manajemen User** — kelola akun customer dan buzzer.
-- **Pesan** — inbox percakapan customer & buzzer; balas pesan langsung dari dashboard.
+- **Pesan** — inbox percakapan customer & buzzer; balas pesan langsung dari dashboard dan badge menu menandai pesan masuk yang belum dibaca.
 - **Verifikasi Buzzer** — setujui atau tolak pendaftaran buzzer.
 - **Verifikasi Pengerjaan** — periksa bukti job, setujui, atau minta revisi.
 - **Verifikasi Pembayaran** — konfirmasi pembayaran customer dan buka campaign.

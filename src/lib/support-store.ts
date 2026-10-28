@@ -96,6 +96,80 @@ export function useSupportMessages({ role, email, threadEmail }: UseSupportMessa
   return { data, loading, error, refetch: fetchMessages };
 }
 
+function notifySupportChanged() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("buzzhub:support"));
+  }
+}
+
+/**
+ * Jumlah pesan belum dibaca untuk badge menu Pesan.
+ * - Admin: semua pesan masuk dari customer/buzzer.
+ * - Customer/buzzer: balasan admin yang belum dibaca.
+ */
+export function useSupportUnreadCount({
+  role,
+  email,
+}: {
+  role: SupportRole;
+  email?: string | null;
+}) {
+  const channelId = useId().replace(/[^a-zA-Z0-9_-]/g, "");
+  const [count, setCount] = useState(0);
+
+  const fetchCount = useCallback(async () => {
+    if (!email) {
+      setCount(0);
+      return;
+    }
+
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const client = supabase as any;
+      let query = client
+        .from("campaign_messages")
+        .select("id", { count: "exact", head: true })
+        .is("campaign_id", null)
+        .is("read_at", null);
+
+      if (role === "admin") {
+        query = query.neq("from_role", "admin");
+      } else {
+        query = query.eq("from_role", "admin").eq("to_email", email);
+      }
+
+      const { count: unread, error } = await query;
+      if (error) throw error;
+      setCount(unread ?? 0);
+    } catch (queryError) {
+      console.warn("[Support] Gagal memuat jumlah pesan belum dibaca:", queryError);
+    }
+  }, [email, role]);
+
+  useEffect(() => {
+    void fetchCount();
+
+    const channel = supabase
+      .channel(`rt-support-unread-${role}-${channelId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "campaign_messages" }, () => {
+        void fetchCount();
+      })
+      .subscribe();
+
+    const handleSupportChanged = () => {
+      void fetchCount();
+    };
+    window.addEventListener("buzzhub:support", handleSupportChanged);
+
+    return () => {
+      window.removeEventListener("buzzhub:support", handleSupportChanged);
+      void supabase.removeChannel(channel);
+    };
+  }, [fetchCount, role, channelId]);
+
+  return count;
+}
+
 export async function sendSupportMessage(input: {
   fromRole: SupportRole;
   fromName: string;
@@ -122,6 +196,7 @@ export async function sendSupportMessage(input: {
     .single();
 
   if (error) throw error;
+  notifySupportChanged();
   return data as SupportMessage;
 }
 
@@ -146,4 +221,5 @@ export async function markSupportMessagesRead(input: {
 
   const { error } = await query;
   if (error) throw error;
+  notifySupportChanged();
 }

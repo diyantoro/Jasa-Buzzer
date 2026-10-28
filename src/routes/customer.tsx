@@ -46,6 +46,7 @@ import { BuzzerNameLink } from "@/components/buzzer-name-link";
 import { SectionErrorBoundary } from "@/components/section-error-boundary";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { clearSession, useRequireRole } from "@/lib/auth";
+import { useSupportUnreadCount } from "@/lib/support-store";
 import {
   useCustomerStore, formatIDR, CAMPAIGN_TYPES,
   type Order, type OrderProof, type OrderStatus, type Payment, type PaymentStatus, type Platform,
@@ -222,6 +223,12 @@ function CustomerPage() {
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const { collapsed, toggle } = useSidebarCollapsed("customer");
+  const supportUnread = useSupportUnreadCount({ role: "customer", email: session?.email });
+  const nav = useMemo(
+    () =>
+      navItems.map((item) => (item.key === "pesan" ? { ...item, badge: supportUnread } : item)),
+    [supportUnread],
+  );
 
   const markVisited = useCallback((key: SectionKey) => {
     setVisitedSections((prev) => (prev.includes(key) ? prev : [...prev, key]));
@@ -358,7 +365,7 @@ function CustomerPage() {
   };
   const renderSidebar = (isCollapsed = false, withToggle = false) => (
     <SidebarNav
-      nav={navItems}
+      nav={nav}
       activeKey={section}
       onNavigate={go}
       onPrefetch={markVisited}
@@ -512,7 +519,7 @@ function CustomerPage() {
 
       {/* Mobile bottom nav */}
       <MobileBottomNav
-        nav={navItems}
+        nav={nav}
         activeKey={section}
         onNavigate={go}
         onPrefetch={markVisited}

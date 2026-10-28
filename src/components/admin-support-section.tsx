@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Inbox, Loader2, MessageCircle } from "lucide-react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -31,6 +31,7 @@ export function AdminSupportSection({
     email: adminEmail,
   });
   const [selectedEmail, setSelectedEmail] = useState<string | null>(null);
+  const chatRef = useRef<HTMLDivElement>(null);
 
   const conversations = useMemo(() => {
     const map = new Map<string, Conversation>();
@@ -78,6 +79,15 @@ export function AdminSupportSection({
   const selected =
     conversations.find((conversation) => conversation.email === selectedEmail) ?? null;
   const totalUnread = conversations.reduce((total, conversation) => total + conversation.unread, 0);
+
+  const selectConversation = (email: string) => {
+    setSelectedEmail(email);
+    if (typeof window !== "undefined" && window.matchMedia("(max-width: 1023px)").matches) {
+      window.setTimeout(() => {
+        chatRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 80);
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -150,6 +160,9 @@ export function AdminSupportSection({
               </p>
               <span className="text-[10px] text-muted-foreground">{conversations.length}</span>
             </div>
+            <p className="px-2 pb-2 text-[10px] leading-4 text-muted-foreground">
+              Pilih percakapan, lalu tulis balasan di kolom chat.
+            </p>
             <div className="scrollbar-slim max-h-[520px] space-y-1 overflow-y-auto overscroll-contain">
               {conversations.map((conversation) => {
                 const active = conversation.email === selectedEmail;
@@ -158,7 +171,7 @@ export function AdminSupportSection({
                   <button
                     key={conversation.email}
                     type="button"
-                    onClick={() => setSelectedEmail(conversation.email)}
+                    onClick={() => selectConversation(conversation.email)}
                     className={cn(
                       "flex w-full items-start gap-3 rounded-xl p-3 text-left transition-colors hover:bg-muted/60",
                       active && "bg-primary/5 ring-1 ring-primary/20",
@@ -197,9 +210,10 @@ export function AdminSupportSection({
             </div>
           </aside>
 
-          <div className="min-w-0">
+          <div className="min-w-0 scroll-mt-20" ref={chatRef}>
             {selected ? (
               <SupportChat
+                key={selected.email}
                 role="admin"
                 user={{ name: adminName, email: adminEmail }}
                 threadEmail={selected.email}

@@ -44,6 +44,7 @@ import { TablePagination } from "@/components/table-pagination";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 import { clearSession, useRequireRole, useSession } from "@/lib/auth";
+import { useSupportUnreadCount } from "@/lib/support-store";
 import { useBuzzerStore, formatIDR, terbilangRupiah, type BuzzerJob, type JobStatus, type Platform } from "@/lib/buzzer-store";
 import {
   useBuzzerCampaignJobs,
@@ -276,6 +277,12 @@ function BuzzerPage() {
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const { collapsed, toggle } = useSidebarCollapsed("buzzer");
+  const supportUnread = useSupportUnreadCount({ role: "buzzer", email: session?.email });
+  const nav = useMemo(
+    () =>
+      navItems.map((item) => (item.key === "pesan" ? { ...item, badge: supportUnread } : item)),
+    [supportUnread],
+  );
 
   const markVisited = useCallback((key: SectionKey) => {
     setVisitedSections((prev) => (prev.includes(key) ? prev : [...prev, key]));
@@ -390,7 +397,7 @@ function BuzzerPage() {
   };
   const renderSidebar = (isCollapsed = false, withToggle = false) => (
     <SidebarNav
-      nav={navItems}
+      nav={nav}
       activeKey={section}
       onNavigate={go}
       onPrefetch={markVisited}
@@ -498,7 +505,7 @@ function BuzzerPage() {
 
       {/* Mobile bottom nav */}
       <MobileBottomNav
-        nav={navItems}
+        nav={nav}
         activeKey={section}
         onNavigate={go}
         onPrefetch={markVisited}

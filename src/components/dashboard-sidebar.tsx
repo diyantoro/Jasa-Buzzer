@@ -19,6 +19,8 @@ export type SidebarNavItem<K extends string = string> = {
   /** Label ringkas untuk bottom nav di layar kecil. */
   shortLabel?: string;
   icon: ReactNode;
+  /** Jumlah pesan/badge yang belum dibaca. */
+  badge?: number;
 };
 
 export type SidebarUser = {
@@ -109,7 +111,11 @@ function NavButton<K extends string>({
       onFocus={schedulePrefetch}
       onBlur={cancelPrefetch}
       aria-current={active ? "page" : undefined}
-      aria-label={collapsed ? item.label : undefined}
+      aria-label={
+        collapsed
+          ? `${item.label}${item.badge ? `, ${item.badge} pesan belum dibaca` : ""}`
+          : undefined
+      }
       className={cn(
         "relative flex w-full items-center rounded-lg text-sm transition-[padding,gap,background-color,color] duration-300 ease-in-out motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70",
         collapsed ? "justify-center gap-0 px-0 py-2.5" : "gap-3 px-3 py-2",
@@ -125,17 +131,32 @@ function NavButton<K extends string>({
           active ? "opacity-100" : "opacity-0",
         )}
       />
-      <span className={cn("shrink-0 [&>svg]:h-[18px] [&>svg]:w-[18px]", active && "text-white")}>
+      <span
+        className={cn(
+          "relative shrink-0 [&>svg]:h-[18px] [&>svg]:w-[18px]",
+          active && "text-white",
+        )}
+      >
         {item.icon}
+        {collapsed && item.badge ? (
+          <span className="absolute -right-1.5 -top-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-rose-500 px-1 text-[9px] font-bold leading-none text-white ring-2 ring-[#0b1220]">
+            {item.badge > 99 ? "99+" : item.badge}
+          </span>
+        ) : null}
       </span>
       <span
         aria-hidden={collapsed}
         className={cn(
-          "overflow-hidden whitespace-nowrap transition-[max-width,opacity] duration-300 ease-in-out motion-reduce:transition-none",
-          collapsed ? "max-w-0 opacity-0" : "max-w-[190px] opacity-100",
+          "flex min-w-0 items-center overflow-hidden whitespace-nowrap transition-[max-width,opacity] duration-300 ease-in-out motion-reduce:transition-none",
+          collapsed ? "max-w-0 opacity-0" : "max-w-[190px] flex-1 opacity-100",
         )}
       >
-        {item.label}
+        <span className="truncate">{item.label}</span>
+        {!collapsed && item.badge ? (
+          <span className="ml-auto shrink-0 rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
+            {item.badge > 99 ? "99+" : item.badge}
+          </span>
+        ) : null}
       </span>
     </button>
   );
@@ -145,7 +166,10 @@ function NavButton<K extends string>({
   return (
     <Tooltip>
       <TooltipTrigger asChild>{button}</TooltipTrigger>
-      <TooltipContent side="right">{item.label}</TooltipContent>
+      <TooltipContent side="right">
+        {item.label}
+        {item.badge ? ` · ${item.badge} belum dibaca` : ""}
+      </TooltipContent>
     </Tooltip>
   );
 }
@@ -182,10 +206,7 @@ export function SidebarNav<K extends string>({
       >
         <Link
           to="/"
-          className={cn(
-            "flex min-w-0 items-center",
-            collapsed ? "justify-center gap-0" : "gap-2",
-          )}
+          className={cn("flex min-w-0 items-center", collapsed ? "justify-center gap-0" : "gap-2")}
           title="BuzzHub"
         >
           <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white text-brand shadow-sm">
@@ -364,6 +385,7 @@ export function MobileBottomNav<K extends string>({
     [nav, primary],
   );
   const activeInOverflow = overflow.some((item) => item.key === activeKey);
+  const overflowUnread = overflow.reduce((total, item) => total + (item.badge ?? 0), 0);
 
   const select = (key: K) => {
     onPrefetch?.(key);
@@ -391,10 +413,15 @@ export function MobileBottomNav<K extends string>({
           active ? "opacity-100" : "opacity-0",
         )}
       />
-      <span className="[&>svg]:h-[19px] [&>svg]:w-[19px]">{item.icon}</span>
-      <span className="max-w-full truncate leading-tight">
-        {item.shortLabel ?? item.label}
+      <span className="relative [&>svg]:h-[19px] [&>svg]:w-[19px]">
+        {item.icon}
+        {item.badge ? (
+          <span className="absolute -right-2 -top-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-rose-500 px-1 text-[9px] font-bold leading-none text-white ring-2 ring-background">
+            {item.badge > 99 ? "99+" : item.badge}
+          </span>
+        ) : null}
       </span>
+      <span className="max-w-full truncate leading-tight">{item.shortLabel ?? item.label}</span>
     </button>
   );
 
@@ -426,7 +453,14 @@ export function MobileBottomNav<K extends string>({
                   activeInOverflow ? "opacity-100" : "opacity-0",
                 )}
               />
-              <Menu className="h-[19px] w-[19px]" aria-hidden="true" />
+              <span className="relative">
+                <Menu className="h-[19px] w-[19px]" aria-hidden="true" />
+                {overflowUnread > 0 && (
+                  <span className="absolute -right-2 -top-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-rose-500 px-1 text-[9px] font-bold leading-none text-white ring-2 ring-background">
+                    {overflowUnread > 99 ? "99+" : overflowUnread}
+                  </span>
+                )}
+              </span>
               <span className="max-w-full truncate leading-tight">Lainnya</span>
             </button>
           )}
@@ -468,7 +502,12 @@ export function MobileBottomNav<K extends string>({
                   >
                     {item.icon}
                   </span>
-                  <span className="min-w-0 text-[13px] leading-tight">{item.label}</span>
+                  <span className="min-w-0 flex-1 text-[13px] leading-tight">{item.label}</span>
+                  {item.badge ? (
+                    <span className="ml-auto shrink-0 rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
+                      {item.badge > 99 ? "99+" : item.badge}
+                    </span>
+                  ) : null}
                 </button>
               );
             })}

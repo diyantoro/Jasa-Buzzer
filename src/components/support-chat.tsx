@@ -128,6 +128,11 @@ export function SupportChat({
       });
       setDraft("");
       await refetch({ silent: true });
+      toast.success(isAdmin ? "Balasan terkirim" : "Pesan terkirim", {
+        description: isAdmin
+          ? `Pesan dikirim ke ${threadEmail ?? "user"}.`
+          : "Tim support akan membalas di menu Pesan.",
+      });
     } catch (sendFailure) {
       const message = sendFailure instanceof Error ? sendFailure.message : "Pesan gagal dikirim.";
       setSendError(message);
@@ -287,16 +292,18 @@ export function SupportChat({
             rows={2}
             className="min-h-[44px] flex-1 resize-none rounded-xl bg-background text-sm"
             aria-label={isAdmin ? "Tulis balasan support" : "Tulis pesan support"}
+            autoFocus={isAdmin}
           />
           <Button
             type="button"
-            size="icon"
-            className="h-10 w-10 shrink-0 rounded-xl gradient-brand text-brand-foreground"
+            size="default"
+            className="h-10 shrink-0 rounded-xl gradient-brand px-3 text-brand-foreground"
             onClick={() => void handleSend()}
             disabled={disabled || sending || !draft.trim()}
             aria-label="Kirim pesan"
           >
             {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            <span className="hidden sm:inline">Kirim</span>
           </Button>
         </div>
         {sendError ? (
