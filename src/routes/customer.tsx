@@ -37,6 +37,7 @@ import { MobileBottomNav, SidebarNav, useSidebarCollapsed } from "@/components/d
 import { CustomerHomepageSection } from "@/components/customer-homepage-section";
 import { CustomerSettingsSection } from "@/components/customer-settings-section";
 import { HelpSection } from "@/components/help-section";
+import { NotificationDetailDialog } from "@/components/notification-detail-dialog";
 import {
   useCustomerNotifPreferences,
   isCustomerNotifEnabled,
@@ -2765,14 +2766,21 @@ function NotifSheet({
     [store.state.notifications, prefs],
   );
   const unreadCount = prefs.inApp ? visibleNotifications.filter((n) => !n.read).length : 0;
+  const [selected, setSelected] = useState<(typeof store.state.notifications)[number] | null>(null);
+  const selectedIsSupport =
+    selected?.type === "support" || selected?.title.toLowerCase().includes("balasan support");
 
   const handleNotificationClick = (n: (typeof store.state.notifications)[number]) => {
     store.markNotificationRead(n.id);
+
+    if (n.type === "support" || n.title.toLowerCase().includes("balasan support")) {
+      setSelected(n);
+      onOpenChange(false);
+      return;
+    }
+
     if (onSelectSection) {
-      if (n.type === "support" || n.title.toLowerCase().includes("balasan support")) {
-        onSelectSection("bantuan");
-        onOpenChange(false);
-      } else if (
+      if (
         n.type === "order" ||
         n.type === "campaign" ||
         n.title.toLowerCase().includes("pesanan") ||
@@ -2795,8 +2803,9 @@ function NotifSheet({
   };
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full sm:max-w-md p-0 flex flex-col">
+    <>
+      <Sheet open={open} onOpenChange={onOpenChange}>
+        <SheetContent side="right" className="w-full sm:max-w-md p-0 flex flex-col">
         <div className="flex items-center justify-between border-b border-border pl-5 pr-14 py-3.5">
           <div>
             <h3 className="font-display font-bold text-base">Notifikasi</h3>
@@ -2898,7 +2907,27 @@ function NotifSheet({
           )}
         </div>
       </SheetContent>
-    </Sheet>
+      </Sheet>
+
+      <NotificationDetailDialog
+        open={Boolean(selected)}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) setSelected(null);
+        }}
+        title={selected?.title ?? "Notifikasi"}
+        message={selected?.body ?? ""}
+        timeLabel={selected?.date ?? ""}
+        isSupport={selectedIsSupport}
+        onOpenHelp={
+          onSelectSection
+            ? () => {
+                setSelected(null);
+                onSelectSection("bantuan");
+              }
+            : undefined
+        }
+      />
+    </>
   );
 }
 

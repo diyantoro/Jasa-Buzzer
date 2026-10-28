@@ -1,9 +1,10 @@
-import { type ReactNode, useMemo } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 import {
   Bell, Check, CheckCircle2, XCircle, Megaphone, Wallet, Star,
   Sparkles, Clock, CheckCheck, Inbox, SlidersHorizontal, MessageCircle,
 } from "lucide-react";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { NotificationDetailDialog } from "@/components/notification-detail-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
@@ -152,6 +153,8 @@ export function BuzzerNotifSheet({
     [notifications, prefs],
   );
   const unreadCount = prefs.inApp ? visibleNotifications.filter((n) => !n.is_read).length : 0;
+  const [selected, setSelected] = useState<BuzzerNotification | null>(null);
+  const selectedIsSupport = selected?.type === "support";
 
   const handleMarkAll = async () => {
     for (const n of visibleNotifications) {
@@ -163,7 +166,8 @@ export function BuzzerNotifSheet({
   };
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <>
+      <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent side="right" className="w-full sm:max-w-md p-0 flex flex-col">
           {/* Header dengan jarak aman dari tombol 'X' */}
           <div className="flex items-center justify-between border-b border-border pl-5 pr-14 py-3.5">
@@ -232,12 +236,19 @@ export function BuzzerNotifSheet({
                   type="button"
                   onClick={() => {
                     if (!n.is_read) void markAsRead(n.id);
+
+                    if (n.type === "support") {
+                      setSelected(n);
+                      onOpenChange(false);
+                      return;
+                    }
+
                     if (onNavigate) {
-                      if (n.type === "support") onNavigate("bantuan");
-                      else if (n.type === "payout") onNavigate("penghasilan");
+                      if (n.type === "payout") onNavigate("penghasilan");
                       else if (n.type === "new_task") onNavigate("tersedia");
                       else if (n.type === "task_approved" || n.type === "task_rejected") onNavigate("riwayat");
                       else if (n.type === "verification_approved" || n.type === "verification_rejected") onNavigate("sosial");
+                      onOpenChange(false);
                     }
                   }}
                   className={cn(
@@ -292,6 +303,26 @@ export function BuzzerNotifSheet({
           )}
         </div>
       </SheetContent>
-    </Sheet>
+      </Sheet>
+
+      <NotificationDetailDialog
+        open={Boolean(selected)}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) setSelected(null);
+        }}
+        title={selected?.title ?? "Notifikasi"}
+        message={selected?.message ?? ""}
+        timeLabel={selected ? formatTimeAgo(selected.created_at) : ""}
+        isSupport={selectedIsSupport}
+        onOpenHelp={
+          onNavigate
+            ? () => {
+                setSelected(null);
+                onNavigate("bantuan");
+              }
+            : undefined
+        }
+      />
+    </>
   );
 }

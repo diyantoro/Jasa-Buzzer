@@ -130,7 +130,7 @@ export function SupportChat({
       await refetch({ silent: true });
       toast.success(isAdmin ? "Balasan terkirim" : "Pesan terkirim", {
         description: isAdmin
-          ? `Pesan dikirim ke ${threadEmail ?? "user"}.`
+          ? `Pesan dikirim ke ${threadEmail ?? "user"} dan masuk ke notifikasinya.`
           : "Tim support akan membalas di notifikasi.",
       });
     } catch (sendFailure) {
