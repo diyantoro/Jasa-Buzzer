@@ -149,15 +149,10 @@
 @utility bg-sidebar {
   background-color: var(--sidebar);
 }
-/* Latar sidebar: gradient biru brand + glow cyan + tekstur titik halus */
+/* Latar sidebar: gradient biru brand + glow cyan */
 @utility sidebar-surface {
   background-color: color-mix(in oklab, var(--brand) 55%, #0b1220);
   background-image:
-    radial-gradient(
-      circle at 1px 1px,
-      rgb(255 255 255 / 0.12) 1px,
-      transparent 0
-    ),
     radial-gradient(
       120% 85% at 0% 0%,
       color-mix(in oklab, var(--brand-glow) 45%, transparent) 0%,
@@ -174,18 +169,13 @@
       color-mix(in oklab, var(--brand) 66%, #0b1220) 55%,
       color-mix(in oklab, var(--brand) 48%, #0b1220) 100%
     );
-  background-size: 14px 14px, 100% 100%, 100% 100%, 100% 100%;
-  background-position: top left, top left, bottom right, top left;
-  background-repeat: repeat, no-repeat, no-repeat, no-repeat;
+  background-size: 100% 100%;
+  background-position: top left;
+  background-repeat: no-repeat;
 }
 .dark .sidebar-surface {
   background-color: color-mix(in oklab, var(--brand) 50%, #0b1220);
   background-image:
-    radial-gradient(
-      circle at 1px 1px,
-      rgb(255 255 255 / 0.14) 1px,
-      transparent 0
-    ),
     radial-gradient(
       120% 85% at 0% 0%,
       color-mix(in oklab, var(--brand-glow) 42%, transparent) 0%,

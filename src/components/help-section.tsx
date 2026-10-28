@@ -290,7 +290,14 @@ export function HelpSection({ role, onNavigate }: HelpSectionProps) {
             </div>
 
             <div className="mt-4 space-y-2">
-              <Button asChild className="w-full justify-start gradient-brand text-brand-foreground">
+              <Button
+                type="button"
+                className="w-full justify-start gradient-brand text-brand-foreground"
+                onClick={() => onNavigate?.("pesan")}
+              >
+                <MessageCircle className="h-4 w-4" /> Kirim Pesan
+              </Button>
+              <Button asChild variant="outline" className="w-full justify-start">
                 <a
                   href={`https://wa.me/${SUPPORT_WHATSAPP}?text=${whatsappMessage}`}
                   target="_blank"

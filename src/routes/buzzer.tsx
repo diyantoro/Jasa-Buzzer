@@ -15,6 +15,7 @@ import { useBuzzerLevel, getBuzzerPercentageForLevel } from "@/lib/buzzer-level"
 import { BuzzerNotifBell, BuzzerNotifSheet } from "@/components/buzzer-notif-sheet";
 import { BuzzerSettingsSection } from "@/components/buzzer-settings-section";
 import { HelpSection } from "@/components/help-section";
+import { SupportMessageSection } from "@/components/support-message-section";
 import { useBuzzerNotifications } from "@/lib/buzzer-notification-store";
 import { toast } from "sonner";
 import { getApplicationByEmail, getBuzzerVerificationStatus, type BuzzerAppStatus, type BuzzerApplication } from "@/lib/buzzer-verification";
@@ -192,7 +193,7 @@ export const Route = createFileRoute("/buzzer")({
   component: BuzzerPage,
 });
 
-type SectionKey = "jobs" | "sosmed" | "penghasilan" | "ulasan" | "profil" | "bantuan" | "pengaturan";
+type SectionKey = "jobs" | "sosmed" | "penghasilan" | "ulasan" | "profil" | "pesan" | "bantuan" | "pengaturan";
 
 const BUZZER_SECTIONS: SectionKey[] = [
   "jobs",
@@ -200,6 +201,7 @@ const BUZZER_SECTIONS: SectionKey[] = [
   "penghasilan",
   "ulasan",
   "profil",
+  "pesan",
   "bantuan",
   "pengaturan",
 ];
@@ -222,6 +224,7 @@ const navItems: { key: SectionKey; label: string; shortLabel?: string; icon: Rea
   { key: "penghasilan", label: "Penghasilan", icon: <Wallet className="h-4 w-4" /> },
   { key: "ulasan", label: "Rating & Ulasan", icon: <Star className="h-4 w-4" /> },
   { key: "profil", label: "Profil", icon: <User className="h-4 w-4" /> },
+  { key: "pesan", label: "Pesan", icon: <MessageCircle className="h-4 w-4" /> },
   { key: "bantuan", label: "Bantuan", icon: <LifeBuoy className="h-4 w-4" /> },
   { key: "pengaturan", label: "Pengaturan", icon: <Settings className="h-4 w-4" /> },
 ];
@@ -232,6 +235,7 @@ const sectionMeta: Record<SectionKey, { title: string; subtitle: string }> = {
   penghasilan: { title: "Penghasilan", subtitle: "Riwayat saldo, pembayaran & pencairan" },
   ulasan: { title: "Rating & Ulasan", subtitle: "Penilaian performa & feedback dari customer" },
   profil: { title: "Profil Buzzer", subtitle: "Kelola data & preferensi akun kamu" },
+  pesan: { title: "Pesan", subtitle: "Chat langsung dengan tim support BuzzHub" },
   bantuan: { title: "Bantuan", subtitle: "Panduan, FAQ, dan kontak support BuzzHub" },
   pengaturan: { title: "Pengaturan", subtitle: "Kelola preferensi notifikasi dan akun buzzer kamu" },
 };
@@ -261,7 +265,10 @@ function BuzzerPage() {
     buzzerCategory: session.company || "Buzzer Online",
   } : {});
   const [applicationData, setApplicationData] = useState<BuzzerApplication | null>(null);
-  const [section, setSection] = useState<SectionKey>(getInitialBuzzerSection);
+  // Render awal harus sama antara server dan client. Section dari URL/localStorage
+  // baru diterapkan setelah mount agar tidak memicu hydration mismatch.
+  const [section, setSection] = useState<SectionKey>("jobs");
+  const [initialSectionReady, setInitialSectionReady] = useState(false);
   // Section yang pernah dibuka tetap ter-mount (disembunyikan) supaya
   // perpindahan menu berikutnya tidak memuat ulang data dari awal.
   const [visitedSections, setVisitedSections] = useState<SectionKey[]>(() => [section]);
@@ -311,6 +318,16 @@ function BuzzerPage() {
   const { jobs: allMergedJobs, refetch: refetchJobs } = useMergedJobs(store, true);
 
   useEffect(() => {
+    const initial = getInitialBuzzerSection();
+    if (initial !== "jobs") {
+      setSection(initial);
+      setVisitedSections((prev) => (prev.includes(initial) ? prev : [...prev, initial]));
+    }
+    setInitialSectionReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!initialSectionReady) return;
     markVisited(section);
     if (typeof window !== "undefined") {
       try {
@@ -323,7 +340,7 @@ function BuzzerPage() {
       }
     }
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
-  }, [section, markVisited]);
+  }, [section, initialSectionReady, markVisited]);
 
   useEffect(() => {
     const handlePopState = () => {
@@ -457,6 +474,14 @@ function BuzzerPage() {
               {key === "penghasilan" && <PenghasilanSection store={store} />}
               {key === "ulasan" && <RatingUlasanSection store={store} />}
               {key === "profil" && <ProfilSection store={store} onGoRatings={() => go("ulasan")} />}
+              {key === "pesan" && (
+                <SupportMessageSection
+                  role="buzzer"
+                  user={{ name: store.state.profile.name || session.name, email: session.email }}
+                  active={section === "pesan"}
+                  onNavigate={(target) => go(target as SectionKey)}
+                />
+              )}
               {key === "bantuan" && <HelpSection role="buzzer" onNavigate={(target) => go(target as SectionKey)} />}
               {key === "pengaturan" && <BuzzerSettingsSection buzzerEmail={session.email} />}
             </div>

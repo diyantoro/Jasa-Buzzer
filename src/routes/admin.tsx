@@ -51,9 +51,11 @@ import {
   Briefcase,
   Clock,
   QrCode,
+  MessageCircle,
 } from "lucide-react";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { AdminSocialSection } from "@/components/admin-social-section";
+import { AdminSupportSection } from "@/components/admin-support-section";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -190,6 +192,7 @@ type SectionKey =
   | "ringkasan"
   | "kampanye"
   | "manajemen"
+  | "pesan"
   | "verifikasi"
   | "verifikasi-pengerjaan"
   | "pembayaran"
@@ -204,6 +207,7 @@ const navItems: { key: SectionKey; label: string; shortLabel?: string; icon: Rea
   { key: "ringkasan", label: "Dashboard", icon: <LayoutDashboard className="h-4 w-4" /> },
   { key: "kampanye", label: "Kampanye", icon: <Megaphone className="h-4 w-4" /> },
   { key: "manajemen", label: "Manajemen User", shortLabel: "Manajemen", icon: <Users className="h-4 w-4" /> },
+  { key: "pesan", label: "Pesan", icon: <MessageCircle className="h-4 w-4" /> },
   { key: "verifikasi", label: "Verifikasi Buzzer", icon: <Shield className="h-4 w-4" /> },
   { key: "verifikasi-pengerjaan", label: "Verifikasi Pengerjaan", icon: <CheckCircle2 className="h-4 w-4" /> },
   { key: "pembayaran", label: "Verifikasi Pembayaran", icon: <CheckCircle2 className="h-4 w-4" /> },
@@ -219,6 +223,10 @@ const sectionMeta: Record<SectionKey, { title: string; subtitle: string }> = {
   ringkasan: { title: "Dashboard Admin", subtitle: "Pantau performa dan aktivitas BuzzHub" },
   kampanye: { title: "Manajemen Kampanye", subtitle: "Kelola seluruh kampanye buzzer marketing" },
   manajemen: { title: "Manajemen User", subtitle: "Kelola akun customer & buzzer secara terpusat" },
+  pesan: {
+    title: "Pesan Support",
+    subtitle: "Balas pesan customer dan buzzer langsung dari dashboard",
+  },
   verifikasi: {
     title: "Verifikasi Buzzer",
     subtitle: "Setujui atau tolak pendaftaran buzzer baru",
@@ -252,6 +260,7 @@ const ADMIN_SECTIONS: SectionKey[] = [
   "ringkasan",
   "kampanye",
   "manajemen",
+  "pesan",
   "verifikasi",
   "verifikasi-pengerjaan",
   "pembayaran",
@@ -277,7 +286,10 @@ function getInitialAdminSection(): SectionKey {
 
 function AdminPage() {
   useRequireRole("admin");
-  const [section, setSection] = useState<SectionKey>(getInitialAdminSection);
+  // Render awal harus sama antara server dan client. Section dari URL/localStorage
+  // baru diterapkan setelah mount agar tidak memicu hydration mismatch.
+  const [section, setSection] = useState<SectionKey>("ringkasan");
+  const [initialSectionReady, setInitialSectionReady] = useState(false);
   // Section yang pernah dibuka tetap ter-mount (disembunyikan) supaya
   // perpindahan menu berikutnya tidak memuat ulang data dari awal.
   const [visitedSections, setVisitedSections] = useState<SectionKey[]>(() => [section]);
@@ -321,6 +333,16 @@ function AdminPage() {
   };
 
   useEffect(() => {
+    const initial = getInitialAdminSection();
+    if (initial !== "ringkasan") {
+      setSection(initial);
+      setVisitedSections((prev) => (prev.includes(initial) ? prev : [...prev, initial]));
+    }
+    setInitialSectionReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!initialSectionReady) return;
     markVisited(section);
     if (typeof window !== "undefined") {
       try {
@@ -333,7 +355,7 @@ function AdminPage() {
       }
     }
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
-  }, [section, markVisited]);
+  }, [section, initialSectionReady, markVisited]);
 
   useEffect(() => {
     const handlePopState = () => {
@@ -432,6 +454,13 @@ function AdminPage() {
                 {key === "ringkasan" && <RingkasanSection />}
                 {key === "kampanye" && <KampanyeSection />}
                 {key === "manajemen" && <ManajemenUserSection />}
+                {key === "pesan" && (
+                  <AdminSupportSection
+                    adminEmail={session?.email ?? "admin@buzzhub.id"}
+                    adminName={session?.name ?? "Admin BuzzHub"}
+                    active={section === "pesan"}
+                  />
+                )}
                 {key === "verifikasi" && <VerifikasiSection />}
                 {key === "verifikasi-pengerjaan" && <VerifikasiSection mode="jobs" />}
                 {key === "pembayaran" && <AdminPaymentVerificationSection />}

@@ -64,7 +64,8 @@ Aplikasi memiliki tiga dashboard terpisah dengan role-based access, data realtim
 - **Katalog** — paket layanan siap beli dengan harga dan jumlah buzzer tetap.
 - **Pembayaran** — invoice, status pembayaran, dan riwayat transaksi.
 - **Ulasan** — beri rating dan komentar untuk buzzer setelah campaign selesai.
-- **Bantuan** — FAQ yang bisa dicari, panduan cepat, dan kontak support.
+- **Pesan** — chat support in-app dengan admin; balasan muncul realtime di dashboard.
+- **Bantuan** — FAQ yang bisa dicari, panduan cepat, dan channel support alternatif.
 - **Pengaturan** — preferensi notifikasi dan pengaturan akun.
 
 ### Buzzer — `/buzzer`
@@ -75,6 +76,7 @@ Aplikasi memiliki tiga dashboard terpisah dengan role-based access, data realtim
 - **Penghasilan** — saldo, status payout, riwayat penghasilan, dan pengajuan pencairan.
 - **Rating & Ulasan** — lihat rating dan feedback dari customer.
 - **Profil** — kelola data diri, avatar, dan informasi publik.
+- **Pesan** — chat support in-app untuk kendala job, bukti, dan pencairan.
 - **Bantuan** — FAQ seputar job, bukti, dan pencairan.
 - **Pengaturan** — preferensi notifikasi dan akun.
 
@@ -83,6 +85,7 @@ Aplikasi memiliki tiga dashboard terpisah dengan role-based access, data realtim
 - **Dashboard** — ringkasan kampanye, buzzer aktif, customer, pembayaran, dan grafik aktivitas.
 - **Kampanye** — kelola pesanan, katalog layanan, dan harga pesanan sendiri.
 - **Manajemen User** — kelola akun customer dan buzzer.
+- **Pesan** — inbox percakapan customer & buzzer; balas pesan langsung dari dashboard.
 - **Verifikasi Buzzer** — setujui atau tolak pendaftaran buzzer.
 - **Verifikasi Pengerjaan** — periksa bukti job, setujui, atau minta revisi.
 - **Verifikasi Pembayaran** — konfirmasi pembayaran customer dan buka campaign.
@@ -276,6 +279,7 @@ Bukti pengerjaan diakses lewat **signed URL**. Jangan mengubah bucket `bukti-pen
 
 - Tabel utama sudah ditambahkan ke publication `supabase_realtime` oleh migration.
 - RLS aktif di tabel-tabel utama; client memakai publishable/anon key.
+- Pesan support memakai `campaign_messages` dengan `campaign_id = null`; di production, batasi SELECT/INSERT/UPDATE per user dan jangan memakai policy `demo_all`.
 - Beberapa policy dibuat permisif untuk kebutuhan demo. **Review ulang policy sebelum production.**
 
 ### Autentikasi
@@ -349,20 +353,21 @@ Ada dua model harga yang **terpisah** dan dikelola admin:
 
 ## Database Ringkas
 
-| Tabel                      | Fungsi                                                        |
-| -------------------------- | ------------------------------------------------------------- |
-| `app_accounts`             | Akun admin, customer, buzzer, role, password hash, profil.    |
-| `campaigns`                | Campaign yang dipesan customer: budget, slot, jadwal, status. |
-| `campaign_jobs`            | Job per buzzer: payout snapshot, status, link bukti.          |
-| `campaign_job_submissions` | Riwayat upload dan revisi bukti pengerjaan.                   |
-| `service_catalogs`         | Paket katalog fixed-price.                                    |
-| `catalog_packages`         | Paket tambahan per katalog (opsional).                        |
-| `service_pricing`          | Rate card per buzzer untuk pesanan sendiri.                   |
-| `payments`                 | Invoice, nominal, dan status pembayaran.                      |
-| `withdrawals`              | Pengajuan pencairan saldo buzzer.                             |
-| `buzzer_wallets`           | Saldo dan mutasi penghasilan buzzer.                          |
-| `buzzer_ratings`           | Rating dan ulasan customer untuk buzzer.                      |
-| `social_accounts`          | Akun sosial buzzer dan status verifikasinya.                  |
+| Tabel                      | Fungsi                                                           |
+| -------------------------- | ---------------------------------------------------------------- |
+| `app_accounts`             | Akun admin, customer, buzzer, role, password hash, profil.       |
+| `campaigns`                | Campaign yang dipesan customer: budget, slot, jadwal, status.    |
+| `campaign_jobs`            | Job per buzzer: payout snapshot, status, link bukti.             |
+| `campaign_messages`        | Percakapan campaign & pesan support in-app (`campaign_id` null). |
+| `campaign_job_submissions` | Riwayat upload dan revisi bukti pengerjaan.                      |
+| `service_catalogs`         | Paket katalog fixed-price.                                       |
+| `catalog_packages`         | Paket tambahan per katalog (opsional).                           |
+| `service_pricing`          | Rate card per buzzer untuk pesanan sendiri.                      |
+| `payments`                 | Invoice, nominal, dan status pembayaran.                         |
+| `withdrawals`              | Pengajuan pencairan saldo buzzer.                                |
+| `buzzer_wallets`           | Saldo dan mutasi penghasilan buzzer.                             |
+| `buzzer_ratings`           | Rating dan ulasan customer untuk buzzer.                         |
+| `social_accounts`          | Akun sosial buzzer dan status verifikasinya.                     |
 
 Skema lengkap, function, trigger, dan policy ada di `supabase/migrations/`.
 

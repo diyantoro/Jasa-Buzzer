@@ -37,6 +37,7 @@ import { MobileBottomNav, SidebarNav, useSidebarCollapsed } from "@/components/d
 import { CustomerHomepageSection } from "@/components/customer-homepage-section";
 import { CustomerSettingsSection } from "@/components/customer-settings-section";
 import { HelpSection } from "@/components/help-section";
+import { SupportMessageSection } from "@/components/support-message-section";
 import {
   useCustomerNotifPreferences,
   isCustomerNotifEnabled,
@@ -71,7 +72,7 @@ export const Route = createFileRoute("/customer")({
   component: CustomerPage,
 });
 
-type SectionKey = "homepage" | "pesanan" | "katalog" | "pembayaran" | "ulasan" | "bantuan" | "pengaturan";
+type SectionKey = "homepage" | "pesanan" | "katalog" | "pembayaran" | "ulasan" | "pesan" | "bantuan" | "pengaturan";
 
 const CUSTOMER_SECTIONS: SectionKey[] = [
   "homepage",
@@ -79,6 +80,7 @@ const CUSTOMER_SECTIONS: SectionKey[] = [
   "katalog",
   "pembayaran",
   "ulasan",
+  "pesan",
   "bantuan",
   "pengaturan",
 ];
@@ -101,6 +103,7 @@ const navItems: { key: SectionKey; label: string; icon: ReactNode }[] = [
   { key: "katalog", label: "Katalog", icon: <Package className="h-4 w-4" /> },
   { key: "pembayaran", label: "Pembayaran", icon: <CreditCard className="h-4 w-4" /> },
   { key: "ulasan", label: "Ulasan", icon: <Star className="h-4 w-4" /> },
+  { key: "pesan", label: "Pesan", icon: <MessageCircle className="h-4 w-4" /> },
   { key: "bantuan", label: "Bantuan", icon: <LifeBuoy className="h-4 w-4" /> },
   { key: "pengaturan", label: "Pengaturan", icon: <Settings className="h-4 w-4" /> },
 ];
@@ -111,6 +114,7 @@ const sectionMeta: Record<SectionKey, { title: string; subtitle: string }> = {
   katalog: { title: "Katalog", subtitle: "Pilih layanan buzzer yang tersedia" },
   pembayaran: { title: "Pembayaran", subtitle: "Kelola tagihan dan riwayat transaksi pembayaran" },
   ulasan: { title: "Ulasan", subtitle: "Kelola rating dan komentar Anda untuk buzzer" },
+  pesan: { title: "Pesan", subtitle: "Chat langsung dengan tim support BuzzHub" },
   bantuan: { title: "Bantuan", subtitle: "Panduan, FAQ, dan kontak support BuzzHub" },
   pengaturan: { title: "Pengaturan", subtitle: "Kelola preferensi notifikasi dan akun customer Anda" },
 };
@@ -208,7 +212,10 @@ function CustomerPage() {
     city: session.city ?? "",
     company: session.company ?? "",
   } : {});
-  const [section, setSection] = useState<SectionKey>(getInitialCustomerSection);
+  // Render awal harus sama antara server dan client. Section dari URL/localStorage
+  // baru diterapkan setelah mount agar tidak memicu hydration mismatch.
+  const [section, setSection] = useState<SectionKey>("homepage");
+  const [initialSectionReady, setInitialSectionReady] = useState(false);
   // Section yang pernah dibuka tetap ter-mount (disembunyikan) supaya
   // perpindahan menu berikutnya tidak memuat ulang data dari awal.
   const [visitedSections, setVisitedSections] = useState<SectionKey[]>(() => [section]);
@@ -281,6 +288,16 @@ function CustomerPage() {
   const unread = notifPrefs.inApp ? visibleNotifications.filter((n) => !n.read).length : 0;
 
   useEffect(() => {
+    const initial = getInitialCustomerSection();
+    if (initial !== "homepage") {
+      setSection(initial);
+      setVisitedSections((prev) => (prev.includes(initial) ? prev : [...prev, initial]));
+    }
+    setInitialSectionReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!initialSectionReady) return;
     markVisited(section);
     if (typeof window !== "undefined") {
       try {
@@ -293,7 +310,7 @@ function CustomerPage() {
       }
     }
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
-  }, [section, markVisited]);
+  }, [section, initialSectionReady, markVisited]);
 
   useEffect(() => {
     const handlePopState = () => {
@@ -458,6 +475,16 @@ function CustomerPage() {
                   <UlasanSection
                     customerEmail={session.email}
                     customerName={session.name}
+                  />
+                </SectionErrorBoundary>
+              )}
+              {key === "pesan" && (
+                <SectionErrorBoundary title="Pesan gagal dimuat">
+                  <SupportMessageSection
+                    role="customer"
+                    user={{ name: store.state.profile.name || session.name, email: session.email }}
+                    active={section === "pesan"}
+                    onNavigate={(target) => go(target as SectionKey)}
                   />
                 </SectionErrorBoundary>
               )}
