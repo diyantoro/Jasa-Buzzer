@@ -53,7 +53,6 @@ import {
   QrCode,
   MessageCircle,
 } from "lucide-react";
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { AdminSocialSection } from "@/components/admin-social-section";
 import { AdminSupportSection } from "@/components/admin-support-section";
 import { toast } from "sonner";
@@ -101,7 +100,6 @@ import {
 } from "@/components/ui/select";
 import { StatCard, StatusBadge } from "@/components/dashboard-shell";
 import { MobileBottomNav, SidebarNav, useSidebarCollapsed } from "@/components/dashboard-sidebar";
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { BuzzerNameLink } from "@/components/buzzer-name-link";
 
 import { useRequireRole, clearSession, useSession, setSession } from "@/lib/auth";
@@ -168,7 +166,6 @@ import {
   updateCampaignJob,
   deleteCampaignJob,
   useCampaignJobSubmissions,
-  calculateCampaignJobSplit,
 
   type Campaign,
   type CampaignJob,
@@ -619,31 +616,6 @@ function RingkasanSection() {
     return result;
   }, [viewJobs]);
 
-  const monthlyRevenue = useMemo(() => {
-    const now = new Date();
-    const months = Array.from(
-      { length: 12 },
-      (_, index) => new Date(now.getFullYear(), now.getMonth() - 11 + index, 1),
-    );
-    return months.map((month) => {
-      const revenue = viewCompletedJobs
-        .filter((job) => {
-          const date = new Date(job.updated_at);
-          return date.getFullYear() === month.getFullYear() && date.getMonth() === month.getMonth();
-        })
-        .reduce((sum, job) => {
-          return sum + calculateCampaignJobSplit(job).total;
-        }, 0);
-      return {
-        month: month.toLocaleDateString("id-ID", { month: "short", year: "2-digit" }),
-        revenue,
-        profit: viewCompletedJobs
-          .filter((job) => { const date = new Date(job.updated_at); return date.getFullYear() === month.getFullYear() && date.getMonth() === month.getMonth(); })
-          .reduce((sum, job) => sum + calculateCampaignJobSplit(job).adminShare, 0),
-      };
-    });
-  }, [viewCompletedJobs]);
-
   const totalRevenue = demoMode ? demoAdminTotals.revenue : adminWallet.totalRevenue;
   const totalProfit = demoMode ? demoAdminTotals.profit : adminWallet.totalProfit;
   const approvedCampaigns = viewCampaigns.filter((campaign) => campaign.payment_status === "Pembayaran Disetujui");
@@ -720,101 +692,6 @@ function RingkasanSection() {
           hint={`${approvedCampaigns.length} total kampanye`}
           icon={<TrendingUp className="h-5 w-5" />}
         />
-      </div>
-
-      <div className="mt-6 rounded-2xl border border-border bg-card shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-5">
-          <div>
-            <h3 className="font-display text-lg font-bold">Grafik Pendapatan Bulanan</h3>
-            <p className="text-sm text-muted-foreground">
-              Perbandingan pendapatan dan keuntungan dari 12 bulan terakhir
-            </p>
-          </div>
-          <div className="rounded-full border border-border bg-muted/40 px-3 py-1 text-xs text-muted-foreground">
-            {monthlyRevenue[0]?.month} — {monthlyRevenue[monthlyRevenue.length - 1]?.month}
-          </div>
-        </div>
-        <div className="h-[320px] p-5">
-          <ChartContainer
-            config={{
-              revenue: { label: "Pendapatan", color: "#8b5cf6" },
-              profit: { label: "Keuntungan", color: "#22c55e" },
-            }}
-            className="h-full w-full"
-          >
-            <AreaChart data={monthlyRevenue} margin={{ left: 12, right: 12, top: 16, bottom: 0 }}>
-              <defs>
-                <linearGradient id="revenueFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.35} />
-                  <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.04} />
-                </linearGradient>
-                <linearGradient id="profitFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#22c55e" stopOpacity={0.25} />
-                  <stop offset="95%" stopColor="#22c55e" stopOpacity={0.04} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid
-                strokeDasharray="3 3"
-                vertical={false}
-                stroke="rgba(148,163,184,0.15)"
-              />
-              <XAxis
-                dataKey="month"
-                tickLine={false}
-                axisLine={false}
-                tickMargin={8}
-                padding={{ left: 8, right: 8 }}
-              />
-              <YAxis
-                tickLine={false}
-                axisLine={false}
-                tickMargin={8}
-                width={52}
-                tickCount={4}
-                tick={{ fontSize: 11 }}
-                tickFormatter={(value) => {
-                  const juta = Number(value) / 1000000;
-                  const label = Number.isInteger(juta)
-                    ? String(juta)
-                    : juta.toFixed(1).replace(".", ",");
-                  return `Rp${label} jt`;
-                }}
-                domain={[0, "dataMax + 3000000"]}
-              />
-              <ChartTooltip
-                cursor={{ stroke: "rgba(148,163,184,0.35)", strokeWidth: 1 }}
-                labelFormatter={(label) => `Bulan ${label}`}
-                content={
-                  <ChartTooltipContent
-                    formatter={(value) =>
-                      formatIDR(Number(Array.isArray(value) ? value[0] : (value ?? 0)))
-                    }
-                  />
-                }
-              />
-              <Area
-                type="natural"
-                dataKey="revenue"
-                stroke="#8b5cf6"
-                strokeWidth={3}
-                fill="url(#revenueFill)"
-                name="Pendapatan"
-                dot={{ r: 3, fill: "#8b5cf6", strokeWidth: 0 }}
-                activeDot={{ r: 5, strokeWidth: 2, stroke: "#fff" }}
-              />
-              <Area
-                type="natural"
-                dataKey="profit"
-                stroke="#22c55e"
-                strokeWidth={2.5}
-                fill="url(#profitFill)"
-                name="Keuntungan"
-                dot={{ r: 3, fill: "#22c55e", strokeWidth: 0 }}
-                activeDot={{ r: 5, strokeWidth: 2, stroke: "#fff" }}
-              />
-            </AreaChart>
-          </ChartContainer>
-        </div>
       </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-3">

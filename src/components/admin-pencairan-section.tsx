@@ -13,7 +13,9 @@ import {
   Users,
 } from "lucide-react";
 import { toast } from "sonner";
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Input } from "@/components/ui/input";
 import {
   Table,
@@ -344,6 +346,33 @@ export function PencairanSection() {
       });
     return rows.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
   }, [payments, jobs]);
+
+  const monthlyRevenue = useMemo(() => {
+    const now = new Date();
+    const months = Array.from(
+      { length: 12 },
+      (_, index) => new Date(now.getFullYear(), now.getMonth() - 11 + index, 1),
+    );
+
+    return months.map((month) => {
+      const monthJobs = jobs.filter((job) => {
+        const date = new Date(job.updated_at);
+        return date.getFullYear() === month.getFullYear() && date.getMonth() === month.getMonth();
+      });
+
+      return {
+        month: month.toLocaleDateString("id-ID", { month: "short", year: "2-digit" }),
+        revenue: monthJobs.reduce(
+          (sum, job) => sum + calculateCampaignJobSplit(job).total,
+          0,
+        ),
+        profit: monthJobs.reduce(
+          (sum, job) => sum + calculateCampaignJobSplit(job).adminShare,
+          0,
+        ),
+      };
+    });
+  }, [jobs]);
 
   const visibleActivities = useMemo(
     () => activities.filter((item) => !deletedIds.includes(item.id)),
@@ -790,6 +819,109 @@ export function PencairanSection() {
           </Button>
         </div>
       )}
+
+      <ChartCard
+        title="Grafik Pendapatan Bulanan"
+        description="Perbandingan pendapatan dan keuntungan dari 12 bulan terakhir"
+        action={
+          <span className="rounded-full border border-border bg-muted/40 px-2.5 py-1 text-[11px] font-semibold text-muted-foreground">
+            {monthlyRevenue[0]?.month} — {monthlyRevenue[monthlyRevenue.length - 1]?.month}
+          </span>
+        }
+      >
+        {chartError ? (
+          <ChartErrorState compact message={chartError} />
+        ) : loading ? (
+          <ChartSkeleton className="h-[320px]" />
+        ) : monthlyRevenue.every((item) => item.revenue === 0 && item.profit === 0) ? (
+          <ChartEmptyState message="Belum ada pendapatan dari job yang selesai pada 12 bulan terakhir." />
+        ) : (
+          <div className="h-[320px] w-full">
+            <ChartContainer
+              config={{
+                revenue: { label: "Pendapatan", color: "#8b5cf6" },
+                profit: { label: "Keuntungan", color: "#22c55e" },
+              }}
+              className="h-full w-full"
+            >
+              <AreaChart
+                data={monthlyRevenue}
+                margin={{ left: 12, right: 12, top: 16, bottom: 0 }}
+              >
+                <defs>
+                  <linearGradient id="activityRevenueFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.35} />
+                    <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.04} />
+                  </linearGradient>
+                  <linearGradient id="activityProfitFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#22c55e" stopOpacity={0.25} />
+                    <stop offset="95%" stopColor="#22c55e" stopOpacity={0.04} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  vertical={false}
+                  stroke="rgba(148,163,184,0.15)"
+                />
+                <XAxis
+                  dataKey="month"
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={8}
+                  padding={{ left: 8, right: 8 }}
+                />
+                <YAxis
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={8}
+                  width={52}
+                  tickCount={4}
+                  tick={{ fontSize: 11 }}
+                  tickFormatter={(value) => {
+                    const juta = Number(value) / 1000000;
+                    const label = Number.isInteger(juta)
+                      ? String(juta)
+                      : juta.toFixed(1).replace(".", ",");
+                    return `Rp${label} jt`;
+                  }}
+                  domain={[0, "dataMax + 3000000"]}
+                />
+                <ChartTooltip
+                  cursor={{ stroke: "rgba(148,163,184,0.35)", strokeWidth: 1 }}
+                  labelFormatter={(label) => `Bulan ${label}`}
+                  content={
+                    <ChartTooltipContent
+                      formatter={(value) =>
+                        formatIDR(Number(Array.isArray(value) ? value[0] : (value ?? 0)))
+                      }
+                    />
+                  }
+                />
+                <Area
+                  type="natural"
+                  dataKey="revenue"
+                  stroke="#8b5cf6"
+                  strokeWidth={3}
+                  fill="url(#activityRevenueFill)"
+                  name="Pendapatan"
+                  dot={{ r: 3, fill: "#8b5cf6", strokeWidth: 0 }}
+                  activeDot={{ r: 5, strokeWidth: 2, stroke: "#fff" }}
+                />
+                <Area
+                  type="natural"
+                  dataKey="profit"
+                  stroke="#22c55e"
+                  strokeWidth={2.5}
+                  fill="url(#activityProfitFill)"
+                  name="Keuntungan"
+                  dot={{ r: 3, fill: "#22c55e", strokeWidth: 0 }}
+                  activeDot={{ r: 5, strokeWidth: 2, stroke: "#fff" }}
+                />
+              </AreaChart>
+            </ChartContainer>
+          </div>
+        )}
+      </ChartCard>
 
       {/* --------------------- grafik tren + distribusi --------------------- */}
       <div className="grid gap-4 lg:grid-cols-3">
