@@ -20,7 +20,7 @@ export function SupportMessageSection({
 
   return (
     <div className="space-y-4">
-      <section className="relative overflow-hidden rounded-3xl border border-primary/20 bg-gradient-to-br from-primary/10 via-background to-accent/40 p-5 shadow-sm sm:p-6">
+      <section className="relative hidden overflow-hidden rounded-3xl border border-primary/20 bg-gradient-to-br from-primary/10 via-background to-accent/40 p-5 shadow-sm sm:p-6 lg:block">
         <div className="pointer-events-none absolute -right-10 -top-12 h-40 w-40 rounded-full bg-primary/10 blur-3xl" />
         <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
@@ -54,7 +54,12 @@ export function SupportMessageSection({
         </div>
       </section>
 
-      <SupportChat role={role} user={user} active={active} className="h-[560px] lg:h-[640px]" />
+      <SupportChat
+        role={role}
+        user={user}
+        active={active}
+        className="h-[calc(100dvh-13rem)] min-h-[320px] lg:h-[calc(100dvh-22rem)]"
+      />
     </div>
   );
 }

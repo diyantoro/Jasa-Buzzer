@@ -293,6 +293,14 @@ export function SupportChat({
             className="min-h-[44px] flex-1 resize-none rounded-xl bg-background text-sm"
             aria-label={isAdmin ? "Tulis balasan support" : "Tulis pesan support"}
             autoFocus={isAdmin}
+            onFocus={(event) => {
+              if (
+                typeof window !== "undefined" &&
+                window.matchMedia("(max-width: 1023px)").matches
+              ) {
+                event.currentTarget.scrollIntoView({ block: "nearest", behavior: "smooth" });
+              }
+            }}
           />
           <Button
             type="button"
