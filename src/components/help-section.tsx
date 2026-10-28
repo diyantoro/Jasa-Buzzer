@@ -18,12 +18,14 @@ import {
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SupportComposeDialog } from "@/components/support-compose-dialog";
 import { cn } from "@/lib/utils";
 
 type HelpRole = "customer" | "buzzer";
 
 type HelpSectionProps = {
   role: HelpRole;
+  user: { name: string; email: string };
   onNavigate?: (section: string) => void;
 };
 
@@ -150,8 +152,9 @@ const BUZZER_FAQS: Faq[] = [
   },
 ];
 
-export function HelpSection({ role, onNavigate }: HelpSectionProps) {
+export function HelpSection({ role, user, onNavigate }: HelpSectionProps) {
   const [query, setQuery] = useState("");
+  const [composeOpen, setComposeOpen] = useState(false);
   const isCustomer = role === "customer";
   const quickLinks = isCustomer ? CUSTOMER_QUICK_LINKS : BUZZER_QUICK_LINKS;
   const faqs = isCustomer ? CUSTOMER_FAQS : BUZZER_FAQS;
@@ -293,7 +296,7 @@ export function HelpSection({ role, onNavigate }: HelpSectionProps) {
               <Button
                 type="button"
                 className="w-full justify-start gradient-brand text-brand-foreground"
-                onClick={() => onNavigate?.("pesan")}
+                onClick={() => setComposeOpen(true)}
               >
                 <MessageCircle className="h-4 w-4" /> Kirim Pesan
               </Button>
@@ -355,6 +358,14 @@ export function HelpSection({ role, onNavigate }: HelpSectionProps) {
           </section>
         </aside>
       </div>
+
+      <SupportComposeDialog
+        open={composeOpen}
+        onOpenChange={setComposeOpen}
+        role={role}
+        user={user}
+        onSent={() => onNavigate?.("pesan")}
+      />
     </div>
   );
 }

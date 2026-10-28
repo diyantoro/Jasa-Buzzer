@@ -490,7 +490,11 @@ function CustomerPage() {
               )}
               {key === "bantuan" && (
                 <SectionErrorBoundary title="Bantuan gagal dimuat">
-                  <HelpSection role="customer" onNavigate={(target) => go(target as SectionKey)} />
+                  <HelpSection
+                    role="customer"
+                    user={{ name: store.state.profile.name || session.name, email: session.email }}
+                    onNavigate={(target) => go(target as SectionKey)}
+                  />
                 </SectionErrorBoundary>
               )}
               {key === "pengaturan" && (

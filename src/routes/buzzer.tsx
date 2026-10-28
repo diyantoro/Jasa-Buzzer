@@ -482,7 +482,13 @@ function BuzzerPage() {
                   onNavigate={(target) => go(target as SectionKey)}
                 />
               )}
-              {key === "bantuan" && <HelpSection role="buzzer" onNavigate={(target) => go(target as SectionKey)} />}
+              {key === "bantuan" && (
+                <HelpSection
+                  role="buzzer"
+                  user={{ name: store.state.profile.name || session.name, email: session.email }}
+                  onNavigate={(target) => go(target as SectionKey)}
+                />
+              )}
               {key === "pengaturan" && <BuzzerSettingsSection buzzerEmail={session.email} />}
             </div>
           ))}
