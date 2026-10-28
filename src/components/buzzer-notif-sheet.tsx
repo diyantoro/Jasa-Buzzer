@@ -313,6 +313,9 @@ export function BuzzerNotifSheet({
         title={selected?.title ?? "Notifikasi"}
         message={selected?.message ?? ""}
         timeLabel={selected ? formatTimeAgo(selected.created_at) : ""}
+        question={
+          typeof selected?.metadata?.question === "string" ? selected.metadata.question : undefined
+        }
         isSupport={selectedIsSupport}
         onOpenHelp={
           onNavigate

@@ -203,6 +203,25 @@ export async function sendSupportMessage(input: {
   if (input.fromRole === "admin") {
     const recipient = (input.toEmail ?? "").trim().toLowerCase();
     if (recipient) {
+      // Simpan pertanyaan asal di metadata notifikasi supaya penerima bisa
+      // membaca konteks lengkap saat membuka balasan admin.
+      let question: string | null = null;
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: originals } = await (supabase as any)
+          .from("campaign_messages")
+          .select("body")
+          .is("campaign_id", null)
+          .eq("from_email", recipient)
+          .neq("from_role", "admin")
+          .order("created_at", { ascending: false })
+          .limit(1);
+        const candidate = (originals as Array<{ body?: string | null }> | null)?.[0]?.body?.trim();
+        if (candidate) question = candidate;
+      } catch (questionError) {
+        console.warn("[Support] Gagal mengambil pertanyaan asal:", questionError);
+      }
+
       try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error: notifyError } = await (supabase as any).from("notifications").insert({
@@ -214,6 +233,8 @@ export async function sendSupportMessage(input: {
           is_read: false,
           metadata: {
             support: true,
+            question,
+            reply: body,
             from_email: input.fromEmail,
             to_email: recipient,
             message_id: (data as SupportMessage | null)?.id ?? null,
@@ -229,6 +250,41 @@ export async function sendSupportMessage(input: {
 
   notifySupportChanged();
   return data as SupportMessage;
+}
+
+/**
+ * Ambil pertanyaan asal dari thread support. Dipakai sebagai fallback untuk
+ * notifikasi lama yang belum menyimpan `metadata.question`.
+ */
+export async function fetchSupportQuestion(input: {
+  email: string;
+  before?: string | null;
+}): Promise<string | null> {
+  const email = input.email.trim().toLowerCase();
+  if (!email) return null;
+
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let query = (supabase as any)
+      .from("campaign_messages")
+      .select("body")
+      .is("campaign_id", null)
+      .eq("from_email", email)
+      .neq("from_role", "admin")
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    if (input.before) query = query.lt("created_at", input.before);
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    const body = (data as Array<{ body?: string | null }> | null)?.[0]?.body?.trim();
+    return body || null;
+  } catch (questionError) {
+    console.warn("[Support] Gagal mengambil pertanyaan asal:", questionError);
+    return null;
+  }
 }
 
 export async function markSupportMessagesRead(input: {

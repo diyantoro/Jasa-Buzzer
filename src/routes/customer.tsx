@@ -2917,6 +2917,7 @@ function NotifSheet({
         title={selected?.title ?? "Notifikasi"}
         message={selected?.body ?? ""}
         timeLabel={selected?.date ?? ""}
+        question={selected?.question}
         isSupport={selectedIsSupport}
         onOpenHelp={
           onSelectSection

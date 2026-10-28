@@ -130,6 +130,8 @@ export type Notification = {
   date: string;
   createdAt?: string;
   read: boolean;
+  /** Pertanyaan asal untuk notifikasi balasan support. */
+  question?: string;
 };
 
 export type CustomerProfile = {
@@ -1114,6 +1116,14 @@ export function useCustomerStore(
                 (m.title.toLowerCase() === title.toLowerCase() &&
                   m.body.toLowerCase() === body.toLowerCase())
             );
+            const metadata =
+              dn.metadata && typeof dn.metadata === "object" && !Array.isArray(dn.metadata)
+                ? (dn.metadata as Record<string, unknown>)
+                : null;
+            const question =
+              typeof metadata?.question === "string" && metadata.question.trim()
+                ? metadata.question
+                : undefined;
             if (!alreadyHas) {
               mergedNotifs.push({
                 id: dn.id,
@@ -1123,6 +1133,7 @@ export function useCustomerStore(
                 date: dn.created_at ? dn.created_at.slice(0, 10) : new Date().toISOString().slice(0, 10),
                 createdAt: dn.created_at ?? new Date().toISOString(),
                 read: dn.is_read ?? false,
+                question,
               });
               stateChanged = true;
             }

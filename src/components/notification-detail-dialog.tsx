@@ -16,6 +16,7 @@ type NotificationDetailDialogProps = {
   title: string;
   message: string;
   timeLabel: string;
+  question?: string;
   isSupport?: boolean;
   onOpenHelp?: () => void;
 };
@@ -26,6 +27,7 @@ export function NotificationDetailDialog({
   title,
   message,
   timeLabel,
+  question,
   isSupport = false,
   onOpenHelp,
 }: NotificationDetailDialogProps) {
@@ -44,8 +46,34 @@ export function NotificationDetailDialog({
           <DialogDescription>{timeLabel}</DialogDescription>
         </DialogHeader>
 
-        <div className="max-h-[55vh] overflow-y-auto whitespace-pre-wrap rounded-xl border border-border bg-muted/30 p-4 text-sm leading-relaxed text-foreground">
-          {message}
+        <div className="max-h-[55vh] space-y-3 overflow-y-auto pr-1">
+          {isSupport && question ? (
+            <div className="space-y-1.5">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Pertanyaan kamu
+              </p>
+              <div className="whitespace-pre-wrap rounded-xl border border-border bg-muted/20 p-3 text-sm leading-relaxed text-muted-foreground">
+                {question}
+              </div>
+            </div>
+          ) : null}
+
+          <div className="space-y-1.5">
+            {isSupport ? (
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Balasan admin
+              </p>
+            ) : null}
+            <div
+              className={
+                isSupport
+                  ? "whitespace-pre-wrap rounded-xl border border-sky-500/20 bg-sky-500/5 p-4 text-sm leading-relaxed text-foreground"
+                  : "whitespace-pre-wrap rounded-xl border border-border bg-muted/30 p-4 text-sm leading-relaxed text-foreground"
+              }
+            >
+              {message}
+            </div>
+          </div>
         </div>
 
         <DialogFooter className="gap-2 sm:justify-between">
