@@ -38,6 +38,7 @@ import { CustomerHomepageSection } from "@/components/customer-homepage-section"
 import { CustomerSettingsSection } from "@/components/customer-settings-section";
 import { HelpSection } from "@/components/help-section";
 import { NotificationDetailDialog } from "@/components/notification-detail-dialog";
+import { fetchSupportQuestion } from "@/lib/support-store";
 import {
   useCustomerNotifPreferences,
   isCustomerNotifEnabled,
@@ -2776,6 +2777,17 @@ function NotifSheet({
     if (n.type === "support" || n.title.toLowerCase().includes("balasan support")) {
       setSelected(n);
       onOpenChange(false);
+
+      // Notifikasi lama belum menyimpan pertanyaan asal di metadata. Ambil
+      // sebagai fallback supaya dialog tetap menampilkan konteks lengkap.
+      if (!n.question && customerEmail) {
+        void fetchSupportQuestion({ email: customerEmail, before: n.createdAt }).then((question) => {
+          if (!question) return;
+          setSelected((current) =>
+            current?.id === n.id ? { ...current, question } : current,
+          );
+        });
+      }
       return;
     }
 

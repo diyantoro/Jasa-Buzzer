@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { NotificationDetailDialog } from "@/components/notification-detail-dialog";
+import { fetchSupportQuestion } from "@/lib/support-store";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
@@ -240,6 +241,23 @@ export function BuzzerNotifSheet({
                     if (n.type === "support") {
                       setSelected(n);
                       onOpenChange(false);
+
+                      if (typeof n.metadata?.question !== "string" && buzzerEmail) {
+                        void fetchSupportQuestion({
+                          email: buzzerEmail,
+                          before: n.created_at,
+                        }).then((question) => {
+                          if (!question) return;
+                          setSelected((current) =>
+                            current?.id === n.id
+                              ? {
+                                  ...current,
+                                  metadata: { ...current.metadata, question },
+                                }
+                              : current,
+                          );
+                        });
+                      }
                       return;
                     }
 

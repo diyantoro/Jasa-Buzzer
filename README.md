@@ -66,7 +66,7 @@ Aplikasi memiliki tiga dashboard terpisah dengan role-based access, data realtim
 - **Pembayaran** — invoice, status pembayaran, dan riwayat transaksi.
 - **Ulasan** — beri rating dan komentar untuk buzzer setelah campaign selesai.
 - **Bantuan** — FAQ yang bisa dicari, panduan cepat, tombol kirim pesan ke admin, dan channel support alternatif.
-- **Notifikasi** — balasan admin atas pesan Bantuan muncul di lonceng notifikasi; klik untuk membaca isi lengkap dan buka halaman Bantuan.
+- **Notifikasi** — balasan admin atas pesan Bantuan muncul di lonceng notifikasi; klik untuk membaca pertanyaan asal + balasan lengkap, lalu buka halaman Bantuan bila perlu.
 - **Pengaturan** — preferensi notifikasi dan pengaturan akun.
 
 ### Buzzer — `/buzzer`
@@ -78,7 +78,7 @@ Aplikasi memiliki tiga dashboard terpisah dengan role-based access, data realtim
 - **Rating & Ulasan** — lihat rating dan feedback dari customer.
 - **Profil** — kelola data diri, avatar, dan informasi publik.
 - **Bantuan** — FAQ seputar job, bukti, dan pencairan, plus tombol kirim pesan ke admin.
-- **Notifikasi** — balasan admin atas pesan Bantuan masuk ke lonceng notifikasi; klik untuk membaca isi lengkap dan buka halaman Bantuan.
+- **Notifikasi** — balasan admin atas pesan Bantuan masuk ke lonceng notifikasi; klik untuk membaca pertanyaan asal + balasan lengkap, lalu buka halaman Bantuan bila perlu.
 - **Pengaturan** — preferensi notifikasi dan akun.
 
 ### Admin — `/admin`
