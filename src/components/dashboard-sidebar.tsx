@@ -117,7 +117,7 @@ function NavButton<K extends string>({
           : undefined
       }
       className={cn(
-        "relative flex w-full items-center rounded-lg text-sm transition-[padding,gap,background-color,color] duration-300 ease-in-out motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70",
+        "relative flex w-full items-center rounded-lg text-sm transition-[padding,gap,background-color,color] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70",
         collapsed ? "justify-center gap-0 px-0 py-2.5" : "gap-3 px-3 py-2",
         active
           ? "bg-white/15 font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]"
@@ -147,7 +147,7 @@ function NavButton<K extends string>({
       <span
         aria-hidden={collapsed}
         className={cn(
-          "flex min-w-0 items-center overflow-hidden whitespace-nowrap transition-[max-width,opacity] duration-300 ease-in-out motion-reduce:transition-none",
+          "flex min-w-0 items-center overflow-hidden whitespace-nowrap transition-[max-width,opacity] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
           collapsed ? "max-w-0 opacity-0" : "max-w-[190px] flex-1 opacity-100",
         )}
       >
@@ -199,7 +199,7 @@ export function SidebarNav<K extends string>({
     <div className="flex min-h-full flex-col text-white">
       <div
         className={cn(
-          "mb-6 flex items-center gap-2 transition-[padding,gap] duration-300 ease-in-out motion-reduce:transition-none",
+          "mb-6 flex items-center gap-2 transition-[padding,gap] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
           collapsed ? "px-0" : "px-1",
           onToggleCollapse ? "justify-between" : collapsed ? "justify-center" : "",
         )}
@@ -215,7 +215,7 @@ export function SidebarNav<K extends string>({
           <span
             aria-hidden={collapsed}
             className={cn(
-              "overflow-hidden whitespace-nowrap font-display text-lg font-bold tracking-tight text-white transition-[max-width,opacity] duration-300 ease-in-out motion-reduce:transition-none",
+              "overflow-hidden whitespace-nowrap font-display text-lg font-bold tracking-tight text-white transition-[max-width,opacity] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
               collapsed ? "max-w-0 opacity-0" : "max-w-[160px] opacity-100",
             )}
           >
@@ -245,13 +245,13 @@ export function SidebarNav<K extends string>({
       <div className="mt-6 border-t border-white/15 pt-4">
         <div
           className={cn(
-            "flex items-center transition-[padding,gap] duration-300 ease-in-out motion-reduce:transition-none",
+            "flex items-center transition-[padding,gap] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
             collapsed ? "justify-center gap-0" : "gap-3 px-1",
           )}
         >
           <Avatar
             className={cn(
-              "shrink-0 border border-white/25 transition-[width,height] duration-300 ease-in-out motion-reduce:transition-none",
+              "shrink-0 border border-white/25 transition-[width,height] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
               collapsed ? "h-9 w-9" : "h-10 w-10",
             )}
           >
@@ -270,7 +270,7 @@ export function SidebarNav<K extends string>({
           <div
             aria-hidden={collapsed}
             className={cn(
-              "min-w-0 overflow-hidden transition-[max-width,opacity] duration-300 ease-in-out motion-reduce:transition-none",
+              "min-w-0 overflow-hidden transition-[max-width,opacity] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
               collapsed ? "max-w-0 opacity-0" : "max-w-[190px] flex-1 opacity-100",
             )}
           >
@@ -287,14 +287,14 @@ export function SidebarNav<K extends string>({
           onClick={onLogout}
           aria-label="Keluar"
           className={cn(
-            "mt-3 border-white/25 bg-white/10 text-white transition-[width,padding] duration-300 ease-in-out hover:bg-white/20 hover:text-white motion-reduce:transition-none",
+            "mt-3 border-white/25 bg-white/10 text-white transition-[width,padding] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] hover:bg-white/20 hover:text-white motion-reduce:transition-none",
             collapsed ? "mx-auto flex h-8 w-8 items-center justify-center px-0" : "w-full",
           )}
         >
           <LogOut className="h-4 w-4 shrink-0" />
           <span
             className={cn(
-              "overflow-hidden whitespace-nowrap transition-[max-width,opacity,margin] duration-300 ease-in-out motion-reduce:transition-none",
+              "overflow-hidden whitespace-nowrap transition-[max-width,opacity,margin] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
               collapsed ? "ml-0 max-w-0 opacity-0" : "ml-2 max-w-[80px] opacity-100",
             )}
           >
@@ -331,14 +331,14 @@ export function SidebarCollapseButton({
             <span className="relative grid h-4 w-4 place-items-center">
               <PanelLeftClose
                 className={cn(
-                  "absolute h-4 w-4 transition-[transform,opacity] duration-300 ease-in-out motion-reduce:transition-none",
+                  "absolute h-4 w-4 transition-[transform,opacity] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
                   collapsed ? "rotate-90 scale-75 opacity-0" : "rotate-0 scale-100 opacity-100",
                 )}
                 aria-hidden="true"
               />
               <PanelLeftOpen
                 className={cn(
-                  "absolute h-4 w-4 transition-[transform,opacity] duration-300 ease-in-out motion-reduce:transition-none",
+                  "absolute h-4 w-4 transition-[transform,opacity] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
                   collapsed ? "rotate-0 scale-100 opacity-100" : "-rotate-90 scale-75 opacity-0",
                 )}
                 aria-hidden="true"

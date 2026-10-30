@@ -75,6 +75,7 @@ Aplikasi memiliki tiga dashboard terpisah dengan role-based access, data realtim
 - **Job Saya** — pantau job yang sedang dikerjakan, upload bukti, dan perbaiki jika diminta revisi.
 - **Akun Sosial Media** — hubungkan dan verifikasi akun sosial untuk tiap platform.
 - **Penghasilan** — saldo, status payout, riwayat penghasilan, dan pengajuan pencairan.
+- **Grafik Performa** — ringkasan visual pendapatan, status job, dan pendapatan per platform dengan filter periode (30 hari / 3 / 6 / 12 bulan). Lazy-loaded untuk performa optimal.
 - **Rating & Ulasan** — lihat rating dan feedback dari customer.
 - **Profil** — kelola data diri, avatar, dan informasi publik.
 - **Bantuan** — FAQ seputar job, bukti, dan pencairan, plus tombol kirim pesan ke admin.

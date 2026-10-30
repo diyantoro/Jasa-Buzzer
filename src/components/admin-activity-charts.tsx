@@ -136,7 +136,7 @@ export function ActivityMetricCard({
           {icon}
         </span>
       </div>
-      <p className="mt-2.5 font-display text-xl font-bold leading-none tracking-tight tabular-nums break-words sm:text-2xl">
+      <p className="mt-2.5 font-display text-lg font-bold leading-tight tracking-tight tabular-nums break-words sm:text-2xl sm:leading-none">
         {value}
       </p>
       <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -321,9 +321,11 @@ function TrendTooltip({
 export function ActivityTrendChart({
   data,
   loading,
+  className,
 }: {
   data: TrendPoint[];
   loading?: boolean;
+  className?: string;
 }) {
   const { ref, size } = useMeasuredSize();
   const uid = `trend-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
@@ -331,7 +333,10 @@ export function ActivityTrendChart({
   const plotBottom = Math.max(size.height - X_AXIS_HEIGHT, 1);
 
   return (
-    <div ref={ref} className="relative h-[260px] w-full sm:h-[330px]">
+    <div
+      ref={ref}
+      className={cn("relative h-[260px] w-full sm:h-[330px]", className)}
+    >
       {loading && <ChartSkeleton className="absolute inset-0 h-full w-full" />}
       {!loading && size.width > 0 && (
         <ResponsiveContainer width="100%" height="100%">
@@ -574,7 +579,15 @@ export function ActivityDistributionChart({
 /* ------------------------------------------------------------------ *
  * 3. Perbandingan Aktivitas — bar chart
  * ------------------------------------------------------------------ */
-export type ActivityBarPoint = { label: string; fullLabel: string; total: number };
+export type ActivityBarPoint = {
+  label: string;
+  fullLabel: string;
+  total: number;
+  pembayaran: number;
+  pekerjaan: number;
+  payout: number;
+  komisi: number;
+};
 
 function BarTooltip({
   active,
@@ -585,15 +598,42 @@ function BarTooltip({
 }) {
   const point = payload?.[0]?.payload;
   if (!active || !point) return null;
+
+  const rows = [
+    { label: "Pembayaran masuk", value: point.pembayaran, color: CHART_COLORS.blue },
+    { label: "Pekerjaan", value: point.pekerjaan, color: CHART_COLORS.violet },
+    { label: "Payout buzzer", value: point.payout, color: CHART_COLORS.purple },
+    { label: "Komisi admin", value: point.komisi, color: CHART_COLORS.pink },
+  ].filter((row) => row.value > 0);
+
   return (
-    <div className="rounded-xl border border-border bg-popover/95 px-3 py-2 shadow-lg backdrop-blur">
+    <div className="min-w-[168px] rounded-xl border border-border bg-popover/95 px-3 py-2.5 shadow-lg backdrop-blur">
       <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
         {point.fullLabel}
       </p>
-      <p className="mt-1 text-sm font-semibold tabular-nums text-foreground">
-        {num(point.total)}{" "}
-        <span className="text-[11px] font-normal text-muted-foreground">aktivitas</span>
+      <p className="mt-1 flex items-baseline gap-1.5">
+        <span className="font-display text-xl font-bold leading-none tabular-nums">
+          {num(point.total)}
+        </span>
+        <span className="text-[11px] text-muted-foreground">aktivitas</span>
       </p>
+      {rows.length > 0 && (
+        <ul className="mt-2 space-y-1 border-t border-border/70 pt-2">
+          {rows.map((row) => (
+            <li key={row.label} className="flex items-center justify-between gap-3 text-[11px]">
+              <span className="flex items-center gap-1.5 text-muted-foreground">
+                <span
+                  className="h-1.5 w-1.5 rounded-full"
+                  style={{ backgroundColor: row.color }}
+                  aria-hidden="true"
+                />
+                {row.label}
+              </span>
+              <span className="font-semibold tabular-nums text-foreground">{num(row.value)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
@@ -654,18 +694,13 @@ export function ActivityComparisonChart({
           />
           <Bar
             dataKey="total"
+            name="Total aktivitas"
+            fill={`url(#${uid}-fill)`}
             radius={[7, 7, 0, 0]}
             maxBarSize={38}
             isAnimationActive
             animationDuration={550}
-          >
-            {data.map((_, index) => (
-              <Cell
-                key={index}
-                fill={[CHART_COLORS.violet, CHART_COLORS.pink, CHART_COLORS.blue, CHART_COLORS.cyan][index % 4]}
-              />
-            ))}
-          </Bar>
+          />
         </BarChart>
       </ResponsiveContainer>
     </div>

@@ -13,7 +13,7 @@ import {
   Users,
 } from "lucide-react";
 import { toast } from "sonner";
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import { Area, CartesianGrid, ComposedChart, Line, XAxis, YAxis } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Input } from "@/components/ui/input";
@@ -272,14 +272,15 @@ export function PencairanSection() {
     };
   }, [loadAccounts]);
 
-  // Fallback data dummy: dipakai saat tabel aktivitas di database masih kosong.
+  // Fallback data dummy: dipakai saat tabel aktivitas masih terlalu sedikit
+  // untuk menampilkan tren 12 bulan yang representatif.
   const demoMode =
     !paymentsLoading &&
     !jobsLoading &&
     !campaignsLoading &&
-    paymentsRaw.length === 0 &&
-    jobsRaw.length === 0 &&
-    campaignsRaw.length === 0;
+    paymentsRaw.length < 10 &&
+    jobsRaw.length < 10 &&
+    campaignsRaw.length < 10;
   const payments = demoMode ? demoPayments : paymentsRaw;
   const jobs = demoMode ? demoCompletedJobs : jobsRaw;
   const campaigns = demoMode ? demoCampaigns : campaignsRaw;
@@ -374,6 +375,18 @@ export function PencairanSection() {
     });
   }, [jobs]);
 
+  const monthlyTotals = useMemo(
+    () =>
+      monthlyRevenue.reduce(
+        (total, item) => ({
+          revenue: total.revenue + item.revenue,
+          profit: total.profit + item.profit,
+        }),
+        { revenue: 0, profit: 0 },
+      ),
+    [monthlyRevenue],
+  );
+
   const visibleActivities = useMemo(
     () => activities.filter((item) => !deletedIds.includes(item.id)),
     [activities, deletedIds],
@@ -462,6 +475,10 @@ export function PencairanSection() {
         label: point.label,
         fullLabel: point.fullLabel,
         total: point.total,
+        pembayaran: point.pembayaran,
+        pekerjaan: point.pekerjaan,
+        payout: point.payout,
+        komisi: point.komisi,
       }));
     }
 
@@ -472,6 +489,10 @@ export function PencairanSection() {
         label: chunk[0].label,
         fullLabel: `${chunk[0].label} – ${chunk[chunk.length - 1].label}`,
         total: chunk.reduce((sum, item) => sum + item.total, 0),
+        pembayaran: chunk.reduce((sum, item) => sum + item.pembayaran, 0),
+        pekerjaan: chunk.reduce((sum, item) => sum + item.pekerjaan, 0),
+        payout: chunk.reduce((sum, item) => sum + item.payout, 0),
+        komisi: chunk.reduce((sum, item) => sum + item.komisi, 0),
       });
     }
     return weekly;
@@ -836,89 +857,141 @@ export function PencairanSection() {
         ) : monthlyRevenue.every((item) => item.revenue === 0 && item.profit === 0) ? (
           <ChartEmptyState message="Belum ada pendapatan dari job yang selesai pada 12 bulan terakhir." />
         ) : (
-          <div className="h-[320px] w-full">
-            <ChartContainer
-              config={{
-                revenue: { label: "Pendapatan", color: "#8b5cf6" },
-                profit: { label: "Keuntungan", color: "#22c55e" },
-              }}
-              className="h-full w-full"
-            >
-              <AreaChart
-                data={monthlyRevenue}
-                margin={{ left: 12, right: 12, top: 16, bottom: 0 }}
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] font-medium text-muted-foreground">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="h-2.5 w-4 rounded-sm bg-gradient-to-r from-violet-500 to-fuchsia-500" />
+                  Pendapatan
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="h-0.5 w-4 rounded-full bg-emerald-500" />
+                  Keuntungan
+                </span>
+              </div>
+              <span className="text-[10px] font-normal text-muted-foreground/80">
+                Area = pendapatan · garis = keuntungan
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px]">
+              <span className="text-muted-foreground">
+                Total pendapatan{" "}
+                <strong className="font-semibold tabular-nums text-foreground">
+                  {formatIDR(monthlyTotals.revenue)}
+                </strong>
+              </span>
+              <span className="text-muted-foreground">
+                Total keuntungan{" "}
+                <strong className="font-semibold tabular-nums text-foreground">
+                  {formatIDR(monthlyTotals.profit)}
+                </strong>
+              </span>
+            </div>
+            <div className="relative h-[320px] w-full overflow-hidden rounded-xl bg-gradient-to-b from-violet-500/[0.045] via-transparent to-transparent">
+              <ChartContainer
+                config={{
+                  revenue: { label: "Pendapatan", color: "#8b5cf6" },
+                  profit: { label: "Keuntungan", color: "#22c55e" },
+                }}
+                className="h-full w-full"
               >
-                <defs>
-                  <linearGradient id="activityRevenueFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.35} />
-                    <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.04} />
-                  </linearGradient>
-                  <linearGradient id="activityProfitFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#22c55e" stopOpacity={0.25} />
-                    <stop offset="95%" stopColor="#22c55e" stopOpacity={0.04} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  vertical={false}
-                  stroke="rgba(148,163,184,0.15)"
-                />
-                <XAxis
-                  dataKey="month"
-                  tickLine={false}
-                  axisLine={false}
-                  tickMargin={8}
-                  padding={{ left: 8, right: 8 }}
-                />
-                <YAxis
-                  tickLine={false}
-                  axisLine={false}
-                  tickMargin={8}
-                  width={52}
-                  tickCount={4}
-                  tick={{ fontSize: 11 }}
-                  tickFormatter={(value) => {
-                    const juta = Number(value) / 1000000;
-                    const label = Number.isInteger(juta)
-                      ? String(juta)
-                      : juta.toFixed(1).replace(".", ",");
-                    return `Rp${label} jt`;
-                  }}
-                  domain={[0, "dataMax + 3000000"]}
-                />
-                <ChartTooltip
-                  cursor={{ stroke: "rgba(148,163,184,0.35)", strokeWidth: 1 }}
-                  labelFormatter={(label) => `Bulan ${label}`}
-                  content={
-                    <ChartTooltipContent
-                      formatter={(value) =>
-                        formatIDR(Number(Array.isArray(value) ? value[0] : (value ?? 0)))
-                      }
-                    />
-                  }
-                />
-                <Area
-                  type="natural"
-                  dataKey="revenue"
-                  stroke="#8b5cf6"
-                  strokeWidth={3}
-                  fill="url(#activityRevenueFill)"
-                  name="Pendapatan"
-                  dot={{ r: 3, fill: "#8b5cf6", strokeWidth: 0 }}
-                  activeDot={{ r: 5, strokeWidth: 2, stroke: "#fff" }}
-                />
-                <Area
-                  type="natural"
-                  dataKey="profit"
-                  stroke="#22c55e"
-                  strokeWidth={2.5}
-                  fill="url(#activityProfitFill)"
-                  name="Keuntungan"
-                  dot={{ r: 3, fill: "#22c55e", strokeWidth: 0 }}
-                  activeDot={{ r: 5, strokeWidth: 2, stroke: "#fff" }}
-                />
-              </AreaChart>
-            </ChartContainer>
+                <ComposedChart
+                  data={monthlyRevenue}
+                  margin={{ left: 12, right: 12, top: 18, bottom: 0 }}
+                >
+                  <defs>
+                    <linearGradient id="monthlyRevenueFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#8b5cf6" stopOpacity={0.55} />
+                      <stop offset="45%" stopColor="#a855f7" stopOpacity={0.22} />
+                      <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0.01} />
+                    </linearGradient>
+                    <linearGradient id="monthlyRevenueLine" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="#60a5fa" />
+                      <stop offset="52%" stopColor="#8b5cf6" />
+                      <stop offset="100%" stopColor="#d946ef" />
+                    </linearGradient>
+                    <linearGradient id="monthlyProfitLine" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="#34d399" />
+                      <stop offset="100%" stopColor="#22c55e" />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid
+                    strokeDasharray="4 8"
+                    vertical={false}
+                    stroke="rgba(148,163,184,0.2)"
+                  />
+                  <XAxis
+                    dataKey="month"
+                    tickLine={false}
+                    axisLine={false}
+                    tickMargin={10}
+                    padding={{ left: 8, right: 8 }}
+                    tick={{ fontSize: 11, fill: "currentColor" }}
+                    className="text-muted-foreground"
+                  />
+                  <YAxis
+                    tickLine={false}
+                    axisLine={false}
+                    tickMargin={8}
+                    width={52}
+                    tickCount={4}
+                    tick={{ fontSize: 11, fill: "currentColor" }}
+                    className="text-muted-foreground"
+                    tickFormatter={(value) => {
+                      const juta = Number(value) / 1000000;
+                      const label = Number.isInteger(juta)
+                        ? String(juta)
+                        : juta.toFixed(1).replace(".", ",");
+                      return `Rp${label} jt`;
+                    }}
+                    domain={[0, "dataMax + 3000000"]}
+                  />
+                  <ChartTooltip
+                    cursor={{
+                      stroke: "rgba(139,92,246,0.35)",
+                      strokeWidth: 1,
+                      strokeDasharray: "4 4",
+                    }}
+                    labelFormatter={(label) => `Bulan ${label}`}
+                    content={
+                      <ChartTooltipContent
+                        formatter={(value) =>
+                          formatIDR(Number(Array.isArray(value) ? value[0] : (value ?? 0)))
+                        }
+                      />
+                    }
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="revenue"
+                    stroke="url(#monthlyRevenueLine)"
+                    strokeWidth={3}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    fill="url(#monthlyRevenueFill)"
+                    fillOpacity={1}
+                    name="Pendapatan"
+                    dot={{ r: 3, fill: "#8b5cf6", stroke: "#fff", strokeWidth: 1.5 }}
+                    activeDot={{ r: 6, fill: "#8b5cf6", stroke: "#fff", strokeWidth: 2 }}
+                    isAnimationActive
+                    animationDuration={650}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="profit"
+                    stroke="url(#monthlyProfitLine)"
+                    strokeWidth={2.5}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    name="Keuntungan"
+                    dot={{ r: 3, fill: "#22c55e", stroke: "#fff", strokeWidth: 1.5 }}
+                    activeDot={{ r: 6, fill: "#22c55e", stroke: "#fff", strokeWidth: 2 }}
+                    isAnimationActive
+                    animationDuration={650}
+                  />
+                </ComposedChart>
+              </ChartContainer>
+            </div>
           </div>
         )}
       </ChartCard>
@@ -928,7 +1001,7 @@ export function PencairanSection() {
         <ChartCard
           className="lg:col-span-2"
           title="Tren Aktivitas"
-          description="Jumlah aktivitas harian pada periode terpilih"
+          description="Total aktivitas harian; arahkan kursor ke titik untuk rincian"
           action={
             <div className="flex items-center gap-4">
               <span className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
@@ -946,7 +1019,17 @@ export function PencairanSection() {
           ) : trendEmpty ? (
             <ChartEmptyState message="Belum ada aktivitas pada periode ini. Coba pilih rentang tanggal lain." />
           ) : (
-            <ActivityTrendChart data={trendSeries} loading={loading} />
+            <div className="flex flex-1 flex-col">
+              <ActivityTrendChart
+                data={trendSeries}
+                loading={loading}
+                className="min-h-[260px] flex-1"
+              />
+              <p className="mt-3 border-t border-border/70 pt-3 text-[11px] leading-relaxed text-muted-foreground">
+                Garis menunjukkan total aktivitas. Arahkan kursor ke titik untuk melihat rincian
+                pembayaran, pekerjaan, payout, dan komisi.
+              </p>
+            </div>
           )}
         </ChartCard>
 
@@ -991,13 +1074,25 @@ export function PencairanSection() {
             ? "Total aktivitas per minggu pada periode terpilih"
             : "Total aktivitas per hari pada periode terpilih"
         }
+        action={
+          <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
+            <span className="h-2.5 w-4 rounded-sm bg-gradient-to-r from-violet-500 to-blue-500" />
+            Total aktivitas
+          </span>
+        }
       >
         {chartError ? (
           <ChartErrorState compact message={chartError} />
         ) : trendEmpty ? (
           <ChartEmptyState message="Belum ada aktivitas untuk dibandingkan." />
         ) : (
-          <ActivityComparisonChart data={barSeries} loading={loading} />
+          <>
+            <ActivityComparisonChart data={barSeries} loading={loading} />
+            <p className="mt-3 border-t border-border/70 pt-3 text-[11px] leading-relaxed text-muted-foreground">
+              Tinggi batang menunjukkan total aktivitas. Arahkan kursor untuk melihat rincian jenis
+              aktivitas.
+            </p>
+          </>
         )}
       </ChartCard>
 

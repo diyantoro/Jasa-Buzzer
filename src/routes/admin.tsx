@@ -398,13 +398,13 @@ function AdminPage() {
         {/* Desktop sidebar */}
         <aside
           className={cn(
-            "sticky top-0 hidden h-screen shrink-0 transition-[width] duration-300 ease-in-out motion-reduce:transition-none md:block",
+            "sticky top-0 hidden h-screen shrink-0 transition-[width] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none md:block",
             collapsed ? "w-[100px]" : "w-64",
           )}
         >
           <div
             className={cn(
-              "sidebar-surface h-full overflow-y-auto overscroll-contain scrollbar-slim border-r border-white/15 shadow-md transition-[padding] duration-300 ease-in-out motion-reduce:transition-none",
+              "sidebar-surface h-full overflow-x-hidden overflow-y-auto overscroll-contain scrollbar-slim border-r border-white/15 shadow-md transition-[padding] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
               collapsed ? "p-2" : "p-4",
             )}
           >
@@ -425,7 +425,7 @@ function AdminPage() {
                   </Button>
                 </SheetTrigger>
                 <SheetContent side="left" className="w-72 border-r-white/10 p-0 text-white">
-                  <div className="sidebar-surface h-full overflow-y-auto overscroll-contain scrollbar-slim p-4">
+                  <div className="sidebar-surface h-full overflow-x-hidden overflow-y-auto overscroll-contain scrollbar-slim p-4">
                     {renderSidebar()}
                   </div>
                 </SheetContent>
@@ -837,8 +837,8 @@ function RingkasanSection() {
             )}
             {topBuzzers.map((b, i) => (
               <li key={b.email} className="flex items-center gap-3">
-                <span className="w-5 text-sm font-bold text-muted-foreground">{i + 1}</span>
-                <Avatar className="h-9 w-9 border border-border">
+                <span className="w-5 shrink-0 text-sm font-bold text-muted-foreground">{i + 1}</span>
+                <Avatar className="h-9 w-9 shrink-0 border border-border">
                   {b.avatar_url && <AvatarImage src={b.avatar_url} alt={b.name} />}
                   <AvatarFallback className="gradient-brand text-xs text-brand-foreground">
                     {b.name
@@ -849,12 +849,15 @@ function RingkasanSection() {
                   </AvatarFallback>
                 </Avatar>
                 <div className="min-w-0 flex-1">
-                  <BuzzerNameLink name={b.name} email={b.email} className="truncate text-sm" />
-                  <p className="truncate text-xs text-muted-foreground">
+                  <BuzzerNameLink name={b.name} email={b.email} className="block max-w-full truncate text-sm" />
+                  <p
+                    className="truncate text-xs text-muted-foreground"
+                    title={`${b.platform} · ${b.followers.toLocaleString("id-ID")} fol. · ${b.jobs} job selesai`}
+                  >
                     {b.platform} · {b.followers.toLocaleString("id-ID")} fol. · {b.jobs} job selesai
                   </p>
                 </div>
-                <p className="shrink-0 text-sm font-semibold">{formatIDR(b.earnings)}</p>
+                <p className="shrink-0 text-right text-sm font-semibold tabular-nums">{formatIDR(b.earnings)}</p>
               </li>
             ))}
           </ul>

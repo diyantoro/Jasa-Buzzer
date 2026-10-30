@@ -53,6 +53,7 @@ import {
   type Service, type ServicePackage, type CampaignTypeKey,
 } from "@/lib/customer-store";
 import { exportToExcel, exportToPDF } from "@/lib/export-utils";
+import { serviceImage } from "@/lib/service-images";
 import { cn } from "@/lib/utils";
 import { useCampaigns, useCampaignJobs, useServiceCatalogs, useServicePricings, type Campaign, type CampaignJob } from "@/lib/campaign-store";
 import { rateCampaignForAllBuzzers, updateCustomerBuzzerRating, useBuzzerRatings, type BuzzerRating } from "@/lib/rating-store";
@@ -100,7 +101,9 @@ function getInitialCustomerSection(): SectionKey {
         localStorage.getItem("buzzhub.active_section.customer"),
       );
       if (stored) return stored;
-    } catch {}
+    } catch {
+      // localStorage bisa diblokir di mode privat; fallback ke homepage.
+    }
   }
   return "homepage";
 }
@@ -308,7 +311,9 @@ function CustomerPage() {
     if (typeof window !== "undefined") {
       try {
         localStorage.setItem("buzzhub.active_section.customer", section);
-      } catch {}
+      } catch {
+        // Abaikan jika penyimpanan lokal tidak tersedia.
+      }
       const url = new URL(window.location.href);
       if (url.searchParams.get("section") !== section) {
         url.searchParams.set("section", section);
@@ -348,7 +353,9 @@ function CustomerPage() {
     clearSession();
     try {
       localStorage.removeItem("buzzhub.active_section.customer");
-    } catch {}
+    } catch {
+      // Abaikan jika penyimpanan lokal tidak tersedia.
+    }
     toast.success("Berhasil keluar");
     navigate({ to: "/" });
   };
@@ -395,13 +402,13 @@ function CustomerPage() {
       <div className="flex w-full items-start">
         <aside
           className={cn(
-            "sticky top-0 hidden h-screen shrink-0 transition-[width] duration-300 ease-in-out motion-reduce:transition-none md:block",
+            "sticky top-0 hidden h-screen shrink-0 transition-[width] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none md:block",
             collapsed ? "w-[100px]" : "w-64",
           )}
         >
           <div
             className={cn(
-              "sidebar-surface h-full overflow-y-auto overscroll-contain scrollbar-slim border-r border-white/15 shadow-md transition-[padding] duration-300 ease-in-out motion-reduce:transition-none",
+              "sidebar-surface h-full overflow-x-hidden overflow-y-auto overscroll-contain scrollbar-slim border-r border-white/15 shadow-md transition-[padding] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
               collapsed ? "p-2" : "p-4",
             )}
           >
@@ -1057,7 +1064,7 @@ function PesananSection({ store, customerEmail, onNew, onDetail, onProof }: {
         : isApproved
         ? { ...order, campaignId, status: "Berjalan" as OrderStatus }
         : campaign?.payment_status === "Menunggu Verifikasi" || campaign?.payment_status === "Menunggu Verifikasi Admin"
-        ? { ...order, campaignId, status: "Menunggu Verifikasi Admin" as any }
+        ? { ...order, campaignId, status: "Menunggu Verifikasi Admin" as OrderStatus }
         : order;
     }
     const completed = jobs.filter((job) => job.status === "Selesai" || job.admin_verified_at).length;
@@ -1271,34 +1278,6 @@ function PesananSection({ store, customerEmail, onNew, onDetail, onProof }: {
 }
 
 /* ============ KATALOG ============ */
-const UNSPLASH = (id: string) => `https://images.unsplash.com/photo-${id}?w=800&h=450&fit=crop&auto=format&q=80`;
-const SERVICE_IMAGE_MAP: Record<string, string> = {
-  "Trending Topic Booster": UNSPLASH("1611926653458-09294b3142bf"), // twitter phone
-  "Viral Marketing Campaign": UNSPLASH("1611162617213-7d7a39e9b1d7"), // tiktok
-  "Brand Awareness Push": UNSPLASH("1552664730-d307ca884978"), // brand billboard
-  "Social Engagement Booster": UNSPLASH("1611605698335-8b1569810432"), // instagram likes
-  "Product Review Campaign": UNSPLASH("1556742044-3c52d6e88c62"), // review laptop
-  "Influencer Support Program": UNSPLASH("1524504388940-b1c1722653e1"), // influencer camera
-  "Counter Narrative Response": UNSPLASH("1495020689067-958852a7765e"), // news paper
-  "Livestream Amplifier": UNSPLASH("1598550476439-6847785fcea6"), // livestream
-  "Video Reels Distribution": UNSPLASH("1596558450268-9c27524ba856"), // tiktok reels
-  "Community Seeding": UNSPLASH("1529156069898-49953e39b3ac"), // community
-  "Event Crowd Booster": UNSPLASH("1492684223066-81342ee5ff30"), // concert crowd
-  "Seminar Audience": UNSPLASH("1540575467063-178a50c2df87"), // seminar
-  "Grand Opening Crowd": UNSPLASH("1519671482749-fd09be7ccebf"), // ribbon opening
-  "Product Launch Crowd": UNSPLASH("1505373877841-8d25f7d46678"), // stage launch
-  "Gathering Participants": UNSPLASH("1511578314322-379afb476865"), // gathering
-  "Flash Mob Activation": UNSPLASH("1533174072545-7a4b6ad7a6c3"), // dance
-  "Community Activation": UNSPLASH("1517457373958-b7bdd4587205"), // community activation
-  "Roadshow Support": UNSPLASH("1517649763962-0c623066013b"), // roadshow
-  "Concert Cheerleader": UNSPLASH("1470229722913-7c0e2dbbafd3"), // concert
-  "Political Rally Crowd": UNSPLASH("1591189863430-ab87e120f312"), // rally
-};
-const DEFAULT_ONLINE_IMG = UNSPLASH("1611605698335-8b1569810432");
-function serviceImageUrl(s: Service) {
-  return s.thumbnailUrl ?? SERVICE_IMAGE_MAP[s.name] ?? DEFAULT_ONLINE_IMG;
-}
-
 function KatalogSection({ onDetail, onOrder }: { store: Store; onDetail: (s: Service) => void; onOrder: (s: Service) => void }) {
   const [q, setQ] = useState("");
   const { data: catalogs, loading: catalogsLoading } = useServiceCatalogs();
@@ -1337,12 +1316,19 @@ function KatalogSection({ onDetail, onOrder }: { store: Store; onDetail: (s: Ser
             const catalogService = normalizeCatalogService(catalog);
             return (
               <article key={catalog.id} className="group flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl">
-                <div className="relative h-48 overflow-hidden bg-muted">
-                  {catalog.thumbnail_url ? (
-                    <img src={catalog.thumbnail_url} alt={catalog.title ?? "Layanan katalog"} loading="lazy" className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" />
-                  ) : (
-                    <div className="flex h-full items-center justify-center gradient-brand text-brand-foreground"><Megaphone className="h-10 w-10" /></div>
-                  )}
+                <div className="relative h-48 overflow-hidden gradient-brand text-brand-foreground">
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <Megaphone className="h-10 w-10" />
+                  </div>
+                  <img
+                    src={serviceImage(catalogService)}
+                    alt={catalog.title ?? "Layanan katalog"}
+                    loading="lazy"
+                    width={820}
+                    height={512}
+                    className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                  />
                   <span className="absolute left-3 top-3 rounded-full bg-background/85 px-2.5 py-0.5 text-xs font-semibold text-foreground backdrop-blur">{catalog.platform}</span>
                 </div>
                 <div className="flex flex-1 flex-col space-y-3 p-4">
@@ -2019,8 +2005,12 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   return <div className="space-y-1"><Label className="text-xs">{label}</Label>{children}</div>;
 }
 
-function ServiceDetailDialog({ service, onOpenChange, onOrder }: { service: Service | null; onOpenChange: (v: boolean) => void; onOrder: (s: Service) => void }) {
-  if (!service) return null;
+function ServiceDetailDialog(props: { service: Service | null; onOpenChange: (v: boolean) => void; onOrder: (s: Service) => void }) {
+  if (!props.service) return null;
+  return <ServiceDetailDialogContent {...props} service={props.service} />;
+}
+
+function ServiceDetailDialogContent({ service, onOpenChange, onOrder }: { service: Service; onOpenChange: (v: boolean) => void; onOrder: (s: Service) => void }) {
   const isCatalog = !!service.catalogId;
   const { data: servicePricings } = useServicePricings();
   const serviceType = service.campaignType ? CAMPAIGN_TYPES.find((item) => item.key === service.campaignType)?.name : "";
@@ -2030,7 +2020,7 @@ function ServiceDetailDialog({ service, onOpenChange, onOrder }: { service: Serv
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <div className={cn("-m-6 mb-4 h-40 rounded-t-lg bg-gradient-to-br relative overflow-hidden", service.image)}>
           <img
-            src={serviceImageUrl(service)}
+            src={serviceImage(service)}
             alt={service.name}
             loading="lazy"
             className="absolute inset-0 h-full w-full object-cover opacity-90"

@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
-  Bell, Briefcase, CheckCircle2, Clock, DollarSign, Edit3, Eye, LayoutDashboard,
+  BarChart3, Bell, Briefcase, CheckCircle2, Clock, DollarSign, Edit3, Eye, LayoutDashboard,
   LogOut, Megaphone, Menu, Search, Star, Trophy, Upload, User, Wallet,
   Instagram, Music2, Twitter, Facebook, Youtube, RefreshCw, AlertCircle,
   Camera, Filter, Inbox, ChevronLeft, ChevronRight, Link2, FileSpreadsheet, FileDown, Send,
@@ -58,6 +58,12 @@ import { cn } from "@/lib/utils";
 import buzzerHero from "@/assets/buzzer-hero.jpg";
 
 type Store = ReturnType<typeof useBuzzerStore>;
+
+const BuzzerPerformanceSection = lazy(() =>
+  import("@/components/buzzer-performance-section").then((module) => ({
+    default: module.BuzzerPerformanceSection,
+  })),
+);
 
 const DB_PREFIX = "db:";
 
@@ -192,12 +198,13 @@ export const Route = createFileRoute("/buzzer")({
   component: BuzzerPage,
 });
 
-type SectionKey = "jobs" | "sosmed" | "penghasilan" | "ulasan" | "profil" | "bantuan" | "pengaturan";
+type SectionKey = "jobs" | "sosmed" | "penghasilan" | "grafik" | "ulasan" | "profil" | "bantuan" | "pengaturan";
 
 const BUZZER_SECTIONS: SectionKey[] = [
   "jobs",
   "sosmed",
   "penghasilan",
+  "grafik",
   "ulasan",
   "profil",
   "bantuan",
@@ -226,6 +233,7 @@ const navItems: { key: SectionKey; label: string; shortLabel?: string; icon: Rea
   { key: "jobs", label: "Job Tersedia", shortLabel: "Jobs", icon: <Briefcase className="h-4 w-4" /> },
   { key: "sosmed", label: "Akun Sosial Media", shortLabel: "Sosmed", icon: <Link2 className="h-4 w-4" /> },
   { key: "penghasilan", label: "Penghasilan", icon: <Wallet className="h-4 w-4" /> },
+  { key: "grafik", label: "Grafik", shortLabel: "Grafik", icon: <BarChart3 className="h-4 w-4" /> },
   { key: "ulasan", label: "Rating & Ulasan", icon: <Star className="h-4 w-4" /> },
   { key: "profil", label: "Profil", icon: <User className="h-4 w-4" /> },
   { key: "bantuan", label: "Bantuan", icon: <LifeBuoy className="h-4 w-4" /> },
@@ -236,6 +244,7 @@ const sectionMeta: Record<SectionKey, { title: string; subtitle: string }> = {
   jobs: { title: "Job Tersedia", subtitle: "Ambil job baru & kelola progress kamu" },
   sosmed: { title: "Akun Sosial Media", subtitle: "Kelola akun sosmed yang dipakai untuk campaign" },
   penghasilan: { title: "Penghasilan", subtitle: "Riwayat saldo, pembayaran & pencairan" },
+  grafik: { title: "Grafik Performa", subtitle: "Ringkasan pendapatan, job, dan rating kamu" },
   ulasan: { title: "Rating & Ulasan", subtitle: "Penilaian performa & feedback dari customer" },
   profil: { title: "Profil Buzzer", subtitle: "Kelola data & preferensi akun kamu" },
   bantuan: { title: "Bantuan", subtitle: "Panduan, FAQ, dan kontak support BuzzHub" },
@@ -412,13 +421,13 @@ function BuzzerPage() {
       <div className="flex w-full items-start">
         <aside
           className={cn(
-            "sticky top-0 hidden h-screen shrink-0 transition-[width] duration-300 ease-in-out motion-reduce:transition-none md:block",
+            "sticky top-0 hidden h-screen shrink-0 transition-[width] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none md:block",
             collapsed ? "w-[100px]" : "w-64",
           )}
         >
           <div
             className={cn(
-              "sidebar-surface h-full overflow-y-auto overscroll-contain scrollbar-slim border-r border-white/15 shadow-md transition-[padding] duration-300 ease-in-out motion-reduce:transition-none",
+              "sidebar-surface h-full overflow-x-hidden overflow-y-auto overscroll-contain scrollbar-slim border-r border-white/15 shadow-md transition-[padding] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
               collapsed ? "p-2" : "p-4",
             )}
           >
@@ -438,7 +447,7 @@ function BuzzerPage() {
                   </Button>
                 </SheetTrigger>
                 <SheetContent side="left" className="w-72 border-r-white/10 p-0 text-white">
-                  <div className="sidebar-surface h-full overflow-y-auto overscroll-contain scrollbar-slim p-4">
+                  <div className="sidebar-surface h-full overflow-x-hidden overflow-y-auto overscroll-contain scrollbar-slim p-4">
                     {renderSidebar()}
                   </div>
                 </SheetContent>
@@ -476,6 +485,15 @@ function BuzzerPage() {
               )}
               {key === "sosmed" && <SosmedSection email={session.email} name={session.name} />}
               {key === "penghasilan" && <PenghasilanSection store={store} />}
+              {key === "grafik" && (
+                <Suspense fallback={<PerformanceSectionSkeleton />}>
+                  <BuzzerPerformanceSection
+                    state={store.state}
+                    jobs={allMergedJobs}
+                    onGoJobs={() => go("jobs")}
+                  />
+                </Suspense>
+              )}
               {key === "ulasan" && <RatingUlasanSection store={store} />}
               {key === "profil" && <ProfilSection store={store} onGoRatings={() => go("ulasan")} />}
               {key === "bantuan" && (
@@ -2820,6 +2838,25 @@ function ProfileRow({ label, value }: { label: string; value: string }) {
     <div className="grid grid-cols-[140px_minmax(0,1fr)] items-start gap-3 border-b border-border pb-3 last:border-none last:pb-0">
       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
       <p className="text-sm">{value}</p>
+    </div>
+  );
+}
+
+function PerformanceSectionSkeleton() {
+  return (
+    <div className="space-y-4">
+      <Skeleton className="h-20 w-full rounded-2xl" />
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+        <Skeleton className="h-28 rounded-2xl" />
+        <Skeleton className="h-28 rounded-2xl" />
+        <Skeleton className="h-28 rounded-2xl" />
+        <Skeleton className="h-28 rounded-2xl" />
+      </div>
+      <Skeleton className="h-[360px] w-full rounded-2xl" />
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Skeleton className="h-[320px] rounded-2xl" />
+        <Skeleton className="h-[320px] rounded-2xl" />
+      </div>
     </div>
   );
 }

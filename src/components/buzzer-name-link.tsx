@@ -26,7 +26,7 @@ export function BuzzerNameLink({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className={cn(variants[variant], "font-medium underline-offset-2 hover:underline text-left", className)}
+        className={cn(variants[variant], "block max-w-full font-medium underline-offset-2 hover:underline text-left", className)}
         title={`Lihat profil ${name}`}
       >
         {name}

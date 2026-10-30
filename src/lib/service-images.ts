@@ -6,7 +6,6 @@ import video from "@/assets/svc-video.jpg";
 import crowd from "@/assets/svc-crowd.jpg";
 import seminar from "@/assets/svc-seminar.jpg";
 import launch from "@/assets/svc-launch.jpg";
-import type { Service } from "@/lib/customer-store";
 
 const BY_NAME: Record<string, string> = {
   "Trending Topic Booster": trending,
@@ -31,6 +30,55 @@ const BY_NAME: Record<string, string> = {
   "Roadshow Support": launch,
 };
 
-export function serviceImage(service: Pick<Service, "name">): string {
-  return BY_NAME[service.name] ?? trending;
+const KEYWORD_IMAGES: Array<[RegExp, string]> = [
+  [/\b(review|ulasan|influencer)\b/, influencer],
+  [/\b(video|reels|reel|youtube|livestream|live)\b/, video],
+  [/\b(launch|opening|roadshow|grand)\b/, launch],
+  [/\b(seminar|gathering|webinar|audience)\b/, seminar],
+  [/\b(crowd|event|flash|concert|rally|mob)\b/, crowd],
+  [/\b(engagement|like|komentar|comment|share|community|follow)\b/, engagement],
+  [/\b(brand|awareness|narrative|crisis)\b/, brand],
+  [/\b(trending|viral|thread|twitter|x)\b/, trending],
+];
+
+type ServiceImageInput = {
+  name: string;
+  thumbnailUrl?: string | null;
+  desc?: string;
+  platforms?: readonly string[];
+};
+
+/**
+ * Foto layanan memakai aset lokal agar tetap tampil tanpa bergantung pada
+ * gambar eksternal. Thumbnail yang diunggah admin tetap diprioritaskan.
+ */
+export function serviceImage(service: ServiceImageInput): string {
+  const uploaded = service.thumbnailUrl?.trim();
+  if (uploaded) return uploaded;
+
+  const exact = BY_NAME[service.name];
+  if (exact) return exact;
+
+  const match = (text: string) => {
+    for (const [pattern, image] of KEYWORD_IMAGES) {
+      if (pattern.test(text)) return image;
+    }
+    return undefined;
+  };
+
+  const byName = match(service.name.toLowerCase());
+  if (byName) return byName;
+
+  const byDesc = match((service.desc ?? "").toLowerCase());
+  if (byDesc) return byDesc;
+
+  // Platform tunggal membantu membedakan katalog seperti YouTube vs Instagram.
+  // Untuk layanan multi-platform, jangan pakai platform agar tidak semuanya
+  // jatuh ke gambar video.
+  if (service.platforms?.length === 1) {
+    const byPlatform = match(service.platforms[0].toLowerCase());
+    if (byPlatform) return byPlatform;
+  }
+
+  return trending;
 }

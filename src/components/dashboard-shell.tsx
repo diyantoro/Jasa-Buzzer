@@ -103,7 +103,7 @@ export function DashboardShell({
                 </Button>
               </SheetTrigger>
               <SheetContent side="left" className="w-72 p-0">
-                <div className="flex h-full flex-col overflow-y-auto p-4">
+                <div className="flex h-full flex-col overflow-x-hidden overflow-y-auto p-4">
                   <Link to="/" className="mb-6 flex items-center gap-2 px-2">
                     <span className="grid h-9 w-9 place-items-center rounded-xl gradient-brand text-brand-foreground">
                       <Megaphone className="h-5 w-5" />

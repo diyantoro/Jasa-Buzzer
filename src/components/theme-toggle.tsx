@@ -6,6 +6,12 @@ import { cn } from "@/lib/utils";
 type Theme = "light" | "dark";
 const KEY = "buzzhub.theme";
 
+type ViewTransitionDocument = Document & {
+  startViewTransition?: (callback: () => void) => { finished: Promise<void> };
+};
+
+let activeThemeTransitions = 0;
+
 function getInitial(): Theme {
   if (typeof window === "undefined") return "light";
   const saved = localStorage.getItem(KEY) as Theme | null;
@@ -13,10 +19,45 @@ function getInitial(): Theme {
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
-function apply(theme: Theme) {
+function apply(theme: Theme, animate = false) {
   const root = document.documentElement;
-  root.classList.toggle("dark", theme === "dark");
-  root.style.colorScheme = theme;
+  const commit = () => {
+    root.classList.toggle("dark", theme === "dark");
+    root.style.colorScheme = theme;
+  };
+
+  const doc = document as ViewTransitionDocument;
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  if (animate && doc.startViewTransition && !reduceMotion) {
+    activeThemeTransitions += 1;
+    // Freeze CSS transitions so the new snapshot is captured in its final state.
+    root.classList.add("theme-transitioning");
+
+    let cleanedUp = false;
+    const cleanup = () => {
+      if (cleanedUp) return;
+      cleanedUp = true;
+      activeThemeTransitions = Math.max(0, activeThemeTransitions - 1);
+      if (activeThemeTransitions === 0) root.classList.remove("theme-transitioning");
+    };
+
+    try {
+      const transition = doc.startViewTransition(commit);
+      const fallback = window.setTimeout(cleanup, 1000);
+      const finish = () => {
+        window.clearTimeout(fallback);
+        cleanup();
+      };
+      void transition.finished.then(finish, finish);
+    } catch {
+      cleanup();
+      commit();
+    }
+    return;
+  }
+
+  commit();
 }
 
 // Apply as early as possible to avoid FOUC on client nav.
@@ -35,7 +76,7 @@ export function useTheme() {
       if (!localStorage.getItem(KEY)) {
         const sys: Theme = mq.matches ? "dark" : "light";
         setThemeState(sys);
-        apply(sys);
+        apply(sys, true);
       }
     };
     mq.addEventListener("change", onChange);
@@ -44,7 +85,7 @@ export function useTheme() {
   const setTheme = (t: Theme) => {
     localStorage.setItem(KEY, t);
     setThemeState(t);
-    apply(t);
+    apply(t, true);
   };
   return { theme, setTheme, toggle: () => setTheme(theme === "dark" ? "light" : "dark") };
 }
