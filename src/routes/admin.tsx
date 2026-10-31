@@ -5670,6 +5670,7 @@ function VerifikasiSection({ mode = "accounts" }: { mode?: "accounts" | "jobs" }
     username: "",
     platform: "Instagram",
     category: "",
+    buzzerCategory: "Buzzer Online",
     followers: 0,
     phone: "",
     city: "",
@@ -5939,6 +5940,7 @@ function VerifikasiSection({ mode = "accounts" }: { mode?: "accounts" | "jobs" }
       username: a.username || "",
       platform: a.platform || "Instagram",
       category: a.category || "",
+      buzzerCategory: a.buzzerCategory || "Buzzer Online",
       followers: a.followers || 0,
       phone: a.phone || "",
       city: a.city || "",
@@ -5961,6 +5963,7 @@ function VerifikasiSection({ mode = "accounts" }: { mode?: "accounts" | "jobs" }
         username: editBuzzerForm.username.trim(),
         platform: editBuzzerForm.platform as any,
         category: editBuzzerForm.category.trim() || undefined,
+        buzzerCategory: editBuzzerForm.buzzerCategory || "Buzzer Online",
         followers: Number(editBuzzerForm.followers) || 0,
         phone: editBuzzerForm.phone.trim() || undefined,
         city: editBuzzerForm.city.trim() || undefined,
@@ -5976,6 +5979,7 @@ function VerifikasiSection({ mode = "accounts" }: { mode?: "accounts" | "jobs" }
           username: editBuzzerForm.username.trim(),
           platform: editBuzzerForm.platform as any,
           category: editBuzzerForm.category.trim() || undefined,
+          buzzerCategory: editBuzzerForm.buzzerCategory || "Buzzer Online",
           followers: Number(editBuzzerForm.followers) || 0,
           phone: editBuzzerForm.phone.trim() || undefined,
           city: editBuzzerForm.city.trim() || undefined,
@@ -6217,11 +6221,22 @@ function VerifikasiSection({ mode = "accounts" }: { mode?: "accounts" | "jobs" }
                   onClick={() => setDetail(a)}
                 >
                   <TableCell>
-                    <p className="font-medium">{a.name}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium">{a.name}</p>
+                      <span className={cn(
+                        "rounded px-1.5 py-0.5 text-[10px] font-medium border",
+                        a.buzzerCategory === "Buzzer Offline"
+                          ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                          : a.buzzerCategory === "Buzzer Offline-Online"
+                          ? "border-purple-500/30 bg-purple-500/10 text-purple-600 dark:text-purple-400"
+                          : "border-blue-500/30 bg-blue-500/10 text-blue-600 dark:text-blue-400"
+                      )}>
+                        {a.buzzerCategory || "Buzzer Online"}
+                      </span>
+                    </div>
                     <p className="text-xs text-muted-foreground">
                       {a.email} · {a.username}
                     </p>
-
                   </TableCell>
                   <TableCell className="text-sm">{a.platform}</TableCell>
                   <TableCell className="text-sm">{a.followers.toLocaleString("id-ID")}</TableCell>
@@ -6924,6 +6939,7 @@ function VerifikasiSection({ mode = "accounts" }: { mode?: "accounts" | "jobs" }
               <div className="grid gap-3 rounded-xl border border-border p-4 text-sm sm:grid-cols-2">
                 <Info label="Username" value={detail.username} />
                 <Info label="Platform" value={detail.platform} />
+                <Info label="Jenis Buzzer" value={detail.buzzerCategory || "Buzzer Online"} />
                 <Info label="Kategori Konten" value={detail.category || "—"} />
                 <Info label="Followers" value={detail.followers.toLocaleString("id-ID")} />
                 <Info label="Telepon" value={detail.phone || "—"} />
@@ -7153,6 +7169,22 @@ function VerifikasiSection({ mode = "accounts" }: { mode?: "accounts" | "jobs" }
 
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold">Jenis Buzzer</Label>
+                    <Select
+                      value={editBuzzerForm.buzzerCategory}
+                      onValueChange={(val) => setEditBuzzerForm((prev) => ({ ...prev, buzzerCategory: val }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih jenis buzzer" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Buzzer Online">Buzzer Online</SelectItem>
+                        <SelectItem value="Buzzer Offline">Buzzer Offline</SelectItem>
+                        <SelectItem value="Buzzer Offline-Online">Buzzer Offline-Online</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
                     <Label className="text-xs font-semibold">Kategori Konten</Label>
                     <Input
                       value={editBuzzerForm.category}
@@ -7160,6 +7192,9 @@ function VerifikasiSection({ mode = "accounts" }: { mode?: "accounts" | "jobs" }
                       placeholder="Contoh: Lifestyle, Kuliner"
                     />
                   </div>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
                   <div className="space-y-1.5">
                     <Label className="text-xs font-semibold">No. WhatsApp / Telepon</Label>
                     <Input

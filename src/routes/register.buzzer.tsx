@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { ArrowLeft, BadgeCheck, Coins, Plus, Rocket, ShieldCheck, Trash2, TrendingUp, Users } from "lucide-react";
+import { ArrowLeft, BadgeCheck, Coins, Globe, MapPin, Plus, Rocket, ShieldCheck, Trash2, TrendingUp, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,8 +8,9 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { registerAccount } from "@/lib/auth";
-import { submitApplication } from "@/lib/buzzer-verification";
+import { submitApplication, type BuzzerCategoryType } from "@/lib/buzzer-verification";
 import { submitSocialAccounts, SOCIAL_PLATFORMS, type SocialPlatform } from "@/lib/social-store";
 import type { Platform } from "@/lib/buzzer-store";
 import { toast } from "sonner";
@@ -54,6 +55,8 @@ const LEVELS = [
 function RegisterBuzzerPage() {
   const navigate = useNavigate();
   const [kategori, setKategori] = useState("");
+  const [isOnline, setIsOnline] = useState(true);
+  const [isOffline, setIsOffline] = useState(false);
   const [rows, setRows] = useState<SocialRow[]>([emptyRow()]);
   const [loading, setLoading] = useState(false);
   const [doneOpen, setDoneOpen] = useState(false);
@@ -80,8 +83,13 @@ function RegisterBuzzerPage() {
 
     if (!name || !email) return toast.error("Nama dan email wajib diisi.");
     if (!kategori) return toast.error("Pilih kategori konten / bidang keahlian Anda.");
+    if (!isOnline && !isOffline) return toast.error("Pilih minimal satu jenis buzzer (Online atau Offline).");
     if (password.length < 8) return toast.error("Kata sandi minimal 8 karakter.");
     if (password !== passConfirm) return toast.error("Ulangi kata sandi belum cocok.");
+
+    let finalCategory: BuzzerCategoryType = "Buzzer Online";
+    if (isOnline && isOffline) finalCategory = "Buzzer Offline-Online";
+    else if (isOffline) finalCategory = "Buzzer Offline";
 
     const valid = rows.filter((r) => r.username.trim().length > 0);
 
@@ -89,21 +97,6 @@ function RegisterBuzzerPage() {
       return toast.error("Tambahkan minimal satu akun media sosial.");
     }
     if (valid.some((r) => r.followers < 0)) return toast.error("Jumlah followers tidak valid.");
-
-    for (const r of valid) {
-      const u = r.profileUrl.trim();
-      if (!u) {
-        return toast.error(`Link profil untuk akun ${r.platform} (@${r.username}) wajib diisi.`);
-      }
-      try {
-        const testUrl = new URL(u.startsWith("http") ? u : "https://" + u);
-        if (!testUrl.hostname || !testUrl.hostname.includes(".")) {
-          throw new Error();
-        }
-      } catch {
-        return toast.error(`Link profil untuk akun ${r.platform} (@${r.username}) tidak valid.`);
-      }
-    }
 
     for (const r of valid) {
       const u = r.profileUrl.trim();
@@ -133,7 +126,7 @@ function RegisterBuzzerPage() {
       phone,
       city,
       bio,
-      company: "Buzzer",
+      company: finalCategory,
       username: primaryUsername,
       platform: primaryPlatform,
       followers: totalFollowers,
@@ -150,7 +143,7 @@ function RegisterBuzzerPage() {
       platform: primaryPlatform as unknown as Platform,
       platforms: Array.from(new Set(valid.map((r) => r.platform))) as unknown as Platform[],
       followers: totalFollowers,
-      phone, city, address, category: kategori, bio,
+      phone, city, address, category: kategori, buzzerCategory: finalCategory, bio,
     });
     if (!res.ok) {
       setLoading(false);
@@ -244,6 +237,45 @@ function RegisterBuzzerPage() {
                       {KATEGORI.map((k) => <SelectItem key={k} value={k}>{k}</SelectItem>)}
                     </SelectContent>
                   </Select>
+                </div>
+                <div className="sm:col-span-2">
+                  <Label className="mb-3 block">Jenis Buzzer (Bisa pilih keduanya)</Label>
+                  <div className="flex flex-wrap gap-6 rounded-xl border border-border p-4">
+                    <div className="flex items-center space-x-3">
+                      <Checkbox
+                        id="cat-online"
+                        checked={isOnline}
+                        onCheckedChange={(checked) => setIsOnline(!!checked)}
+                      />
+                      <label
+                        htmlFor="cat-online"
+                        className="cursor-pointer text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Globe className="h-4 w-4 text-blue-500" />
+                          <span>Buzzer Online</span>
+                        </div>
+                        <p className="mt-1 text-[11px] text-muted-foreground">Media sosial, review online, dll.</p>
+                      </label>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      <Checkbox
+                        id="cat-offline"
+                        checked={isOffline}
+                        onCheckedChange={(checked) => setIsOffline(!!checked)}
+                      />
+                      <label
+                        htmlFor="cat-offline"
+                        className="cursor-pointer text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                      >
+                        <div className="flex items-center gap-2">
+                          <MapPin className="h-4 w-4 text-emerald-500" />
+                          <span>Buzzer Offline</span>
+                        </div>
+                        <p className="mt-1 text-[11px] text-muted-foreground">Event lapangan, canvassing, dll.</p>
+                      </label>
+                    </div>
+                  </div>
                 </div>
                 <div className="sm:col-span-2">
                   <Label htmlFor="b-bio">Deskripsi singkat</Label>

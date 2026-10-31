@@ -135,6 +135,7 @@ export function BuzzerProfileDialog({ email, open, onOpenChange }: { email: stri
         bio: d.bio || "-",
         avatarUrl: d.avatar_url,
         jobCompleted: resolvedJobsCount,
+        buzzerCategory: d.buzzer_category || d.company || "Buzzer Online",
       });
       setLoading(false);
     }
@@ -187,6 +188,7 @@ export function BuzzerProfileDialog({ email, open, onOpenChange }: { email: stri
             <div className="space-y-4 rounded-2xl border border-border bg-card p-6 shadow-sm">
               <ProfileRow label="Email" value={data.email} />
               <ProfileRow label="Nomor HP" value={data.phone} />
+              <ProfileRow label="Jenis Buzzer" value={data.buzzerCategory || "Buzzer Online"} />
               <ProfileRow label="Platform Utama" value={data.platform} />
               <ProfileRow label="Followers" value={data.followers.toLocaleString("id-ID")} />
               <ProfileRow label="Bio" value={data.bio} />

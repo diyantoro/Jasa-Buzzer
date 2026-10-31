@@ -2750,6 +2750,7 @@ function ProfilSection({ store, onGoRatings }: { store: Store; onGoRatings?: () 
       <div className="space-y-4 rounded-2xl border border-border bg-card p-6 shadow-sm">
         <ProfileRow label="Email" value={state.profile.email} />
         <ProfileRow label="Nomor HP" value={state.profile.phone} />
+        <ProfileRow label="Jenis Buzzer" value={state.profile.buzzerCategory || "Buzzer Online"} />
         <ProfileRow label="Platform Utama" value={state.profile.platform} />
         <ProfileRow label="Followers" value={displayFollowers.toLocaleString("id-ID")} />
         <ProfileRow label="Bio" value={state.profile.bio || "-"} />
@@ -2806,7 +2807,17 @@ function ProfilSection({ store, onGoRatings }: { store: Store; onGoRatings?: () 
                   </SelectContent>
                 </Select>
               </div>
-              <div>
+              <div><Label>Jenis Buzzer</Label>
+                <Select value={form.buzzerCategory || "Buzzer Online"} onValueChange={(v)=>setForm({...form, buzzerCategory: v})}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Buzzer Online">Buzzer Online</SelectItem>
+                    <SelectItem value="Buzzer Offline">Buzzer Offline</SelectItem>
+                    <SelectItem value="Buzzer Offline-Online">Buzzer Offline-Online</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="sm:col-span-2">
                 <Label>Followers</Label>
                 <Input
                   type="number"
