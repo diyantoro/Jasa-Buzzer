@@ -20,6 +20,7 @@ const registerSchema = z.object({
   city: z.string().optional().nullable(),
   bio: z.string().optional().nullable(),
   company: z.string().optional().nullable(),
+  buzzer_category: z.string().optional().nullable(),
   industry: z.string().optional().nullable(),
   username: z.string().optional().nullable(),
   platform: z.string().optional().nullable(),
@@ -95,6 +96,9 @@ export const registerAccountFn = createServerFn({ method: "POST" })
         ...(data.city !== undefined && data.city !== null ? { city: data.city } : {}),
         ...(data.bio !== undefined && data.bio !== null ? { bio: data.bio } : {}),
         ...(data.company !== undefined && data.company !== null ? { company: data.company } : {}),
+        ...(data.buzzer_category !== undefined && data.buzzer_category !== null
+          ? { buzzer_category: data.buzzer_category }
+          : {}),
         ...(data.industry !== undefined && data.industry !== null ? { industry: data.industry } : {}),
         ...(data.username !== undefined && data.username !== null ? { username: data.username } : {}),
         ...(data.platform !== undefined && data.platform !== null ? { platform: data.platform } : {}),

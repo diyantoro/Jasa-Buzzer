@@ -155,7 +155,7 @@ function LoginPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-sky-50 via-background to-blue-50">
-      <div className="mx-auto grid min-h-screen max-w-6xl gap-8 px-4 py-8 sm:px-6 lg:grid-cols-[1.05fr_1fr] lg:items-center lg:py-12">
+      <div className="mx-auto grid min-h-screen max-w-6xl grid-cols-1 content-start gap-5 px-4 py-8 sm:px-6 lg:grid-cols-[1.05fr_1fr] lg:content-center lg:items-center lg:gap-8 lg:py-12">
         {/* Left */}
         <div className="space-y-6">
           <Link to="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">

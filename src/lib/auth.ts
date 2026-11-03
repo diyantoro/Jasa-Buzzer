@@ -93,6 +93,7 @@ export type Account = {
   city?: string;
   bio?: string;
   company?: string;
+  buzzerCategory?: string;
   industry?: string;
   username?: string;
   platform?: string;
@@ -114,6 +115,7 @@ export async function registerAccount(
         city: acc.city,
         bio: acc.bio,
         company: acc.company,
+        buzzer_category: acc.buzzerCategory ?? acc.company,
         industry: acc.industry,
         username: acc.username,
         platform: acc.platform,

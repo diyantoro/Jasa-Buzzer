@@ -127,6 +127,7 @@ function RegisterBuzzerPage() {
       city,
       bio,
       company: finalCategory,
+      buzzerCategory: finalCategory,
       username: primaryUsername,
       platform: primaryPlatform,
       followers: totalFollowers,
@@ -240,41 +241,43 @@ function RegisterBuzzerPage() {
                 </div>
                 <div className="sm:col-span-2">
                   <Label className="mb-3 block">Jenis Buzzer (Bisa pilih keduanya)</Label>
-                  <div className="flex flex-wrap gap-6 rounded-xl border border-border p-4">
-                    <div className="flex items-center space-x-3">
-                      <Checkbox
-                        id="cat-online"
-                        checked={isOnline}
-                        onCheckedChange={(checked) => setIsOnline(!!checked)}
-                      />
-                      <label
-                        htmlFor="cat-online"
-                        className="cursor-pointer text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                      >
-                        <div className="flex items-center gap-2">
-                          <Globe className="h-4 w-4 text-blue-500" />
-                          <span>Buzzer Online</span>
-                        </div>
-                        <p className="mt-1 text-[11px] text-muted-foreground">Media sosial, review online, dll.</p>
-                      </label>
-                    </div>
-                    <div className="flex items-center space-x-3">
-                      <Checkbox
-                        id="cat-offline"
-                        checked={isOffline}
-                        onCheckedChange={(checked) => setIsOffline(!!checked)}
-                      />
-                      <label
-                        htmlFor="cat-offline"
-                        className="cursor-pointer text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                      >
-                        <div className="flex items-center gap-2">
-                          <MapPin className="h-4 w-4 text-emerald-500" />
-                          <span>Buzzer Offline</span>
-                        </div>
-                        <p className="mt-1 text-[11px] text-muted-foreground">Event lapangan, canvassing, dll.</p>
-                      </label>
-                    </div>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <label
+                      className={cn(
+                        "relative flex cursor-pointer flex-col items-start rounded-xl border p-4 shadow-sm transition-all hover:border-primary/40 hover:shadow-md",
+                        isOnline
+                          ? "border-primary bg-primary/5 ring-1 ring-primary"
+                          : "border-border bg-card"
+                      )}
+                    >
+                      <input type="radio" name="buzzerType" className="hidden" checked={isOnline} onChange={() => setIsOffline(false)} />
+                      <div className={cn("mb-3 rounded-lg p-2.5", isOnline ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>
+                        <Globe className="h-5 w-5" />
+                      </div>
+                      <div className="font-semibold text-foreground">Buzzer Online</div>
+                      <p className="mt-1 text-xs text-muted-foreground">Media sosial, review online, dll.</p>
+                      <div className="absolute right-3 top-3">
+                        {isOnline && <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground">✓</span>}
+                      </div>
+                    </label>
+                    <label
+                      className={cn(
+                        "relative flex cursor-pointer flex-col items-start rounded-xl border p-4 shadow-sm transition-all hover:border-emerald-500/40 hover:shadow-md",
+                        isOffline
+                          ? "border-emerald-500 bg-emerald-500/5 ring-1 ring-emerald-500"
+                          : "border-border bg-card"
+                      )}
+                    >
+                      <input type="radio" name="buzzerType" className="hidden" checked={isOffline} onChange={() => setIsOnline(false)} />
+                      <div className={cn("mb-3 rounded-lg p-2.5", isOffline ? "bg-emerald-500 text-white" : "bg-muted text-muted-foreground")}>
+                        <MapPin className="h-5 w-5" />
+                      </div>
+                      <div className="font-semibold text-foreground">Buzzer Offline</div>
+                      <p className="mt-1 text-xs text-muted-foreground">Event lapangan, canvassing, dll.</p>
+                      <div className="absolute right-3 top-3">
+                        {isOffline && <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500 text-[10px] font-semibold text-white">✓</span>}
+                      </div>
+                    </label>
                   </div>
                 </div>
                 <div className="sm:col-span-2">

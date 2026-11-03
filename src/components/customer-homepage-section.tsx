@@ -14,6 +14,7 @@ import {
   Inbox,
   Instagram,
   Loader2,
+  MapPin,
   Megaphone,
   Music2,
   Plus,
@@ -289,6 +290,15 @@ export function CustomerHomepageSection({
 
   const quickServices = useMemo(() => popularServices.slice(0, 3), [popularServices]);
 
+  const offlineServices = useMemo(
+    () =>
+      dynamicServices
+        .filter((s) => s.category === "Offline Buzzer")
+        .sort((a, b) => b.rating - a.rating)
+        .slice(0, 4),
+    [dynamicServices],
+  );
+
   const ongoing = useMemo(
     () =>
       myCampaigns.filter((c) => deriveStatus(c, jobsByCampaign.get(c.id) ?? []) !== "Selesai"),
@@ -398,6 +408,22 @@ export function CustomerHomepageSection({
           ))}
         </div>
       </section>
+
+      {/* Layanan offline / event */}
+      {offlineServices.length > 0 && (
+        <section>
+          <SectionHeader
+            title="Buzzer Offline untuk Event"
+            subtitle="Ramai kan event, booth, dan grand opening dengan buzzer di lokasi"
+            icon={<MapPin className="h-4 w-4 text-amber-500" />}
+          />
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {offlineServices.map((svc) => (
+              <ServiceCard key={svc.id} service={svc} onOrder={onOrder} compact />
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Layanan populer */}
       <section>
@@ -555,7 +581,11 @@ function ServiceCard({
         <div className="absolute inset-0 bg-gradient-to-t from-card/90 via-card/10 to-transparent" />
         <div className="absolute inset-x-0 top-0 flex items-center justify-between px-4 py-3 text-white">
           <span className="grid h-10 w-10 place-items-center rounded-xl bg-white/20 backdrop-blur">
-            {SERVICE_PLATFORM_ICON[service.platforms[0]] ?? <Sparkles className="h-5 w-5" />}
+            {service.category === "Offline Buzzer" ? (
+              <MapPin className="h-5 w-5" />
+            ) : (
+              SERVICE_PLATFORM_ICON[service.platforms[0]] ?? <Sparkles className="h-5 w-5" />
+            )}
           </span>
           <span className="inline-flex items-center gap-1 rounded-full bg-black/40 px-2 py-0.5 text-[11px] font-semibold backdrop-blur">
             <Star className="h-3 w-3 fill-current" /> {service.rating}

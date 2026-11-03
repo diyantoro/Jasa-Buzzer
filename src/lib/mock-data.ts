@@ -2,13 +2,30 @@ export type Role = "admin" | "buzzer" | "customer";
 
 export const platforms = ["Instagram", "TikTok", "X (Twitter)", "YouTube", "Facebook"] as const;
 
-export const services = [
-  { id: "s1", name: "Paket Trending Topic X", platform: "X (Twitter)", price: 1500000, buzzers: 50, desc: "Naikkan hashtag ke trending topic Indonesia dalam 6 jam." },
-  { id: "s2", name: "Boost Engagement Instagram", platform: "Instagram", price: 850000, buzzers: 30, desc: "Like, comment & share organik dari akun real." },
-  { id: "s3", name: "Viral TikTok Challenge", platform: "TikTok", price: 2200000, buzzers: 80, desc: "Buzzer membuat video respon untuk challenge brand Anda." },
-  { id: "s4", name: "YouTube Comment Push", platform: "YouTube", price: 600000, buzzers: 25, desc: "Komentar positif terstruktur pada video launch." },
-  { id: "s5", name: "Facebook Group Seeding", platform: "Facebook", price: 750000, buzzers: 40, desc: "Distribusi konten ke grup target audiens." },
-  { id: "s6", name: "Counter Narrative Campaign", platform: "X (Twitter)", price: 3500000, buzzers: 120, desc: "Manajemen krisis dan narasi tandingan." },
+export type ServiceType = "Online" | "Offline";
+
+export interface Service {
+  id: string;
+  name: string;
+  platform: string;
+  price: number;
+  buzzers: number;
+  desc: string;
+  type?: ServiceType;
+}
+
+export const services: Service[] = [
+  { id: "s1", name: "Paket Trending Topic X", platform: "X (Twitter)", price: 1500000, buzzers: 50, desc: "Naikkan hashtag ke trending topic Indonesia dalam 6 jam.", type: "Online" },
+  { id: "s2", name: "Boost Engagement Instagram", platform: "Instagram", price: 850000, buzzers: 30, desc: "Like, comment & share organik dari akun real.", type: "Online" },
+  { id: "s3", name: "Viral TikTok Challenge", platform: "TikTok", price: 2200000, buzzers: 80, desc: "Buzzer membuat video respon untuk challenge brand Anda.", type: "Online" },
+  { id: "s4", name: "YouTube Comment Push", platform: "YouTube", price: 600000, buzzers: 25, desc: "Komentar positif terstruktur pada video launch.", type: "Online" },
+  { id: "s5", name: "Facebook Group Seeding", platform: "Facebook", price: 750000, buzzers: 40, desc: "Distribusi konten ke grup target audiens.", type: "Online" },
+  { id: "s6", name: "Counter Narrative Campaign", platform: "X (Twitter)", price: 3500000, buzzers: 120, desc: "Manajemen krisis dan narasi tandingan.", type: "Online" },
+  { id: "s7", name: "Event Crowd Booster", platform: "Offline", price: 5000000, buzzers: 200, desc: "Buzzer hadiri event Anda dengan jumlah besar untuk kesan ramai.", type: "Offline" },
+  { id: "s8", name: "Booth Activation", platform: "Offline", price: 3500000, buzzers: 100, desc: "Buzzer menarik perhatian pengunjung di booth event.", type: "Offline" },
+  { id: "s9", name: "Live Event Support", platform: "Offline", price: 4000000, buzzers: 150, desc: "Buzzer live di lokasi event untuk promosi langsung.", type: "Offline" },
+  { id: "s10", name: "Meeting & Workshop", platform: "Offline", price: 2500000, buzzers: 80, desc: "Buzzer sebagai narasumber atau moderator di meeting/workshop.", type: "Offline" },
+  { id: "s11", name: "Grand Opening Support", platform: "Offline", price: 4500000, buzzers: 180, desc: "Buzzer meramaikan grand opening toko/kantor Anda.", type: "Offline" },
 ];
 
 export const jobsForBuzzer = [

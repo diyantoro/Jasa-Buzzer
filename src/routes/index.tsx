@@ -6,7 +6,6 @@ import {
   Megaphone,
   Rocket,
   ShieldCheck,
-  Sparkles,
   Star,
   TrendingUp,
   Users,
@@ -51,39 +50,58 @@ function Landing() {
         <div className="absolute -top-40 right-0 -z-10 h-[500px] w-[500px] rounded-full bg-brand/20 blur-3xl" />
         <div className="absolute -bottom-40 -left-20 -z-10 h-[400px] w-[400px] rounded-full bg-brand-glow/20 blur-3xl" />
 
-        <div className="mx-auto flex min-h-[calc(100svh-var(--navbar-height)-8rem)] max-w-7xl items-center px-4 pb-8 pt-4 sm:px-6 sm:pb-10 sm:pt-5 lg:pb-12 lg:pt-6">
-          <div className="grid w-full items-center gap-8 sm:gap-10 lg:grid-cols-2 lg:gap-[clamp(2rem,4vw,4rem)]">
+        <div className="mx-auto flex w-full max-w-7xl items-center px-4 py-8 sm:px-6 sm:py-10 lg:min-h-[calc(100svh-var(--navbar-height))] lg:py-6 [@media(max-height:640px)]:py-3">
+          <div className="grid w-full grid-cols-1 items-center gap-8 lg:grid-cols-2 lg:gap-[clamp(1.5rem,3vw,3.5rem)]">
             <div className="min-w-0 max-w-[680px]">
-              <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-[11px] font-semibold text-foreground shadow-xs sm:px-3.5 sm:text-xs">
-                <Sparkles className="h-3.5 w-3.5 text-brand" />
-                8.420 Buzzer aktif tersebar di Indonesia
+              <span className="inline-flex items-center gap-2 rounded-full border border-brand/25 bg-brand/10 px-3 py-1.5 text-xs font-semibold text-foreground shadow-xs sm:px-4 sm:text-sm">
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand opacity-75" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-brand" />
+                </span>
+                <span className="font-semibold tracking-wide">
+                  8.420 Buzzer aktif siap kampanye minggu ini
+                </span>
               </span>
-              <h1 className="mt-4 font-serif text-[clamp(2.35rem,4.2vw,4rem)] leading-[1.03] font-normal tracking-[-0.02em] text-balance">
-                Jadikan brand Anda
-                <br className="hidden lg:block" />{" "}
-                <span className="text-gradient-brand italic whitespace-nowrap">trending topic</span>
-                <br className="hidden lg:block" /> hari ini juga.
+              <h1 className="mt-4 font-display text-[clamp(1.9rem,min(3.4vw,6.4svh),3.25rem)] leading-[1.05] font-extrabold tracking-[-0.035em] text-balance text-foreground [@media(max-height:640px)]:text-[clamp(1.65rem,min(3vw,5.4svh),2.5rem)]">
+                Buat Brand Anda Lebih Ramai,{" "}
+                <span className="text-gradient-brand">Lebih Dikenal, Lebih Dipercaya</span>
               </h1>
-              <p className="mt-4 max-w-[54ch] text-[1.05rem] leading-[1.65] text-muted-foreground sm:text-[1.15rem]">
-                BuzzHub menghubungkan brand, partai, dan UMKM dengan ribuan buzzer terverifikasi
-                untuk kampanye viral di Instagram, TikTok, X, YouTube, dan Facebook.
+              <p className="mt-4 max-w-[56ch] text-pretty text-base leading-[1.7] text-foreground/75 sm:text-[1.05rem] [@media(max-height:640px)]:mt-3 [@media(max-height:640px)]:text-sm">
+                Tingkatkan popularitas bisnis lewat strategi buzzer online dan offline. Jangkau lebih
+                banyak audiens, bangun kepercayaan, dan ciptakan dampak nyata untuk bisnis Anda.
               </p>
-              <div className="mt-6 flex flex-wrap gap-3">
+              <div className="mt-6 flex flex-wrap gap-4 [@media(max-height:640px)]:mt-4">
                 <Button
                   asChild
                   size="lg"
-                  className="gradient-brand h-11 w-full text-brand-foreground shadow-glow hover:opacity-90 sm:w-auto"
+                  className="gradient-brand h-12 w-full text-brand-foreground shadow-glow hover:opacity-90 hover:shadow-glow-active sm:w-auto font-display text-base font-bold"
                 >
                   <Link to="/register">
-                    Mulai Kampanye <ArrowRight className="ml-1 h-4 w-4" />
+                    Mulai Kampanye <ArrowRight className="ml-1.5 h-5 w-5" />
                   </Link>
                 </Button>
-                <Button asChild size="lg" variant="outline" className="h-11 w-full sm:w-auto">
+                <Button
+                  asChild
+                  size="lg"
+                  variant="outline"
+                  className="h-12 w-full font-display text-base font-bold sm:w-auto"
+                >
                   <Link to="/register/buzzer">Daftar jadi Buzzer</Link>
                 </Button>
               </div>
+              <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs font-medium text-muted-foreground sm:text-sm [@media(max-height:640px)]:hidden">
+                <span className="inline-flex items-center gap-1.5">
+                  <CheckCircle2 className="h-4 w-4 text-brand" /> Konsultasi gratis
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <CheckCircle2 className="h-4 w-4 text-brand" /> Tanpa kontrak panjang
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <CheckCircle2 className="h-4 w-4 text-brand" /> Garansi 100% refund
+                </span>
+              </div>
 
-              <div className="mt-7 grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-3">
+              <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-3 [@media(max-height:640px)]:mt-4">
                 {[
                   { l: "Kampanye", v: stats.totalCampaigns.toLocaleString("id-ID"), i: Megaphone },
                   { l: "Buzzer Aktif", v: stats.activeBuzzers.toLocaleString("id-ID"), i: Users },
@@ -96,15 +114,15 @@ function Landing() {
                 ].map((s) => (
                   <div
                     key={s.l}
-                    className="flex h-full flex-col gap-2 rounded-xl border border-border bg-muted p-3.5 shadow-md transition-colors hover:border-brand/40"
+                    className="flex h-full flex-col gap-1.5 rounded-xl border border-border bg-muted p-3 shadow-md transition-colors hover:border-brand/40"
                   >
                     <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand/15 text-brand">
                       <s.i className="h-4 w-4" aria-hidden="true" />
                     </span>
-                    <dt className="text-xs font-semibold leading-snug text-muted-foreground">
+                    <dt className="font-display text-[0.6rem] font-extrabold uppercase leading-none tracking-[0.12em] text-muted-foreground">
                       {s.l}
                     </dt>
-                    <dd className="mt-auto font-display text-2xl leading-none font-bold tracking-tight text-foreground tabular-nums">
+                    <dd className="mt-auto font-numeric text-xl font-bold tracking-tight text-foreground">
                       {s.v}
                     </dd>
                   </div>
@@ -112,8 +130,8 @@ function Landing() {
               </div>
             </div>
 
-            <div className="relative flex min-w-0 items-center justify-center">
-              <div className="w-full max-w-[520px] overflow-hidden rounded-2xl border border-border bg-card p-2 shadow-md sm:p-2.5">
+            <div className="relative flex min-w-0 items-center justify-center lg:-translate-y-4">
+              <div className="w-full max-w-[min(480px,calc(100svh-var(--navbar-height)-4rem))] overflow-hidden rounded-2xl border border-border bg-card p-2 shadow-md sm:p-2.5">
                 <img
                   src={heroIllustration}
                   alt="Ilustrasi kampanye viral di Instagram, TikTok, X, YouTube, dan Facebook dengan ribuan buzzer terverifikasi"
@@ -131,7 +149,8 @@ function Landing() {
       {/* Services */}
       <section id="layanan" className="mx-auto max-w-7xl px-4 py-20 sm:px-6">
         <div className="mx-auto max-w-2xl text-center">
-          <h2 className="font-serif text-3xl font-medium tracking-[-0.01em] sm:text-4xl">
+          <p className="eyebrow text-brand">Paket &amp; Harga</p>
+          <h2 className="mt-3 font-display text-3xl font-extrabold tracking-[-0.03em] sm:text-4xl">
             Pilih paket sesuai tujuan
           </h2>
           <p className="mt-3 text-muted-foreground">
@@ -142,21 +161,30 @@ function Landing() {
           {services.map((s, i) => (
             <div
               key={s.id}
-              className="group relative overflow-hidden rounded-2xl border border-border bg-card p-6 shadow-sm transition-all hover:border-brand/40 hover:shadow-md"
+              className="group relative overflow-hidden rounded-2xl border border-border bg-card p-6 shadow-sm transition-all hover:-translate-y-0.5 hover:border-brand/40 hover:shadow-md"
             >
               {i === 2 && (
-                <span className="absolute right-4 top-4 rounded-full gradient-brand px-2.5 py-0.5 text-xs font-bold text-brand-foreground">
+                <span className="absolute right-4 top-4 rounded-full gradient-brand px-2.5 py-0.5 text-[0.65rem] font-bold uppercase tracking-[0.14em] text-brand-foreground shadow-glow">
                   Popular
                 </span>
               )}
-              <span className="inline-flex rounded-lg bg-accent px-2.5 py-1 text-xs font-semibold text-accent-foreground">
-                {s.platform}
+              <span
+                className={`inline-flex rounded-lg px-2.5 py-1 text-xs font-semibold ${
+                  s.type === "Offline"
+                    ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
+                    : "bg-accent text-accent-foreground"
+                }`}
+              >
+                {s.type === "Offline" ? "Offline" : s.platform}
               </span>
-              <h3 className="mt-4 font-display text-xl font-bold">{s.name}</h3>
+              <h3 className="mt-4 font-display text-xl font-bold leading-snug">{s.name}</h3>
               <p className="mt-2 text-sm text-muted-foreground">{s.desc}</p>
-              <div className="mt-5 flex items-end justify-between">
+              <div className="mt-5 flex items-end justify-between gap-3">
                 <div>
-                  <p className="font-display text-2xl font-bold text-gradient-brand">
+                  <p className="text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                    Mulai dari
+                  </p>
+                  <p className="font-numeric text-[1.45rem] font-bold leading-tight text-gradient-brand">
                     {formatIDR(s.price)}
                   </p>
                   <p className="text-xs text-muted-foreground">{s.buzzers} buzzer terlibat</p>
@@ -165,7 +193,7 @@ function Landing() {
                   asChild
                   size="sm"
                   variant="outline"
-                  className="group-hover:gradient-brand group-hover:border-transparent group-hover:text-brand-foreground"
+                  className="font-display font-bold group-hover:gradient-brand group-hover:border-transparent group-hover:text-brand-foreground"
                 >
                   <Link to="/login">Pesan</Link>
                 </Button>
@@ -179,9 +207,13 @@ function Landing() {
       <section id="proses" className="bg-muted/40 py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6">
           <div className="mx-auto max-w-2xl text-center">
-            <h2 className="font-serif text-3xl font-medium tracking-[-0.01em] sm:text-4xl">
+            <p className="eyebrow text-brand">Cara Kerja</p>
+            <h2 className="mt-3 font-display text-3xl font-extrabold tracking-[-0.03em] sm:text-4xl">
               Proses simpel, hasil maksimal
             </h2>
+            <p className="mt-3 text-muted-foreground">
+              Dari brief sampai laporan, semua diurus campaign manager Anda.
+            </p>
           </div>
           <div className="mt-12 grid gap-6 md:grid-cols-4">
             {[
@@ -198,7 +230,7 @@ function Landing() {
                 key={p.t}
                 className="relative rounded-2xl border border-border bg-card p-6 shadow-sm transition-all hover:shadow-md"
               >
-                <span className="absolute -top-3 left-6 grid h-7 w-7 place-items-center rounded-full gradient-brand text-sm font-bold text-brand-foreground">
+                <span className="absolute -top-3 left-6 grid h-7 w-7 place-items-center rounded-full gradient-brand font-numeric text-sm font-bold text-brand-foreground">
                   {idx + 1}
                 </span>
                 <p.i className="mb-3 h-6 w-6 text-brand" />
@@ -213,9 +245,13 @@ function Landing() {
       {/* Testimonials */}
       <section id="testimoni" className="mx-auto max-w-7xl px-4 py-20 sm:px-6">
         <div className="mx-auto max-w-2xl text-center">
-          <h2 className="font-serif text-3xl font-medium tracking-[-0.01em] sm:text-4xl">
-            Dipercaya brand & figur publik
+          <p className="eyebrow text-brand">Testimoni</p>
+          <h2 className="mt-3 font-display text-3xl font-extrabold tracking-[-0.03em] sm:text-4xl">
+            Dipercaya Brand dan Figur Publik
           </h2>
+          <p className="mt-3 text-muted-foreground">
+            {stats.satisfiedClients}+ klien puas dengan kampanye yang terukur.
+          </p>
         </div>
         <div className="mt-12 grid gap-5 md:grid-cols-3">
           {testimonials.map((t) => (
@@ -251,21 +287,27 @@ function Landing() {
           />
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.25),transparent)]" />
           <div className="relative">
-            <h2 className="font-serif text-3xl font-medium tracking-[-0.01em] sm:text-4xl">
+            <p className="eyebrow text-brand-foreground/75">Mulai Sekarang</p>
+            <h2 className="mt-3 font-display text-3xl font-extrabold tracking-[-0.03em] sm:text-4xl">
               Siap viral minggu ini?
             </h2>
-            <p className="mx-auto mt-3 max-w-xl opacity-90">
+            <p className="mx-auto mt-3 max-w-xl text-brand-foreground/85">
               Konsultasi gratis dengan campaign manager kami. Tanpa kontrak panjang.
             </p>
             <div className="mt-8 flex flex-wrap justify-center gap-3">
-              <Button asChild size="lg" variant="secondary">
+              <Button
+                asChild
+                size="lg"
+                variant="secondary"
+                className="font-display font-bold shadow-lg"
+              >
                 <Link to="/register">Daftar sebagai Customer</Link>
               </Button>
               <Button
                 asChild
                 size="lg"
                 variant="outline"
-                className="border-white/40 bg-transparent text-brand-foreground hover:bg-white/10"
+                className="border-white/40 bg-transparent font-display font-bold text-brand-foreground hover:bg-white/10"
               >
                 <Link to="/login">Sudah punya akun? Masuk</Link>
               </Button>

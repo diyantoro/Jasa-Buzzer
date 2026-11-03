@@ -135,7 +135,7 @@ export function BuzzerProfileDialog({ email, open, onOpenChange }: { email: stri
         bio: d.bio || "-",
         avatarUrl: d.avatar_url,
         jobCompleted: resolvedJobsCount,
-        buzzerCategory: d.buzzer_category || d.company || "Buzzer Online",
+        buzzerCategory: d.company || d.buzzer_category || "Buzzer Online",
       });
       setLoading(false);
     }

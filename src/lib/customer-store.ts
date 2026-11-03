@@ -16,7 +16,7 @@ export type OrderStatus =
 export type PaymentStatus =
   | "Belum Dibayar" | "Menunggu Verifikasi" | "Lunas" | "Refund" | "Gagal";
 
-export type ServiceCategory = "Online Buzzer";
+export type ServiceCategory = "Online Buzzer" | "Offline Buzzer";
 
 export type ServicePackage = {
   tier: string;
@@ -187,11 +187,26 @@ const ONLINE_SERVICES = [
   { name: "Community Seeding", desc: "Konten disemai ke grup & komunitas relevan." },
 ];
 
+const OFFLINE_SERVICES = [
+  { name: "Event Crowd Booster", desc: "Buzzer hadir di event Anda untuk menciptakan kesan ramai dan hidup." },
+  { name: "Booth Activation", desc: "Buzzer menarik pengunjung ke booth dan memandu aktivasi produk." },
+  { name: "Live Event Support", desc: "Tim buzzer live di lokasi untuk promosi dan dokumentasi real-time." },
+  { name: "Grand Opening Support", desc: "Ramai kan grand opening toko atau kantor dengan buzzer dan konten." },
+  { name: "Roadshow & Flash Mob", desc: "Aktivasi bergerak di beberapa titik kota dengan dampak visual." },
+  { name: "Meeting & Workshop", desc: "Buzzer sebagai peserta aktif, narasumber, atau moderator acara." },
+];
+
 function makeServices(): Service[] {
-  const build = (category: ServiceCategory, list: { name: string; desc: string }[], baseIdx: number): Service[] =>
+  const build = (
+    category: ServiceCategory,
+    list: { name: string; desc: string }[],
+    baseIdx: number,
+    startPrice = 500000,
+  ): Service[] =>
     list.map((s, i) => {
       const idx = baseIdx + i;
-      const basePrice = 500000 + i * 250000;
+      const basePrice = startPrice + i * 250000;
+      const offline = category === "Offline Buzzer";
       return {
         id: `svc-${idx + 1}`,
         category,
@@ -203,10 +218,10 @@ function makeServices(): Service[] {
         reviews: 40 + Math.floor(Math.random() * 260),
         image: IMG_GRADIENTS[idx % IMG_GRADIENTS.length],
         benefits: [
-          "Buzzer terverifikasi & real people",
+          offline ? "Buzzer hadir langsung di lokasi" : "Buzzer terverifikasi & real people",
           "Laporan realtime & transparan",
           "Konten sesuai brand guideline",
-          "Garansi target reach tercapai",
+          offline ? "Dokumentasi foto & video event" : "Garansi target reach tercapai",
         ],
         faqs: [
           { q: "Berapa lama campaign berjalan?", a: "Rata-rata 5–14 hari tergantung paket." },
@@ -214,13 +229,16 @@ function makeServices(): Service[] {
           { q: "Bagaimana laporan disampaikan?", a: "Dashboard realtime + PDF final report." },
         ],
         packages: [
-          { tier: "Basic", price: basePrice, buzzers: 25, reach: "50K – 100K", benefits: ["25 buzzer aktif", "Reach 50–100K", "Laporan mingguan"] },
-          { tier: "Professional", price: Math.round(basePrice * 2.2), buzzers: 60, reach: "150K – 300K", benefits: ["60 buzzer premium", "Reach 150–300K", "Laporan harian", "Content assist"] },
-          { tier: "Enterprise", price: Math.round(basePrice * 4.5), buzzers: 150, reach: "500K – 1M+", benefits: ["150 buzzer + KOL", "Reach 500K–1M+", "Dedicated manager", "Priority support"] },
+          { tier: "Basic", price: basePrice, buzzers: 25, reach: offline ? "25 peserta" : "50K – 100K", benefits: ["25 buzzer aktif", offline ? "Durasi 3 jam" : "Reach 50–100K", "Laporan mingguan"] },
+          { tier: "Professional", price: Math.round(basePrice * 2.2), buzzers: 60, reach: offline ? "60 peserta" : "150K – 300K", benefits: ["60 buzzer premium", offline ? "Durasi 6 jam" : "Reach 150–300K", "Laporan harian", "Content assist"] },
+          { tier: "Enterprise", price: Math.round(basePrice * 4.5), buzzers: 150, reach: offline ? "150 peserta" : "500K – 1M+", benefits: ["150 buzzer + KOL", offline ? "Full day event" : "Reach 500K–1M+", "Dedicated manager", "Priority support"] },
         ],
       };
     });
-  return build("Online Buzzer", ONLINE_SERVICES, 0);
+  return [
+    ...build("Online Buzzer", ONLINE_SERVICES, 0),
+    ...build("Offline Buzzer", OFFLINE_SERVICES, ONLINE_SERVICES.length, 2500000),
+  ];
 }
 
 /* ====== Jenis Campaign (wizard langkah 2) ====== */

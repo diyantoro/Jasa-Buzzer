@@ -28,6 +28,11 @@ const BY_NAME: Record<string, string> = {
   "Grand Opening Crowd": launch,
   "Product Launch Crowd": launch,
   "Roadshow Support": launch,
+  "Booth Activation": crowd,
+  "Live Event Support": crowd,
+  "Grand Opening Support": launch,
+  "Roadshow & Flash Mob": crowd,
+  "Meeting & Workshop": seminar,
 };
 
 const KEYWORD_IMAGES: Array<[RegExp, string]> = [

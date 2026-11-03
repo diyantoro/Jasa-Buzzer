@@ -9,6 +9,7 @@ import {
   FileSpreadsheet, FileDown,
   Image as ImageIcon,
   BarChart3, SlidersHorizontal, Calendar as CalendarIcon, RotateCcw, ExternalLink, Settings, LifeBuoy,
+  Globe,
 } from "lucide-react";
 import { format } from "date-fns";
 import { jsPDF } from "jspdf";
@@ -48,7 +49,7 @@ import { SectionErrorBoundary } from "@/components/section-error-boundary";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { clearSession, useRequireRole } from "@/lib/auth";
 import {
-  useCustomerStore, formatIDR, CAMPAIGN_TYPES,
+  useCustomerStore, formatIDR, CAMPAIGN_TYPES, SERVICES,
   type Order, type OrderProof, type OrderStatus, type Payment, type PaymentStatus, type Platform,
   type Service, type ServicePackage, type CampaignTypeKey,
 } from "@/lib/customer-store";
@@ -160,12 +161,13 @@ function normalizeCatalogService(catalog: { id: string; title: string; platform?
   const serviceType = String(catalog.service_type ?? "Layanan buzzer").trim() || "Layanan buzzer";
   const description = String(catalog.description ?? serviceType).trim() || serviceType;
   const type = inferCatalogCampaignType(catalog.service_type) ?? inferCatalogCampaignType(catalog.title) ?? "like";
+  const category = serviceType.includes("Offline") ? "Offline Buzzer" : "Online Buzzer";
   const basePrice = Number(catalog.price ?? 0);
   const baseSlots = Number(catalog.slots ?? 25);
   return {
     id: `catalog-${catalog.id}`,
     catalogId: catalog.id,
-    category: "Online Buzzer",
+    category,
     name: title,
     platforms: [platform],
     desc: serviceType,
@@ -636,6 +638,13 @@ function RingkasanSection({
         };
         if (!map[applied.status].includes(o.status)) return false;
       }
+      if (applied.type !== "all") {
+        const serviceType = o.serviceType ?? "";
+        const isOnline = serviceType.includes("Online");
+        const isOffline = serviceType.includes("Offline");
+        if (applied.type === "online" && !isOnline) return false;
+        if (applied.type === "offline" && !isOffline) return false;
+      }
       if (applied.q) {
         const q = applied.q.toLowerCase();
         if (!o.campaignName.toLowerCase().includes(q) && !o.invoice.toLowerCase().includes(q)) return false;
@@ -814,11 +823,12 @@ type FilterState = {
   campaign: string; // "all" or name
   platform: PlatformFilter;
   status: StatusFilter;
+  type: "all" | "online" | "offline";
   q: string;
 };
 
 const defaultFilters: FilterState = {
-  preset: "all", campaign: "all", platform: "all", status: "all", q: "",
+  preset: "all", campaign: "all", platform: "all", status: "all", type: "all", q: "",
 };
 
 const PRESET_LABEL: Record<DateRangePreset, string> = {
@@ -875,6 +885,7 @@ function countActiveFilters(f: FilterState) {
   if (f.campaign !== "all") n++;
   if (f.platform !== "all") n++;
   if (f.status !== "all") n++;
+  if (f.type !== "all") n++;
   if (f.q.trim()) n++;
   return n;
 }
@@ -997,6 +1008,16 @@ function DashboardFilters({
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
             {STATUS_FILTERS.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+          </SelectContent>
+        </Select>
+
+        {/* Type */}
+        <Select value={pending.type} onValueChange={(v) => setPending({ ...pending, type: v as "all" | "online" | "offline" })}>
+          <SelectTrigger><SelectValue placeholder="All Type" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Type</SelectItem>
+            <SelectItem value="online">Online</SelectItem>
+            <SelectItem value="offline">Offline</SelectItem>
           </SelectContent>
         </Select>
 
@@ -1278,79 +1299,174 @@ function PesananSection({ store, customerEmail, onNew, onDetail, onProof }: {
 }
 
 /* ============ KATALOG ============ */
+const CATALOG_FILTERS = [
+  { value: "Semua", label: "Semua", icon: LayoutDashboard },
+  { value: "Online", label: "Online", icon: Globe },
+  { value: "Offline", label: "Offline", icon: MapPin },
+] as const;
+
 function KatalogSection({ onDetail, onOrder }: { store: Store; onDetail: (s: Service) => void; onOrder: (s: Service) => void }) {
   const [q, setQ] = useState("");
+  const [filterType, setFilterType] = useState<"Semua" | "Online" | "Offline">("Semua");
   const { data: catalogs, loading: catalogsLoading } = useServiceCatalogs();
 
-  const adminCatalogs = catalogs.filter((catalog) => {
-    const searchable = `${catalog.title ?? ""} ${catalog.service_type ?? ""} ${catalog.description ?? ""}`.toLowerCase();
-    return catalog.status === "Aktif" && (!q || searchable.includes(q.toLowerCase()));
-  });
+  // Gabungkan katalog dari admin dengan layanan bawaan (online + offline).
+  // Layanan admin menang jika judulnya sama, supaya harga & kuota tetap dari DB.
+  const allServices = useMemo(() => {
+    const adminServices = catalogs
+      .filter((catalog) => catalog.status === "Aktif")
+      .map((catalog) => normalizeCatalogService(catalog));
+    const adminTitles = new Set(adminServices.map((service) => service.name.trim().toLowerCase()));
+    const builtInServices = SERVICES.filter((service) => !adminTitles.has(service.name.trim().toLowerCase()));
+    return [...adminServices, ...builtInServices];
+  }, [catalogs]);
+
+  const searched = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    if (!needle) return allServices;
+    return allServices.filter((service) =>
+      `${service.name} ${service.desc} ${service.longDesc} ${service.platforms.join(" ")} ${service.category}`
+        .toLowerCase()
+        .includes(needle),
+    );
+  }, [allServices, q]);
+
+  const counts = searched.reduce(
+    (acc, service) => {
+      acc.Semua += 1;
+      if (service.category === "Online Buzzer") acc.Online += 1;
+      if (service.category === "Offline Buzzer") acc.Offline += 1;
+      return acc;
+    },
+    { Semua: 0, Online: 0, Offline: 0 },
+  );
+
+  const visibleServices = searched.filter(
+    (service) => filterType === "Semua" || service.category === `${filterType} Buzzer`,
+  );
+
+  const loading = catalogsLoading && catalogs.length === 0;
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-card p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card p-4">
         <div className="relative flex-1 min-w-[180px]">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input className="pl-9" placeholder="Cari layanan..." value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
+        <div className="flex w-full flex-wrap items-center gap-2.5 sm:w-auto">
+          <span className="hidden text-sm font-semibold text-foreground sm:inline">Filter:</span>
+          <div className="flex w-full items-center gap-1 rounded-full border border-border bg-muted/40 p-1 shadow-sm sm:w-auto">
+            {CATALOG_FILTERS.map(({ value, label, icon: Icon }) => {
+              const active = filterType === value;
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setFilterType(value)}
+                  aria-pressed={active}
+                  className={cn(
+                    "group relative inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-full px-2 text-sm font-semibold transition-all duration-300 active:scale-95 sm:flex-none sm:px-3.5",
+                    active
+                      ? "gradient-brand text-brand-foreground shadow-glow"
+                      : "text-muted-foreground hover:bg-background hover:text-foreground",
+                  )}
+                >
+                  <Icon
+                    className={cn(
+                      "h-4 w-4 shrink-0 transition-transform duration-300",
+                      active ? "scale-110" : "group-hover:scale-110",
+                    )}
+                  />
+                  <span>{label}</span>
+                  <span
+                    className={cn(
+                      "hidden h-5 min-w-5 place-items-center rounded-full px-1 text-[10px] font-bold tabular-nums transition-colors sm:grid",
+                      active
+                        ? "bg-white/25 text-brand-foreground"
+                        : "bg-muted text-muted-foreground group-hover:bg-card",
+                    )}
+                  >
+                    {counts[value]}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
-      {catalogsLoading ? (
+      {loading ? (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           <Skeleton className="h-72 rounded-2xl" />
           <Skeleton className="h-72 rounded-2xl" />
           <Skeleton className="h-72 rounded-2xl" />
         </div>
-      ) : adminCatalogs.length === 0 ? (
+      ) : visibleServices.length === 0 ? (
         <div className="rounded-2xl border border-border bg-card p-8 shadow-sm">
           <EmptyState
             icon={<Package className="h-8 w-8 text-muted-foreground" />}
             title="Belum ada katalog layanan"
-            desc={q ? "Tidak ada katalog layanan yang cocok dengan pencarian." : "Belum ada katalog layanan aktif yang dibuat oleh admin."}
+            desc={
+              q
+                ? "Tidak ada katalog layanan yang cocok dengan pencarian."
+                : `Belum ada layanan ${filterType === "Semua" ? "" : filterType.toLowerCase() + " "}yang tersedia saat ini.`
+            }
           />
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {adminCatalogs.map((catalog) => {
-            const catalogService = normalizeCatalogService(catalog);
+          {visibleServices.map((service) => {
+            const isOffline = service.category === "Offline Buzzer";
+            const price = service.packages.length ? Math.min(...service.packages.map((p) => p.price)) : 0;
+            const buzzers = service.packages[0]?.buzzers ?? 0;
             return (
-              <article key={catalog.id} className="group flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl">
+              <article key={service.id} className="group flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl">
                 <div className="relative h-48 overflow-hidden gradient-brand text-brand-foreground">
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <Megaphone className="h-10 w-10" />
+                    {isOffline ? <MapPin className="h-10 w-10" /> : <Megaphone className="h-10 w-10" />}
                   </div>
                   <img
-                    src={serviceImage(catalogService)}
-                    alt={catalog.title ?? "Layanan katalog"}
+                    src={serviceImage(service)}
+                    alt={service.name}
                     loading="lazy"
                     width={820}
                     height={512}
                     className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
                     onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
                   />
-                  <span className="absolute left-3 top-3 rounded-full bg-background/85 px-2.5 py-0.5 text-xs font-semibold text-foreground backdrop-blur">{catalog.platform}</span>
+                  <span className="absolute left-3 top-3 rounded-full bg-background/85 px-2.5 py-0.5 text-xs font-semibold text-foreground backdrop-blur">
+                    {isOffline ? "Offline" : service.platforms[0]}
+                  </span>
                 </div>
                 <div className="flex flex-1 flex-col space-y-3 p-4">
                   <div>
-                    <h3 className="font-display font-bold">{catalog.title ?? "Layanan katalog"}</h3>
-                    <p className="mt-1 text-sm text-muted-foreground line-clamp-2">{catalog.service_type ?? "Layanan buzzer"}</p>
+                    <h3 className="font-display font-bold">{service.name}</h3>
+                    <p className="mt-1 text-sm text-muted-foreground line-clamp-2">{service.desc}</p>
                   </div>
                   <div className="flex flex-wrap gap-1.5 text-xs text-muted-foreground">
-                    <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5">{PLATFORM_ICON[catalogService.platforms[0]]} {catalogService.platforms[0]}</span>
+                    {isOffline ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5">
+                        <MapPin className="h-3.5 w-3.5" /> Offline Buzzer
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5">
+                        {PLATFORM_ICON[service.platforms[0]]} {service.platforms[0]}
+                      </span>
+                    )}
                   </div>
                   <div className="rounded-xl border border-border/70 bg-muted/20 p-3">
                     <div className="flex items-center justify-between gap-2">
                       <div>
                         <span className="text-[11px] font-medium text-muted-foreground">Harga Layanan</span>
                         <p className="mt-0.5 text-base font-bold text-gradient-brand">
-                          {formatIDR(Number(catalog.price ?? 0))}
+                          {formatIDR(price)}
                         </p>
                       </div>
                       <div className="text-right">
                         <span className="text-[11px] font-medium text-muted-foreground">Target Buzzer</span>
                         <p className="mt-0.5 text-sm font-semibold text-foreground">
-                          {Number(catalog.slots ?? 0)} buzzer
+                          {buzzers} buzzer
                         </p>
                       </div>
                     </div>
@@ -1362,11 +1478,11 @@ function KatalogSection({ onDetail, onOrder }: { store: Store; onDetail: (s: Ser
                       className="h-9 w-9 p-0 shrink-0"
                       title="Detail"
                       aria-label="Detail"
-                      onClick={() => onDetail(catalogService)}
+                      onClick={() => onDetail(service)}
                     >
                       <Eye className="h-4 w-4" />
                     </Button>
-                    <Button size="sm" className="flex-1 gradient-brand text-brand-foreground" onClick={() => onOrder(catalogService)}>Pesan</Button>
+                    <Button size="sm" className="flex-1 gradient-brand text-brand-foreground" onClick={() => onOrder(service)}>Pesan</Button>
                   </div>
                 </div>
               </article>
@@ -2012,9 +2128,12 @@ function ServiceDetailDialog(props: { service: Service | null; onOpenChange: (v:
 
 function ServiceDetailDialogContent({ service, onOpenChange, onOrder }: { service: Service; onOpenChange: (v: boolean) => void; onOrder: (s: Service) => void }) {
   const isCatalog = !!service.catalogId;
+  const isOffline = service.category === "Offline Buzzer";
   const { data: servicePricings } = useServicePricings();
   const serviceType = service.campaignType ? CAMPAIGN_TYPES.find((item) => item.key === service.campaignType)?.name : "";
   const servicePrice = servicePricings.find((item) => item.status === "Aktif" && item.platform === service.platforms[0] && normalizeServiceType(item.service_type) === normalizeServiceType(serviceType));
+  const offlinePackage = service.packages[0];
+  const offlinePrice = service.packages.length ? Math.min(...service.packages.map((p) => p.price)) : 0;
   return (
     <Dialog open={!!service} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
@@ -2052,11 +2171,17 @@ function ServiceDetailDialogContent({ service, onOpenChange, onOrder }: { servic
           </section>
 
           <section>
-            <h4 className="mb-2 text-sm font-semibold">Platform Support</h4>
+            <h4 className="mb-2 text-sm font-semibold">{isOffline ? "Cakupan Layanan" : "Platform Support"}</h4>
             <div className="flex flex-wrap gap-1.5 text-xs">
-              {service.platforms.map((p) => (
-                <span key={p} className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-1">{PLATFORM_ICON[p]} {p}</span>
-              ))}
+              {isOffline ? (
+                <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-1">
+                  <MapPin className="h-3.5 w-3.5" /> Buzzer hadir langsung di lokasi event
+                </span>
+              ) : (
+                service.platforms.map((p) => (
+                  <span key={p} className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-1">{PLATFORM_ICON[p]} {p}</span>
+                ))
+              )}
             </div>
           </section>
 
@@ -2068,6 +2193,17 @@ function ServiceDetailDialogContent({ service, onOpenChange, onOrder }: { servic
                   <p className="text-xs font-semibold uppercase text-muted-foreground">Tarif Layanan</p>
                   <p className="mt-2 font-display text-xl font-bold text-gradient-brand">{formatIDR(Number(service.catalogPricePerBuzzer ?? 0))}</p>
                   <p className="text-xs text-muted-foreground">Total tarif · {service.catalogSlotsAvailable ?? 0} target buzzer</p>
+                </div>
+              </>
+            ) : isOffline ? (
+              <>
+                <h4 className="mb-2 text-sm font-semibold">Harga Paket Offline</h4>
+                <div className="rounded-xl border border-primary p-4 shadow-glow">
+                  <p className="text-xs font-semibold uppercase text-muted-foreground">Mulai dari</p>
+                  <p className="mt-2 font-display text-xl font-bold text-gradient-brand">{formatIDR(offlinePrice)}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Paket {offlinePackage?.tier ?? "Basic"} · {offlinePackage?.buzzers ?? 0} buzzer di lokasi event
+                  </p>
                 </div>
               </>
             ) : (
@@ -2141,7 +2277,13 @@ function WizardDialog({ open, onOpenChange, initialService, store, onCheckout }:
   const key = (open ? "1" : "0") + (normalizedInitialService?.id ?? "");
   useEffect(() => {
     if (!open || openedFor === key) return;
-    setStep(normalizedInitialService?.catalogId ? 5 : 1);
+    setStep(
+      normalizedInitialService?.catalogId
+        ? 5
+        : normalizedInitialService?.category === "Offline Buzzer"
+          ? 3
+          : 1,
+    );
     setService(normalizedInitialService);
     setBuzzerCount(1);
     setPlatform(normalizedInitialService?.platforms[0] ?? "Instagram");
@@ -2150,10 +2292,11 @@ function WizardDialog({ open, onOpenChange, initialService, store, onCheckout }:
   }, [key, normalizedInitialService, open, openedFor]);
 
   const isCatalog = !!service?.catalogId;
+  const isOffline = service?.category === "Offline Buzzer";
   const selectedServiceType = service?.campaignType
     ? CAMPAIGN_TYPES.find((item) => item.key === service.campaignType)?.name ?? ""
     : "";
-  const customPricing = !isCatalog
+  const customPricing = !isCatalog && !isOffline
     ? servicePricings.find((item) => item.status === "Aktif" && item.platform === platform && normalizeServiceType(item.service_type) === normalizeServiceType(selectedServiceType))
     : null;
 
@@ -2165,21 +2308,33 @@ function WizardDialog({ open, onOpenChange, initialService, store, onCheckout }:
         reach: `${Number(service.catalogSlotsAvailable ?? 1)} buzzer`,
         benefits: ["Buzzer terverifikasi & real people", "Laporan realtime & transparan", "Garansi target reach tercapai"],
       }
-    : customPricing ? {
-        tier: selectedServiceType,
-        price: Number(customPricing.price_per_buzzer) * buzzerCount,
-        buzzers: buzzerCount,
-        reach: `${buzzerCount} buzzer`,
-        benefits: ["Harga per buzzer dari konfigurasi admin", "Jumlah buzzer dapat ditentukan customer", "Pembayaran menunggu verifikasi admin"],
-      } : null;
+    : isOffline && service
+      ? {
+          tier: service.packages[0]?.tier ?? "Basic",
+          price: Math.min(...service.packages.map((p) => p.price)),
+          buzzers: service.packages[0]?.buzzers ?? 25,
+          reach: service.packages[0]?.reach ?? "Event di lokasi",
+          benefits: service.packages[0]?.benefits ?? [],
+        }
+      : customPricing ? {
+          tier: selectedServiceType,
+          price: Number(customPricing.price_per_buzzer) * buzzerCount,
+          buzzers: buzzerCount,
+          reach: `${buzzerCount} buzzer`,
+          benefits: ["Harga per buzzer dari konfigurasi admin", "Jumlah buzzer dapat ditentukan customer", "Pembayaran menunggu verifikasi admin"],
+        } : null;
 
   const submit = () => {
     if (!service) return;
     if (!form.campaignName.trim() || !form.description.trim() || !form.linkOrLocation.trim() || !form.startDate || !form.endDate) {
-      toast.error("Lengkapi semua data campaign, termasuk link pengerjaan target");
+      toast.error(
+        isOffline
+          ? "Lengkapi data event: nama, detail, lokasi, dan tanggal."
+          : "Lengkapi semua data campaign, termasuk link pengerjaan target",
+      );
       return;
     }
-    if (!isValidWorkLink(form.linkOrLocation)) {
+    if (!isOffline && !isValidWorkLink(form.linkOrLocation)) {
       toast.error("Link pengerjaan harus berupa tautan/URL valid (contoh: https://www.instagram.com/p/... atau https://vt.tiktok.com/...)");
       return;
     }
@@ -2188,27 +2343,28 @@ function WizardDialog({ open, onOpenChange, initialService, store, onCheckout }:
       toast.error("Tanggal mulai dan selesai harus hari ini atau setelahnya, dan tanggal selesai tidak boleh sebelum tanggal mulai.");
       return;
     }
-    if (!isCatalog && (!customPricing || buzzerCount < 1)) {
+    if (!isCatalog && !isOffline && (!customPricing || buzzerCount < 1)) {
       toast.error(pricingLoading ? "Harga layanan sedang dimuat." : "Harga per buzzer untuk layanan ini belum dikonfigurasi admin.");
       return;
     }
-    if (isCatalog && (!selectedPkg || selectedPkg.price <= 0)) {
-      toast.error("Tarif katalog belum valid.");
+    if ((isCatalog || isOffline) && (!selectedPkg || selectedPkg.price <= 0)) {
+      toast.error(isOffline ? "Harga paket layanan offline belum tersedia." : "Tarif katalog belum valid.");
       return;
     }
-    const selectedBuzzerCount = isCatalog ? (selectedPkg?.buzzers ?? 0) : buzzerCount;
-    const selectedPackagePrice = isCatalog ? (selectedPkg?.price ?? 0) : Number(customPricing?.price_per_buzzer ?? 0) * buzzerCount;
-    const normalizedLink = normalizeWorkLink(form.linkOrLocation);
+    const selectedBuzzerCount = isCatalog || isOffline ? (selectedPkg?.buzzers ?? 0) : buzzerCount;
+    const selectedPackagePrice = isCatalog || isOffline ? (selectedPkg?.price ?? 0) : Number(customPricing?.price_per_buzzer ?? 0) * buzzerCount;
+    const normalizedLink = isOffline ? form.linkOrLocation.trim() : normalizeWorkLink(form.linkOrLocation);
     const taskType = service?.campaignType || deriveCatalogCampaignType(service) || "like";
     const taskName = CAMPAIGN_TYPES.find((item) => item.key === taskType)?.name || (isCatalog ? service.desc : selectedServiceType) || "Pengerjaan";
 
     const { payment } = store.createOrder({
       serviceId: service.id,
-      packageTier: isCatalog ? (service.desc || "Layanan Langsung") : (selectedServiceType || taskName),
+      packageTier: isCatalog ? (service.desc || "Layanan Langsung") : isOffline ? (selectedPkg?.tier ?? "Offline") : (selectedServiceType || taskName),
       platform,
       campaignName: form.campaignName.trim(),
       description: form.description.trim(),
       link: normalizedLink,
+      location: isOffline ? form.linkOrLocation.trim() : undefined,
       startDate: form.startDate,
       endDate: form.endDate,
       service: {
@@ -2216,8 +2372,10 @@ function WizardDialog({ open, onOpenChange, initialService, store, onCheckout }:
         campaignType: taskType,
       },
       buzzers: selectedBuzzerCount,
-      pricePerBuzzer: isCatalog ? Math.round(selectedPackagePrice / Math.max(1, selectedBuzzerCount)) : customPricing?.price_per_buzzer,
-      serviceType: isCatalog ? (service.desc || taskName) : (selectedServiceType || taskName),
+      pricePerBuzzer: isCatalog || isOffline
+        ? Math.round(selectedPackagePrice / Math.max(1, selectedBuzzerCount))
+        : customPricing?.price_per_buzzer,
+      serviceType: isCatalog || isOffline ? (service.desc || taskName) : (selectedServiceType || taskName),
       catalogPackagePrice: isCatalog ? selectedPackagePrice : undefined,
       catalogPackageBuzzerCount: isCatalog ? selectedBuzzerCount : undefined,
     });
@@ -2231,16 +2389,24 @@ function WizardDialog({ open, onOpenChange, initialService, store, onCheckout }:
       <DialogContent className="w-[calc(100vw-1.5rem)] max-w-2xl max-h-[88vh] overflow-y-auto overflow-x-hidden p-4 sm:p-6">
         <DialogHeader className="min-w-0 pr-6">
           <DialogTitle className="text-base leading-snug break-words sm:text-lg">
-            {isCatalog ? "Konfirmasi Pesanan" : `Buat Pesanan Baru — Langkah ${step} / 5`}
+            {isCatalog
+              ? "Konfirmasi Pesanan"
+              : isOffline
+                ? `Pesan Buzzer Offline — Langkah ${step - 2} / 3`
+                : `Buat Pesanan Baru — Langkah ${step} / 5`}
           </DialogTitle>
           <DialogDescription className="break-words">
-            {isCatalog ? "Periksa detail paket sebelum melanjutkan pembayaran." : "Ikuti wizard untuk menyelesaikan pemesanan campaign Anda."}
+            {isCatalog
+              ? "Periksa detail paket sebelum melanjutkan pembayaran."
+              : isOffline
+                ? "Lengkapi detail event, lalu periksa paket sebelum pembayaran."
+                : "Ikuti wizard untuk menyelesaikan pemesanan campaign Anda."}
           </DialogDescription>
         </DialogHeader>
 
         {!isCatalog && (
           <div className="flex w-full min-w-0 gap-1">
-            {[1, 2, 3, 4, 5].map((s) => (
+            {(isOffline ? [3, 4, 5] : [1, 2, 3, 4, 5]).map((s) => (
               <div key={s} className={cn("h-1.5 flex-1 rounded-full", step >= s ? "gradient-brand" : "bg-muted")} />
             ))}
           </div>
@@ -2309,16 +2475,37 @@ function WizardDialog({ open, onOpenChange, initialService, store, onCheckout }:
 
         {step === 3 && (
           <div className="min-w-0 space-y-3">
-            <h4 className="font-semibold">Isi Detail Campaign</h4>
-            <Field label="Nama Campaign"><Input value={form.campaignName} onChange={(e) => setForm({ ...form, campaignName: e.target.value })} placeholder="Contoh: Launch Skincare Glowin" /></Field>
-            <Field label="Deskripsi / Brief Khusus"><Textarea rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Jelaskan instruksi atau tujuan khusus campaign untuk buzzer..." /></Field>
-            <Field label="Link Video / Postingan / Akun Target (Wajib)">
+            <h4 className="font-semibold">{isOffline ? "Detail Event Offline" : "Isi Detail Campaign"}</h4>
+            <Field label={isOffline ? "Nama Event / Campaign" : "Nama Campaign"}>
+              <Input
+                value={form.campaignName}
+                onChange={(e) => setForm({ ...form, campaignName: e.target.value })}
+                placeholder={isOffline ? "Contoh: Grand Opening Store Bandung" : "Contoh: Launch Skincare Glowin"}
+              />
+            </Field>
+            <Field label={isOffline ? "Detail Event / Brief Buzzer" : "Deskripsi / Brief Khusus"}>
+              <Textarea
+                rows={3}
+                value={form.description}
+                onChange={(e) => setForm({ ...form, description: e.target.value })}
+                placeholder={isOffline
+                  ? "Jelaskan konsep event, dress code, dan arahan untuk buzzer di lokasi..."
+                  : "Jelaskan instruksi atau tujuan khusus campaign untuk buzzer..."}
+              />
+            </Field>
+            <Field label={isOffline ? "Lokasi Event (Wajib)" : "Link Video / Postingan / Akun Target (Wajib)"}>
               <Input
                 value={form.linkOrLocation}
                 onChange={(e) => setForm({ ...form, linkOrLocation: e.target.value })}
-                placeholder={`https://${platform.toLowerCase().replace(/[^a-z]/g, "") || "instagram"}.com/...`}
+                placeholder={isOffline ? "Nama venue & alamat lengkap, contoh: Grand Ballroom Hotel X, Jl. Sudirman No. 1, Jakarta" : `https://${platform.toLowerCase().replace(/[^a-z]/g, "") || "instagram"}.com/...`}
               />
-              {form.linkOrLocation.trim() && !isValidWorkLink(form.linkOrLocation) ? (
+              {isOffline ? (
+                form.linkOrLocation.trim() ? (
+                  <p className="mt-1 text-[11px] text-emerald-600 font-medium">✓ Lokasi tercatat. Buzzer akan hadir di titik ini.</p>
+                ) : (
+                  <p className="mt-1 text-[11px] text-muted-foreground">📍 Tuliskan venue dan alamat lengkap agar buzzer datang ke lokasi yang benar.</p>
+                )
+              ) : form.linkOrLocation.trim() && !isValidWorkLink(form.linkOrLocation) ? (
                 <p className="mt-1 text-xs text-rose-500 font-medium">⚠️ Harap masukkan URL link target yang valid (misal: https://instagram.com/p/...)</p>
               ) : form.linkOrLocation.trim() ? (
                 <p className="mt-1 text-[11px] text-emerald-600 font-medium">✓ Link valid. Buzzer akan membuka tautan ini langsung untuk tugas {selectedServiceType || "pengerjaan"}.</p>
@@ -2327,38 +2514,46 @@ function WizardDialog({ open, onOpenChange, initialService, store, onCheckout }:
               )}
             </Field>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <Field label="Tanggal Mulai"><Input type="date" min={getTodayInputValue()} value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} /></Field>
-              <Field label="Tanggal Selesai"><Input type="date" min={form.startDate > getTodayInputValue() ? form.startDate : getTodayInputValue()} value={form.endDate} onChange={(e) => setForm({ ...form, endDate: e.target.value })} /></Field>
+              <Field label={isOffline ? "Tanggal Event Mulai" : "Tanggal Mulai"}><Input type="date" min={getTodayInputValue()} value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} /></Field>
+              <Field label={isOffline ? "Tanggal Event Selesai" : "Tanggal Selesai"}><Input type="date" min={form.startDate > getTodayInputValue() ? form.startDate : getTodayInputValue()} value={form.endDate} onChange={(e) => setForm({ ...form, endDate: e.target.value })} /></Field>
             </div>
           </div>
         )}
 
         {step === 4 && service && (
           <div className="min-w-0 space-y-3">
-            <h4 className="font-semibold">{isCatalog ? "Ringkasan Layanan" : "Harga dan Jumlah Buzzer"}</h4>
+            <h4 className="font-semibold">{isCatalog ? "Ringkasan Layanan" : isOffline ? "Paket Event Offline" : "Harga dan Jumlah Buzzer"}</h4>
             <div className="rounded-xl border border-border p-4 text-sm space-y-3">
-              {isCatalog ? (
+              {isCatalog || isOffline ? (
                 <>
-                  <p className="text-sm text-muted-foreground">Layanan ini memiliki harga dan jumlah buzzer yang sudah ditetapkan.</p>
+                  <p className="text-sm text-muted-foreground">
+                    {isOffline
+                      ? "Paket offline punya harga dan jumlah buzzer yang sudah ditetapkan. Buzzer akan hadir langsung di lokasi event."
+                      : "Layanan ini memiliki harga dan jumlah buzzer yang sudah ditetapkan."}
+                  </p>
                   <div className="rounded-xl border border-primary/40 bg-primary/5 p-4 space-y-3">
                     <div className="flex items-center justify-between gap-2">
                       <div>
-                        <span className="text-[11px] font-medium text-muted-foreground">Harga Layanan</span>
+                        <span className="text-[11px] font-medium text-muted-foreground">{isOffline ? "Harga Paket" : "Harga Layanan"}</span>
                         <p className="mt-0.5 text-xl font-bold text-gradient-brand">
-                          {formatIDR(Number(service.catalogPricePerBuzzer ?? 0))}
+                          {formatIDR(isOffline ? selectedPkg?.price ?? 0 : Number(service.catalogPricePerBuzzer ?? 0))}
                         </p>
                       </div>
                       <div className="text-right">
-                        <span className="text-[11px] font-medium text-muted-foreground">Target Buzzer</span>
+                        <span className="text-[11px] font-medium text-muted-foreground">{isOffline ? "Jumlah Buzzer" : "Target Buzzer"}</span>
                         <p className="mt-0.5 text-sm font-semibold text-foreground">
-                          {Number(service.catalogSlotsAvailable ?? 0)} buzzer
+                          {Number(isOffline ? selectedPkg?.buzzers ?? 0 : service.catalogSlotsAvailable ?? 0)} buzzer
                         </p>
                       </div>
                     </div>
                     <div className="space-y-1 pt-1">
-                      <p className="flex items-center gap-2 text-xs text-muted-foreground"><Check className="h-3.5 w-3.5 text-emerald-500" /> Buzzer terverifikasi & real people</p>
-                      <p className="flex items-center gap-2 text-xs text-muted-foreground"><Check className="h-3.5 w-3.5 text-emerald-500" /> Laporan realtime & transparan</p>
-                      <p className="flex items-center gap-2 text-xs text-muted-foreground"><Check className="h-3.5 w-3.5 text-emerald-500" /> Garansi target reach tercapai</p>
+                      {(isOffline ? selectedPkg?.benefits ?? [] : [
+                        "Buzzer terverifikasi & real people",
+                        "Laporan realtime & transparan",
+                        "Garansi target reach tercapai",
+                      ]).map((benefit) => (
+                        <p key={benefit} className="flex items-center gap-2 text-xs text-muted-foreground"><Check className="h-3.5 w-3.5 text-emerald-500" /> {benefit}</p>
+                      ))}
                     </div>
                   </div>
                 </>
@@ -2412,11 +2607,15 @@ function WizardDialog({ open, onOpenChange, initialService, store, onCheckout }:
             <div className="rounded-xl border border-border p-4 text-sm space-y-2">
               <Row label="Layanan" value={service.name} />
               <Row label="Kategori" value={service.category} />
-              <Row label="Platform" value={platform} />
+              {isOffline ? (
+                <Row label="Lokasi" value={form.linkOrLocation || "-"} />
+              ) : (
+                <Row label="Platform" value={platform} />
+              )}
               <Row label="Detail layanan" value={service.desc || service.longDesc} />
-              {isCatalog ? (
+              {isCatalog || isOffline ? (
                 <>
-                  <Row label="Harga layanan" value={formatIDR(selectedPkg.price)} />
+                  <Row label={isOffline ? "Harga paket" : "Harga layanan"} value={formatIDR(selectedPkg.price)} />
                   <Row label="Jumlah buzzer" value={`${selectedPkg.buzzers} buzzer`} />
                 </>
               ) : (
@@ -2435,7 +2634,14 @@ function WizardDialog({ open, onOpenChange, initialService, store, onCheckout }:
         )}
 
         <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:!justify-between">
-          <Button className="w-full sm:w-auto" variant="outline" disabled={!isCatalog && step <= 1} onClick={() => isCatalog ? onOpenChange(false) : setStep(step - 1)}>{isCatalog ? "Kembali" : "Sebelumnya"}</Button>
+          <Button
+            className="w-full sm:w-auto"
+            variant="outline"
+            disabled={!isCatalog && !isOffline && step <= 1}
+            onClick={() => (isCatalog || (isOffline && step <= 3) ? onOpenChange(false) : setStep(step - 1))}
+          >
+            {isCatalog ? "Kembali" : isOffline && step <= 3 ? "Batal" : "Sebelumnya"}
+          </Button>
           {step < 5 ? (
             <Button className="w-full gradient-brand text-brand-foreground sm:w-auto"
               disabled={
@@ -2444,7 +2650,7 @@ function WizardDialog({ open, onOpenChange, initialService, store, onCheckout }:
                   !form.campaignName.trim() ||
                   !form.description.trim() ||
                   !form.linkOrLocation.trim() ||
-                  !isValidWorkLink(form.linkOrLocation) ||
+                  (!isOffline && !isValidWorkLink(form.linkOrLocation)) ||
                   !form.startDate ||
                   !form.endDate
                 ))
@@ -2454,12 +2660,12 @@ function WizardDialog({ open, onOpenChange, initialService, store, onCheckout }:
             <Button
               className="w-full gradient-brand text-brand-foreground sm:w-auto"
               disabled={
-                isCatalog && (
+                (isCatalog || isOffline) && (
                   !selectedPkg ||
                   !form.campaignName.trim() ||
                   !form.description.trim() ||
                   !form.linkOrLocation.trim() ||
-                  !isValidWorkLink(form.linkOrLocation) ||
+                  (!isOffline && !isValidWorkLink(form.linkOrLocation)) ||
                   !form.startDate ||
                   !form.endDate
                 )
