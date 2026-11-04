@@ -31,9 +31,17 @@
   --color-brand: var(--brand);
   --color-brand-foreground: var(--brand-foreground);
   --color-brand-glow: var(--brand-glow);
+  /* Aksen hangat tunggal (oranye) — dipakai maksimal 10-15% dari total warna hero. */
+  --color-accent-warm: var(--accent-warm);
+  --color-accent-warm-ink: var(--accent-warm-ink);
+  --color-accent-warm-foreground: var(--accent-warm-foreground);
   --font-display: "Plus Jakarta Sans", "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-sans: "Inter", "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
   --font-numeric: "Space Grotesk", "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+
+  /* Animasi hero: float pelan 4-6 detik. */
+  --animate-float: float 5s ease-in-out infinite;
+  --animate-float-slow: float 6s ease-in-out infinite;
 }
 
 :root {
@@ -61,6 +69,14 @@
   --brand: oklch(0.55 0.2 250);
   --brand-foreground: oklch(0.99 0 0);
   --brand-glow: oklch(0.72 0.18 210);
+  /*
+   * Ganti nilai ini untuk mengubah aksen hangat.
+   * --accent-warm      : oranye terang, hanya untuk elemen dekoratif (dot, garis, ikon).
+   * --accent-warm-ink  : oranye lebih gelap agar teks tetap lulus kontras AA di light mode.
+   */
+  --accent-warm: oklch(0.71 0.19 45); /* ≈ #FF7A1A */
+  --accent-warm-ink: oklch(0.55 0.18 42);
+  --accent-warm-foreground: oklch(0.99 0 0);
   --sidebar: var(--card);
   --navbar: var(--card);
 }
@@ -95,6 +111,10 @@
   --brand: oklch(0.62 0.2 250);
   --brand-foreground: oklch(1 0 0);
   --brand-glow: oklch(0.75 0.18 220);
+  /* Aksen hangat versi dark mode: lebih terang agar kontras di atas slate. */
+  --accent-warm: oklch(0.76 0.17 50); /* ≈ #FF9A4D */
+  --accent-warm-ink: oklch(0.82 0.14 55);
+  --accent-warm-foreground: oklch(0.18 0.03 40);
   --sidebar: oklch(0.26 0.03 262); /* #1E293B */
   --navbar: oklch(0.19 0.028 260); /* #111827 */
   color-scheme: dark;
@@ -187,6 +207,17 @@
   }
 }
 
+/* Kartu visual hero: naik-turun pelan. Delay diatur per kartu lewat inline style. */
+@keyframes float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -10px, 0);
+  }
+}
+
 /* During a View Transition the snapshot must capture the final colors immediately. */
 html.theme-transitioning *,
 html.theme-transitioning *::before,
@@ -196,6 +227,17 @@ html.theme-transitioning *::after {
 
 @utility gradient-brand {
   background-image: linear-gradient(135deg, var(--brand), var(--brand-glow));
+}
+/*
+ * CTA utama hero: gradient biru→cyan sedikit lebih pekat dari `gradient-brand`
+ * supaya teks putih di atasnya tetap nyaman dibaca.
+ */
+@utility gradient-cta {
+  background-image: linear-gradient(
+    135deg,
+    var(--brand),
+    color-mix(in oklab, var(--brand-glow) 45%, var(--brand))
+  );
 }
 /* Small uppercase kicker used above marketing headlines */
 @utility eyebrow {
@@ -211,6 +253,58 @@ html.theme-transitioning *::after {
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+}
+/* Highlight headline "Ramai": biru → aksen hangat (pakai varian ink agar kontras AA). */
+@utility text-gradient-buzz {
+  background-image: linear-gradient(110deg, var(--brand) 18%, var(--accent-warm-ink) 82%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+/* Latar hero: gradient mesh halus, bukan putih polos. */
+@utility hero-mesh {
+  background-color: var(--background);
+  background-image:
+    radial-gradient(
+      60% 60% at 82% 8%,
+      color-mix(in oklab, var(--brand-glow) 26%, transparent) 0%,
+      transparent 68%
+    ),
+    radial-gradient(
+      52% 52% at 6% 82%,
+      color-mix(in oklab, var(--brand) 15%, transparent) 0%,
+      transparent 70%
+    ),
+    radial-gradient(
+      32% 32% at 20% 16%,
+      color-mix(in oklab, var(--accent-warm) 12%, transparent) 0%,
+      transparent 72%
+    );
+}
+.dark .hero-mesh {
+  background-image:
+    radial-gradient(
+      60% 60% at 82% 8%,
+      color-mix(in oklab, var(--brand-glow) 16%, transparent) 0%,
+      transparent 68%
+    ),
+    radial-gradient(
+      52% 52% at 6% 82%,
+      color-mix(in oklab, var(--brand) 12%, transparent) 0%,
+      transparent 70%
+    ),
+    radial-gradient(
+      30% 30% at 18% 14%,
+      color-mix(in oklab, var(--accent-warm) 8%, transparent) 0%,
+      transparent 72%
+    );
+}
+/* Kartu kaca ringan untuk elemen melayang di visual hero. */
+@utility glass-float {
+  background-color: color-mix(in oklab, var(--card) 78%, transparent);
+  backdrop-filter: blur(14px) saturate(140%);
+  border: 1px solid color-mix(in oklab, var(--border) 72%, transparent);
+  box-shadow: 0 18px 44px -26px color-mix(in oklab, var(--brand) 45%, transparent);
 }
 @utility shadow-glow {
   box-shadow: 0 20px 60px -20px color-mix(in oklab, var(--brand) 50%, transparent);
