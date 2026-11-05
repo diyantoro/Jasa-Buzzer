@@ -230,6 +230,19 @@ html.theme-transitioning *::after {
   transition: none !important;
 }
 
+/*
+ * Radix Select mengunci halaman lewat `overflow: hidden` pada <body>. Begitu
+ * body jadi scroll container sendiri, elemen `position: sticky` (sidebar
+ * "Program Buzzer BuzzHub") kehilangan acuan scroll dan melompat ke atas.
+ * Untuk halaman yang punya sidebar sticky, biarkan body tetap terlihat;
+ * RemoveScroll tetap memblokir wheel/touch, jadi latar tidak ikut bergulir.
+ * Spesifisitas sengaja lebih tinggi dari `body[data-scroll-locked]` milik
+ * react-remove-scroll-bar yang juga memakai !important.
+ */
+body.register-buzzer-page[data-scroll-locked] {
+  overflow: visible !important;
+}
+
 @utility gradient-brand {
   background-image: linear-gradient(135deg, var(--brand), var(--brand-glow));
 }
