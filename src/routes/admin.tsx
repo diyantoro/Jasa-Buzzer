@@ -6235,7 +6235,8 @@ function VerifikasiSection({ mode = "accounts" }: { mode?: "accounts" | "jobs" }
                       </span>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      {a.email} · {a.username}
+                      {a.email}
+                      {a.username ? ` · ${a.username}` : ""}
                     </p>
                   </TableCell>
                   <TableCell className="text-sm">{a.platform}</TableCell>
@@ -6937,10 +6938,17 @@ function VerifikasiSection({ mode = "accounts" }: { mode?: "accounts" | "jobs" }
               </DialogHeader>
 
               <div className="grid gap-3 rounded-xl border border-border p-4 text-sm sm:grid-cols-2">
-                <Info label="Username" value={detail.username} />
+                <Info label="Username" value={detail.username || "—"} />
                 <Info label="Platform" value={detail.platform} />
                 <Info label="Jenis Buzzer" value={detail.buzzerCategory || "Buzzer Online"} />
-                <Info label="Kategori Konten" value={detail.category || "—"} />
+                <Info
+                  label={
+                    detail.buzzerCategory === "Buzzer Offline"
+                      ? "Kategori Offline"
+                      : "Kategori Konten"
+                  }
+                  value={detail.category || "—"}
+                />
                 <Info label="Followers" value={detail.followers.toLocaleString("id-ID")} />
                 <Info label="Telepon" value={detail.phone || "—"} />
                 <Info label="Kota" value={detail.city || "—"} />

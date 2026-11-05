@@ -176,9 +176,9 @@ function RegisterBuzzerPage() {
     const address = String(fd.get("address") || "").trim();
 
     if (!name || !email) return toast.error("Nama dan email wajib diisi.");
-    if (!kategori) return toast.error("Pilih kategori konten / bidang keahlian Anda.");
     if (!isOnline && !isOffline)
       return toast.error("Pilih minimal satu jenis buzzer (Online atau Offline).");
+    if (isOnline && !kategori) return toast.error("Pilih kategori konten / bidang keahlian Anda.");
     if (isOffline && !kategoriOffline) return toast.error("Pilih kategori buzzer offline Anda.");
     if (password.length < 8) return toast.error("Kata sandi minimal 8 karakter.");
     if (password !== passConfirm) return toast.error("Ulangi kata sandi belum cocok.");
@@ -187,13 +187,21 @@ function RegisterBuzzerPage() {
     if (isOnline && isOffline) finalCategory = "Buzzer Offline-Online";
     else if (isOffline) finalCategory = "Buzzer Offline";
 
-    // Simpan kategori offline bersama kategori konten agar admin bisa melihat
-    // bidang lapangan yang dikuasai (kolom `category` hanya satu string).
-    const finalKategori = isOffline ? `${kategori} · ${kategoriOffline}` : kategori;
+    /*
+     * Buzzer offline murni tidak punya kategori konten. Saat keduanya dipilih,
+     * simpan kategori offline bersama kategori konten agar admin bisa melihat
+     * bidang lapangan yang dikuasai (kolom `category` hanya satu string).
+     */
+    const finalKategori = !isOffline
+      ? kategori
+      : isOnline
+        ? `${kategori} · ${kategoriOffline}`
+        : kategoriOffline;
 
-    const valid = rows.filter((r) => r.username.trim().length > 0);
+    // Akun media sosial hanya relevan (dan wajib) untuk buzzer online.
+    const valid = isOnline ? rows.filter((r) => r.username.trim().length > 0) : [];
 
-    if (valid.length === 0) {
+    if (isOnline && valid.length === 0) {
       return toast.error("Tambahkan minimal satu akun media sosial.");
     }
     if (valid.some((r) => r.followers < 0)) return toast.error("Jumlah followers tidak valid.");
@@ -213,8 +221,9 @@ function RegisterBuzzerPage() {
       }
     }
 
-    const primaryUsername = valid[0].username.trim();
-    const primaryPlatform = valid[0].platform;
+    const primaryUsername = valid[0]?.username.trim() ?? "";
+    // Job offline memakai platform "Offline" dan tidak mensyaratkan akun sosial.
+    const primaryPlatform = valid[0]?.platform ?? "Offline";
     const totalFollowers = valid.reduce((s, r) => s + (r.followers || 0), 0);
 
     setLoading(true);
@@ -231,7 +240,7 @@ function RegisterBuzzerPage() {
       username: primaryUsername,
       platform: primaryPlatform,
       followers: totalFollowers,
-      industry: kategori,
+      industry: isOnline ? kategori : kategoriOffline,
     });
     if (!acc.ok) {
       setLoading(false);
@@ -243,7 +252,9 @@ function RegisterBuzzerPage() {
       email,
       username: primaryUsername,
       platform: primaryPlatform as unknown as Platform,
-      platforms: Array.from(new Set(valid.map((r) => r.platform))) as unknown as Platform[],
+      platforms: (isOnline
+        ? Array.from(new Set(valid.map((r) => r.platform)))
+        : []) as unknown as Platform[],
       followers: totalFollowers,
       phone,
       city,
@@ -350,8 +361,10 @@ function RegisterBuzzerPage() {
           <div className="rounded-3xl border border-border bg-card p-6 shadow-glow sm:p-8">
             <h1 className="font-display text-2xl font-bold sm:text-3xl">Pendaftaran Buzzer</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Lengkapi data diri dan akun media sosial Anda. Tim admin akan memverifikasi sebelum
-              akun aktif.
+              {isOnline
+                ? "Lengkapi data diri dan akun media sosial Anda."
+                : "Lengkapi data diri dan kategori buzzer offline Anda."}{" "}
+              Tim admin akan memverifikasi sebelum akun aktif.
             </p>
 
             <form onSubmit={handleSubmit} className="mt-8 space-y-8">
@@ -387,21 +400,23 @@ function RegisterBuzzerPage() {
                       placeholder="Contoh: Jl. Sudirman No. 45, RT 02/04, Kelurahan..."
                     />
                   </div>
-                  <div className="sm:col-span-2">
-                    <Label>Kategori konten</Label>
-                    <Select value={kategori} onValueChange={setKategori}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Pilih kategori" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {KATEGORI.map((k) => (
-                          <SelectItem key={k} value={k}>
-                            {k}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  {isOnline && (
+                    <div className="sm:col-span-2">
+                      <Label>Kategori konten</Label>
+                      <Select value={kategori} onValueChange={setKategori}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Pilih kategori" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {KATEGORI.map((k) => (
+                            <SelectItem key={k} value={k}>
+                              {k}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                   <div className="sm:col-span-2">
                     <Label className="mb-3 block">Jenis Buzzer (bisa pilih keduanya)</Label>
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -493,6 +508,13 @@ function RegisterBuzzerPage() {
                         </p>
                       </div>
                     )}
+
+                    {isOffline && !isOnline && (
+                      <p className="mt-4 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs leading-relaxed text-emerald-700 dark:text-emerald-300">
+                        Mode buzzer offline: kategori konten dan akun media sosial tidak diperlukan.
+                        Anda bisa menambahkannya nanti dari dashboard.
+                      </p>
+                    )}
                   </div>
                   <div className="sm:col-span-2">
                     <Label htmlFor="b-bio">Deskripsi singkat</Label>
@@ -506,96 +528,100 @@ function RegisterBuzzerPage() {
                 </div>
               </section>
 
-              <section className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h2 className="font-display text-lg font-bold">2. Akun media sosial</h2>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setRows((c) => [...c, emptyRow()])}
-                  >
-                    <Plus className="mr-1 h-4 w-4" /> Tambah akun
-                  </Button>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  Data followers akan dicek admin. Akun yang tidak dapat diverifikasi tidak akan
-                  dihitung.
-                </p>
+              {isOnline && (
+                <section className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h2 className="font-display text-lg font-bold">2. Akun media sosial</h2>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setRows((c) => [...c, emptyRow()])}
+                    >
+                      <Plus className="mr-1 h-4 w-4" /> Tambah akun
+                    </Button>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Data followers akan dicek admin. Akun yang tidak dapat diverifikasi tidak akan
+                    dihitung.
+                  </p>
 
-                <div className="space-y-4">
-                  {rows.map((r, i) => (
-                    <div key={i} className="rounded-2xl border border-border p-4">
-                      <div className="mb-3 flex items-center justify-between">
-                        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                          Akun {i + 1}
-                        </span>
-                        {rows.length > 1 && (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setRows((c) => c.filter((_, idx) => idx !== i))}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
+                  <div className="space-y-4">
+                    {rows.map((r, i) => (
+                      <div key={i} className="rounded-2xl border border-border p-4">
+                        <div className="mb-3 flex items-center justify-between">
+                          <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                            Akun {i + 1}
+                          </span>
+                          {rows.length > 1 && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setRows((c) => c.filter((_, idx) => idx !== i))}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <div>
+                            <Label>Platform</Label>
+                            <Select
+                              value={r.platform}
+                              onValueChange={(v) => patchRow(i, { platform: v as SocialPlatform })}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {SOCIAL_PLATFORMS.map((p) => (
+                                  <SelectItem key={p} value={p}>
+                                    {p}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label>Username</Label>
+                            <Input
+                              value={r.username}
+                              onChange={(e) => patchRow(i, { username: e.target.value })}
+                              placeholder="@username"
+                            />
+                          </div>
+                          <div>
+                            <Label>Link profil *</Label>
+                            <Input
+                              value={r.profileUrl}
+                              onChange={(e) => patchRow(i, { profileUrl: e.target.value })}
+                              placeholder="https://..."
+                            />
+                          </div>
+                          <div>
+                            <Label>Jumlah followers</Label>
+                            <Input
+                              type="number"
+                              min={0}
+                              value={r.followers || ""}
+                              onChange={(e) =>
+                                patchRow(i, { followers: Number(e.target.value) || 0 })
+                              }
+                              placeholder="0"
+                            />
+                          </div>
+                        </div>
                       </div>
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <div>
-                          <Label>Platform</Label>
-                          <Select
-                            value={r.platform}
-                            onValueChange={(v) => patchRow(i, { platform: v as SocialPlatform })}
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {SOCIAL_PLATFORMS.map((p) => (
-                                <SelectItem key={p} value={p}>
-                                  {p}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div>
-                          <Label>Username</Label>
-                          <Input
-                            value={r.username}
-                            onChange={(e) => patchRow(i, { username: e.target.value })}
-                            placeholder="@username"
-                          />
-                        </div>
-                        <div>
-                          <Label>Link profil *</Label>
-                          <Input
-                            value={r.profileUrl}
-                            onChange={(e) => patchRow(i, { profileUrl: e.target.value })}
-                            placeholder="https://..."
-                          />
-                        </div>
-                        <div>
-                          <Label>Jumlah followers</Label>
-                          <Input
-                            type="number"
-                            min={0}
-                            value={r.followers || ""}
-                            onChange={(e) =>
-                              patchRow(i, { followers: Number(e.target.value) || 0 })
-                            }
-                            placeholder="0"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </section>
+                    ))}
+                  </div>
+                </section>
+              )}
 
               <section className="space-y-4">
-                <h2 className="font-display text-lg font-bold">3. Akun login website</h2>
+                <h2 className="font-display text-lg font-bold">
+                  {isOnline ? 3 : 2}. Akun login website
+                </h2>
                 <p className="text-sm text-muted-foreground">
                   Email utama dan kata sandi ini digunakan untuk masuk ke website jasa buzzer.
                 </p>
