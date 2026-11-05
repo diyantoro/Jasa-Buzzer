@@ -1,93 +1,214 @@
 import { Moon, Sun } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 type Theme = "light" | "dark";
+
 const KEY = "buzzhub.theme";
+
+/*
+ * Satu sumber kebenaran untuk tema.
+ *
+ * Sebelumnya setiap <ThemeToggle /> menyimpan state sendiri-sendiri, padahal
+ * header merender dua toggle (versi desktop & mobile). Akibatnya state toggle
+ * yang tidak terlihat jadi basi: setelah tema diganti lewat satu tombol,
+ * tombol lain masih mengira tema lama, sehingga klik pertama padanya tidak
+ * mengubah apa pun ("macet"). Store module-level ini menyinkronkan semuanya,
+ * termasuk antar-tab lewat event `storage`.
+ */
+const listeners = new Set<() => void>();
+let current: Theme = "light";
+/** Tema terakhir yang diminta. Dipakai toggle agar klik cepat tetap bergantian. */
+let target: Theme = "light";
+let initialized = false;
+let activeTransitions = 0;
 
 type ViewTransitionDocument = Document & {
   startViewTransition?: (callback: () => void) => { finished: Promise<void> };
 };
 
-let activeThemeTransitions = 0;
-
-function getInitial(): Theme {
-  if (typeof window === "undefined") return "light";
-  const saved = localStorage.getItem(KEY) as Theme | null;
-  if (saved === "light" || saved === "dark") return saved;
+function systemTheme(): Theme {
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
-function apply(theme: Theme, animate = false) {
-  const root = document.documentElement;
-  const commit = () => {
-    root.classList.toggle("dark", theme === "dark");
-    root.style.colorScheme = theme;
-  };
+function storedTheme(): Theme | null {
+  try {
+    const saved = localStorage.getItem(KEY);
+    return saved === "light" || saved === "dark" ? saved : null;
+  } catch {
+    return null;
+  }
+}
 
+function emit() {
+  for (const listener of listeners) listener();
+}
+
+function commit(theme: Theme) {
+  current = theme;
+  const root = document.documentElement;
+  root.classList.toggle("dark", theme === "dark");
+  root.style.colorScheme = theme;
+  emit();
+}
+
+function finishTransition(root: HTMLElement) {
+  activeTransitions = Math.max(0, activeTransitions - 1);
+  if (activeTransitions === 0) root.classList.remove("theme-transitioning");
+}
+
+/**
+ * Ganti tema.
+ *
+ * `animate` memakai View Transitions untuk crossfade seluruh halaman. Bedanya
+ * dengan versi lama: tema tetap diterapkan walau callback transisi tidak pernah
+ * dipanggil (mis. transisi di-skip browser), lewat fallback di bawah.
+ */
+function requestTheme(theme: Theme, persist = false, animate = true) {
+  target = theme;
+
+  if (persist) {
+    try {
+      localStorage.setItem(KEY, theme);
+    } catch {
+      /* localStorage bisa diblokir (mode privat) — tema tetap jalan. */
+    }
+  }
+
+  const root = document.documentElement;
   const doc = document as ViewTransitionDocument;
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  if (animate && doc.startViewTransition && !reduceMotion) {
-    activeThemeTransitions += 1;
-    // Freeze CSS transitions so the new snapshot is captured in its final state.
-    root.classList.add("theme-transitioning");
-
-    let cleanedUp = false;
-    const cleanup = () => {
-      if (cleanedUp) return;
-      cleanedUp = true;
-      activeThemeTransitions = Math.max(0, activeThemeTransitions - 1);
-      if (activeThemeTransitions === 0) root.classList.remove("theme-transitioning");
-    };
-
-    try {
-      const transition = doc.startViewTransition(commit);
-      const fallback = window.setTimeout(cleanup, 1000);
-      const finish = () => {
-        window.clearTimeout(fallback);
-        cleanup();
-      };
-      void transition.finished.then(finish, finish);
-    } catch {
-      cleanup();
-      commit();
-    }
+  if (!animate || !doc.startViewTransition || reduceMotion) {
+    commit(theme);
     return;
   }
 
-  commit();
+  activeTransitions += 1;
+  // Bekukan transisi CSS per-elemen agar snapshot baru langsung berwarna final.
+  root.classList.add("theme-transitioning");
+
+  let committed = false;
+  const apply = () => {
+    if (committed) return;
+    committed = true;
+    commit(theme);
+  };
+
+  try {
+    const transition = doc.startViewTransition(apply);
+    let cleaned = false;
+    const cleanup = () => {
+      if (cleaned) return;
+      cleaned = true;
+      finishTransition(root);
+    };
+
+    // Jaring pengaman: kalau callback transisi tidak jalan, tema tetap berubah.
+    window.setTimeout(() => {
+      if (!committed && target === theme) apply();
+    }, 300);
+    // Jaring pengaman untuk class `theme-transitioning` yang tertinggal.
+    window.setTimeout(cleanup, 1500);
+
+    void transition.finished.then(cleanup, cleanup);
+  } catch {
+    finishTransition(root);
+    apply();
+  }
 }
 
-// Apply as early as possible to avoid FOUC on client nav.
+function init() {
+  if (initialized) return;
+  initialized = true;
+
+  /*
+   * Inline script di __root.tsx sudah menerapkan tema tersimpan/sebelum paint,
+   * jadi class di <html> adalah kondisi paling akurat saat modul ini dimuat.
+   */
+  const fromDom: Theme = document.documentElement.classList.contains("dark") ? "dark" : "light";
+  commit(storedTheme() ?? fromDom);
+  target = current;
+
+  // Ikuti preferensi OS selama pengguna belum memilih tema sendiri.
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+    if (!storedTheme()) requestTheme(systemTheme());
+  });
+
+  // Sinkronkan antar-tab.
+  window.addEventListener("storage", (event) => {
+    if (event.key !== KEY) return;
+    if (event.newValue === "light" || event.newValue === "dark") requestTheme(event.newValue);
+    else requestTheme(systemTheme());
+  });
+
+  /*
+   * Overlay View Transition menangkap klik selama ~320ms. Supaya toggle tidak
+   * terasa "macet" saat diklik cepat, klik yang jatuh di area tombol tema
+   * diteruskan manual ke logika toggle selama transisi berjalan.
+   */
+  window.addEventListener(
+    "click",
+    (event) => {
+      if (activeTransitions === 0) return;
+      // Kalau browser sudah meneruskan klik ke tombol (overlay tidak memblokir),
+      // biarkan handler normal yang menangani — jangan sampai dobel toggle.
+      if (event.target instanceof Element && event.target.closest("[data-theme-toggle]")) return;
+      const hit = Array.from(document.querySelectorAll<HTMLElement>("[data-theme-toggle]")).some(
+        (el) => {
+          const rect = el.getBoundingClientRect();
+          return (
+            rect.width > 0 &&
+            event.clientX >= rect.left &&
+            event.clientX <= rect.right &&
+            event.clientY >= rect.top &&
+            event.clientY <= rect.bottom
+          );
+        },
+      );
+      if (!hit) return;
+      event.preventDefault();
+      event.stopPropagation();
+      requestTheme(target === "dark" ? "light" : "dark", true);
+    },
+    true,
+  );
+}
+
+function subscribe(listener: () => void) {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+function getSnapshot(): Theme {
+  return current;
+}
+
+function getServerSnapshot(): Theme {
+  return "light";
+}
+
 if (typeof window !== "undefined") {
-  try { apply(getInitial()); } catch { /* noop */ }
+  init();
 }
 
 export function useTheme() {
-  const [theme, setThemeState] = useState<Theme>("light");
-  useEffect(() => {
-    const t = getInitial();
-    setThemeState(t);
-    apply(t);
-    const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    const onChange = () => {
-      if (!localStorage.getItem(KEY)) {
-        const sys: Theme = mq.matches ? "dark" : "light";
-        setThemeState(sys);
-        apply(sys, true);
-      }
-    };
-    mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
+  const theme = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+
+  const setTheme = useCallback((next: Theme) => {
+    requestTheme(next, true);
   }, []);
-  const setTheme = (t: Theme) => {
-    localStorage.setItem(KEY, t);
-    setThemeState(t);
-    apply(t, true);
-  };
-  return { theme, setTheme, toggle: () => setTheme(theme === "dark" ? "light" : "dark") };
+
+  const toggle = useCallback(() => {
+    // Pakai `target`, bukan class DOM: kalau diklik cepat sebelum transisi
+    // selesai, arah toggle tetap benar dan tidak terasa "macet".
+    requestTheme(target === "dark" ? "light" : "dark", true);
+  }, []);
+
+  return { theme, setTheme, toggle };
 }
 
 export function ThemeToggle({ className }: { className?: string }) {
@@ -99,9 +220,14 @@ export function ThemeToggle({ className }: { className?: string }) {
       variant="outline"
       size="icon"
       onClick={toggle}
+      data-theme-toggle=""
       aria-label={isDark ? "Aktifkan mode terang" : "Aktifkan mode gelap"}
+      aria-pressed={isDark}
       title={isDark ? "Mode terang" : "Mode gelap"}
-      className={cn("relative h-9 w-9 overflow-hidden rounded-full border-border bg-card", className)}
+      className={cn(
+        "relative h-9 w-9 overflow-hidden rounded-full border-border bg-card",
+        className,
+      )}
     >
       <Sun
         className={cn(

@@ -180,7 +180,12 @@
   }
 }
 
-/* Theme switch: crossfade the whole viewport when View Transitions are available. */
+/* Theme switch: crossfade seluruh viewport saat View Transitions tersedia. */
+/* Overlay transisi jangan menelan klik — tema harus tetap responsif. */
+::view-transition {
+  pointer-events: none;
+}
+
 ::view-transition-old(root),
 ::view-transition-new(root) {
   animation-duration: 320ms;
@@ -218,7 +223,7 @@
   }
 }
 
-/* During a View Transition the snapshot must capture the final colors immediately. */
+/* Selama View Transition, snapshot baru harus langsung menangkap warna final. */
 html.theme-transitioning *,
 html.theme-transitioning *::before,
 html.theme-transitioning *::after {

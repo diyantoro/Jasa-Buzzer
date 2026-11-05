@@ -158,7 +158,7 @@ function Landing() {
                     {s.type === "Offline" ? "Offline" : s.platform}
                   </span>
                   {i === 2 && (
-                    <span className="rounded-full gradient-brand px-2.5 py-0.5 text-[0.6rem] font-extrabold uppercase tracking-[0.12em] text-[#061a2e] shadow-glow">
+                    <span className="rounded-full gradient-cta px-2.5 py-0.5 text-[0.6rem] font-extrabold uppercase tracking-[0.12em] text-white shadow-glow">
                       Popular
                     </span>
                   )}
@@ -183,7 +183,7 @@ function Landing() {
                     asChild
                     size="sm"
                     variant="outline"
-                    className="shrink-0 rounded-xl border-border/80 font-display font-bold transition-colors group-hover:gradient-brand group-hover:border-transparent group-hover:text-[#061a2e]"
+                    className="shrink-0 rounded-xl border-border/80 font-display font-bold transition-colors group-hover:gradient-cta group-hover:border-transparent group-hover:text-white hover:text-white"
                   >
                     <Link to="/login">Pesan</Link>
                   </Button>
@@ -216,9 +216,9 @@ function Landing() {
               {processSteps.map((step, idx) => (
                 <div
                   key={step.title}
-                  className="group relative rounded-2xl border border-border/70 bg-card/85 p-5 pt-7 shadow-sm backdrop-blur-md transition-[transform,box-shadow,border-color] duration-300 hover:border-brand/40 hover:shadow-lg motion-safe:hover:-translate-y-1"
+                  className="group relative rounded-2xl border border-border bg-card p-5 pt-7 shadow-md shadow-brand/5 backdrop-blur-md transition-[transform,box-shadow,border-color] duration-300 hover:border-brand/50 hover:shadow-xl motion-safe:hover:-translate-y-1"
                 >
-                  <span className="absolute -top-3 left-5 grid h-6 w-6 place-items-center rounded-full gradient-brand font-numeric text-[0.7rem] font-bold text-[#061a2e] shadow-glow">
+                  <span className="absolute -top-3.5 left-5 grid h-7 w-7 place-items-center rounded-full gradient-cta font-numeric text-xs font-bold text-white shadow-glow">
                     {idx + 1}
                   </span>
                   <span className="grid h-10 w-10 place-items-center rounded-xl bg-brand/10 text-brand dark:text-brand-glow">
