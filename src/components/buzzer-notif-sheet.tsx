@@ -262,10 +262,18 @@ export function BuzzerNotifSheet({
                     }
 
                     if (onNavigate) {
-                      if (n.type === "payout") onNavigate("penghasilan");
-                      else if (n.type === "new_task") onNavigate("tersedia");
-                      else if (n.type === "task_approved" || n.type === "task_rejected") onNavigate("riwayat");
-                      else if (n.type === "verification_approved" || n.type === "verification_rejected") onNavigate("sosial");
+                      if (n.type === "payout") onNavigate("dompet");
+                      else if (n.type === "new_task") onNavigate("cari");
+                      else if (n.type === "task_approved" || n.type === "task_rejected")
+                        onNavigate("pekerjaan");
+                      else if (
+                        n.type === "verification_approved" ||
+                        n.type === "verification_rejected" ||
+                        n.type === "verification_pending"
+                      )
+                        onNavigate("sosmed");
+                      else if (n.type === "rating") onNavigate("ulasan");
+                      else if (n.type === "level_up") onNavigate("peringkat");
                       onOpenChange(false);
                     }
                   }}

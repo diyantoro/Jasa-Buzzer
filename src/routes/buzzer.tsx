@@ -159,8 +159,10 @@ import {
   formatIDR,
   terbilangRupiah,
   type BuzzerJob,
+  type Earning,
   type JobStatus,
   type Platform,
+  type Withdrawal,
 } from "@/lib/buzzer-store";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -359,10 +361,13 @@ const BUZZER_SECTIONS: SectionKey[] = [
 const SECTION_ALIASES: Record<string, SectionKey> = {
   jobs: "cari",
   job: "cari",
+  tersedia: "cari",
   penghasilan: "dompet",
   grafik: "dashboard",
   home: "dashboard",
   pesan: "bantuan",
+  riwayat: "pekerjaan",
+  sosial: "sosmed",
 };
 
 function normalizeBuzzerSection(value: string | null): SectionKey | null {
@@ -1177,13 +1182,23 @@ function DashboardSection({
   const topFive = leaderboard.slice(0, 5);
   const myRow = leaderboard.find((row) => row.isMe);
 
-  const statCards = [
+  const statCards: {
+    label: string;
+    value: string;
+    hint: string;
+    icon: ReactNode;
+    tone: string;
+    target: SectionKey;
+    cta: string;
+  }[] = [
     {
       label: "Total Penghasilan",
       value: formatIDR(totalIncome),
       hint: "Akumulasi reward disetujui",
       icon: <TrendingUp className="h-5 w-5" />,
       tone: "from-blue-500 to-indigo-500",
+      target: "dompet",
+      cta: "Lihat riwayat pembayaran",
     },
     {
       label: "Saldo Tersedia",
@@ -1191,6 +1206,8 @@ function DashboardSection({
       hint: "Siap dicairkan kapan saja",
       icon: <Wallet className="h-5 w-5" />,
       tone: "from-emerald-500 to-teal-500",
+      target: "dompet",
+      cta: "Buka dompet & riwayat",
     },
     {
       label: "Pekerjaan Selesai",
@@ -1198,6 +1215,8 @@ function DashboardSection({
       hint: "Total pekerjaan tuntas",
       icon: <CircleCheck className="h-5 w-5" />,
       tone: "from-violet-500 to-fuchsia-500",
+      target: "pekerjaan",
+      cta: "Lihat pekerjaan saya",
     },
     {
       label: "Pekerjaan Aktif",
@@ -1206,6 +1225,8 @@ function DashboardSection({
         pendingIncome > 0 ? `${formatIDR(pendingIncome)} menunggu verifikasi` : "Sedang berjalan",
       icon: <BriefcaseBusiness className="h-5 w-5" />,
       tone: "from-amber-500 to-orange-500",
+      target: "pekerjaan",
+      cta: "Lihat pekerjaan aktif",
     },
   ];
 
@@ -1274,9 +1295,13 @@ function DashboardSection({
       {/* Statistik */}
       <section className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         {statCards.map((card) => (
-          <div
+          <button
             key={card.label}
-            className="rounded-2xl border border-border bg-card p-4 shadow-sm transition-shadow hover:shadow-md"
+            type="button"
+            onClick={() => onNavigate(card.target)}
+            title={card.cta}
+            aria-label={`${card.label}: ${card.cta}`}
+            className="group rounded-2xl border border-border bg-card p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-brand/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             <div className="flex items-start justify-between gap-2">
               <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground sm:text-xs">
@@ -1295,7 +1320,10 @@ function DashboardSection({
               {card.value}
             </p>
             <p className="mt-1 line-clamp-2 text-[11px] text-muted-foreground">{card.hint}</p>
-          </div>
+            <span className="mt-2 inline-flex items-center gap-1 text-[10px] font-semibold text-brand opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
+              {card.cta} <ChevronRight className="h-3 w-3" />
+            </span>
+          </button>
         ))}
       </section>
 
@@ -3636,6 +3664,8 @@ function PenghasilanSection({ store }: { store: Store }) {
   const [accountNo, setAccountNo] = useState("");
   const [accountName, setAccountName] = useState("");
   const [viewingProofUrl, setViewingProofUrl] = useState<string | null>(null);
+  const [detailEarning, setDetailEarning] = useState<Earning | null>(null);
+  const [detailWithdrawal, setDetailWithdrawal] = useState<Withdrawal | null>(null);
   const [loading, setLoading] = useState(false);
 
   const BANKS = ["BCA", "Mandiri", "BRI", "BNI"];
@@ -3858,43 +3888,105 @@ function PenghasilanSection({ store }: { store: Store }) {
       </div>
 
       <Tabs defaultValue="earnings">
-        <TabsList>
-          <TabsTrigger value="earnings">Riwayat Pembayaran ({earningsF.length})</TabsTrigger>
-          <TabsTrigger value="withdrawals">Riwayat Pencairan ({withdrawsF.length})</TabsTrigger>
+        <TabsList className="grid h-auto w-full grid-cols-2 gap-1">
+          <TabsTrigger
+            value="earnings"
+            className="whitespace-normal px-2 py-2 text-[11px] leading-tight sm:text-sm"
+          >
+            Riwayat Pembayaran ({earningsF.length})
+          </TabsTrigger>
+          <TabsTrigger
+            value="withdrawals"
+            className="whitespace-normal px-2 py-2 text-[11px] leading-tight sm:text-sm"
+          >
+            Riwayat Pencairan ({withdrawsF.length})
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="earnings" className="mt-4">
           <div className="overflow-hidden rounded-2xl border border-border bg-card">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Tanggal</TableHead>
-                  <TableHead>Job</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Nominal</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {earningsF.length === 0 && (
+            {/* Desktop table */}
+            <div className="hidden md:block">
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
-                      Tidak ada data.
-                    </TableCell>
+                    <TableHead>Tanggal</TableHead>
+                    <TableHead>Job</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Nominal</TableHead>
+                    <TableHead className="w-[72px] text-right">Aksi</TableHead>
                   </TableRow>
-                )}
-                {paginatedEarnings.map((e) => (
-                  <TableRow key={e.id}>
-                    <TableCell className="text-xs">{e.date}</TableCell>
-                    <TableCell>{e.jobTitle}</TableCell>
-                    <TableCell>
+                </TableHeader>
+                <TableBody>
+                  {earningsF.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                        Tidak ada data.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {paginatedEarnings.map((e) => (
+                    <TableRow
+                      key={e.id}
+                      className="cursor-pointer"
+                      title="Klik untuk melihat detail pembayaran"
+                      onClick={() => setDetailEarning(e)}
+                    >
+                      <TableCell className="text-xs">{e.date}</TableCell>
+                      <TableCell>{e.jobTitle}</TableCell>
+                      <TableCell>
+                        <StatusBadge status={e.status} />
+                      </TableCell>
+                      <TableCell className="text-right font-semibold">
+                        {formatIDR(e.amount)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-primary"
+                          aria-label={`Lihat detail ${e.jobTitle}`}
+                          onClick={(ev) => {
+                            ev.stopPropagation();
+                            setDetailEarning(e);
+                          }}
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            {/* Mobile cards */}
+            <div className="divide-y divide-border md:hidden">
+              {earningsF.length === 0 && (
+                <p className="py-8 text-center text-sm text-muted-foreground">Tidak ada data.</p>
+              )}
+              {paginatedEarnings.map((e) => (
+                <button
+                  key={e.id}
+                  type="button"
+                  onClick={() => setDetailEarning(e)}
+                  className="flex w-full items-center gap-3 p-3.5 text-left transition-colors active:bg-muted/50"
+                >
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-brand/10 text-brand">
+                    <Receipt className="h-4 w-4" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold">{e.jobTitle}</span>
+                    <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
+                      <span>{e.date}</span>
                       <StatusBadge status={e.status} />
-                    </TableCell>
-                    <TableCell className="text-right font-semibold">
-                      {formatIDR(e.amount)}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-right">
+                    <span className="block text-sm font-bold">{formatIDR(e.amount)}</span>
+                    <span className="mt-0.5 block text-[10px] text-primary">Lihat detail</span>
+                  </span>
+                </button>
+              ))}
+            </div>
             {earningsF.length > 0 && (
               <TablePagination
                 currentPage={safeEarningsPage}
@@ -3907,85 +3999,147 @@ function PenghasilanSection({ store }: { store: Store }) {
         </TabsContent>
         <TabsContent value="withdrawals" className="mt-4">
           <div className="overflow-hidden rounded-2xl border border-border bg-card">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Tanggal</TableHead>
-                  <TableHead>Metode & Rekening</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Keterangan / Bukti</TableHead>
-                  <TableHead className="text-right">Nominal</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {withdrawsF.length === 0 && (
+            {/* Desktop table */}
+            <div className="hidden md:block">
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                      Tidak ada pencairan.
-                    </TableCell>
+                    <TableHead>Tanggal</TableHead>
+                    <TableHead>Metode & Rekening</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Keterangan / Bukti</TableHead>
+                    <TableHead className="text-right">Nominal</TableHead>
+                    <TableHead className="w-[72px] text-right">Aksi</TableHead>
                   </TableRow>
-                )}
-                {paginatedWithdrawals.map((w) => (
-                  <TableRow key={w.id}>
-                    <TableCell className="text-xs">{w.date}</TableCell>
-                    <TableCell>
-                      <div className="font-medium text-xs">{w.method}</div>
-                      {w.accountNo && (
-                        <div className="text-[11px] text-muted-foreground">{w.accountNo}</div>
-                      )}
-                    </TableCell>
-                    <TableCell>
+                </TableHeader>
+                <TableBody>
+                  {withdrawsF.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                        Tidak ada pencairan.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {paginatedWithdrawals.map((w) => (
+                    <TableRow
+                      key={w.id}
+                      className="cursor-pointer"
+                      title="Klik untuk melihat detail pencairan"
+                      onClick={() => setDetailWithdrawal(w)}
+                    >
+                      <TableCell className="text-xs">{w.date}</TableCell>
+                      <TableCell>
+                        <div className="font-medium text-xs">{w.method}</div>
+                        {w.accountNo && (
+                          <div className="text-[11px] text-muted-foreground">{w.accountNo}</div>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <StatusBadge
+                          status={w.status === "Menunggu" ? "Menunggu Verifikasi" : w.status}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        {w.status === "Menunggu" && (
+                          <div className="space-y-0.5">
+                            <span className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
+                              Menunggu verifikasi admin
+                            </span>
+                            <p className="text-[10px] text-muted-foreground">
+                              (Saldo belum dipotong)
+                            </p>
+                          </div>
+                        )}
+                        {w.status === "Berhasil" && (
+                          <div className="flex items-center gap-1.5">
+                            {w.proofUrl ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-7 text-xs text-primary gap-1 px-2 border-primary/30 hover:bg-primary/10"
+                                onClick={(ev) => {
+                                  ev.stopPropagation();
+                                  setViewingProofUrl(w.proofUrl || null);
+                                }}
+                              >
+                                <Eye className="h-3.5 w-3.5" /> Bukti Transfer
+                              </Button>
+                            ) : (
+                              <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
+                                Transfer Sukses
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        {w.status === "Ditolak" && (
+                          <div className="text-[11px] text-rose-600 dark:text-rose-400 space-y-0.5">
+                            <div className="font-medium">
+                              Ditolak admin {w.adminNote ? `: "${w.adminNote}"` : ""}
+                            </div>
+                            <div className="text-[10px] text-muted-foreground">
+                              (Saldo tetap aman)
+                            </div>
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right font-semibold">
+                        {formatIDR(w.amount)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-primary"
+                          aria-label={`Lihat detail pencairan ${formatIDR(w.amount)}`}
+                          onClick={(ev) => {
+                            ev.stopPropagation();
+                            setDetailWithdrawal(w);
+                          }}
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            {/* Mobile cards */}
+            <div className="divide-y divide-border md:hidden">
+              {withdrawsF.length === 0 && (
+                <p className="py-8 text-center text-sm text-muted-foreground">
+                  Tidak ada pencairan.
+                </p>
+              )}
+              {paginatedWithdrawals.map((w) => (
+                <button
+                  key={w.id}
+                  type="button"
+                  onClick={() => setDetailWithdrawal(w)}
+                  className="flex w-full items-start gap-3 p-3.5 text-left transition-colors active:bg-muted/50"
+                >
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                    <Banknote className="h-4 w-4" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold">{w.method}</span>
+                    <span className="mt-0.5 block text-[11px] text-muted-foreground">
+                      {w.date}
+                      {w.accountNo ? ` · ${w.accountNo}` : ""}
+                    </span>
+                    <span className="mt-1 block">
                       <StatusBadge
                         status={w.status === "Menunggu" ? "Menunggu Verifikasi" : w.status}
                       />
-                    </TableCell>
-                    <TableCell>
-                      {w.status === "Menunggu" && (
-                        <div className="space-y-0.5">
-                          <span className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
-                            Menunggu verifikasi admin
-                          </span>
-                          <p className="text-[10px] text-muted-foreground">
-                            (Saldo belum dipotong)
-                          </p>
-                        </div>
-                      )}
-                      {w.status === "Berhasil" && (
-                        <div className="flex items-center gap-1.5">
-                          {w.proofUrl ? (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-7 text-xs text-primary gap-1 px-2 border-primary/30 hover:bg-primary/10"
-                              onClick={() => setViewingProofUrl(w.proofUrl || null)}
-                            >
-                              <Eye className="h-3.5 w-3.5" /> Bukti Transfer
-                            </Button>
-                          ) : (
-                            <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
-                              Transfer Sukses
-                            </span>
-                          )}
-                        </div>
-                      )}
-                      {w.status === "Ditolak" && (
-                        <div className="text-[11px] text-rose-600 dark:text-rose-400 space-y-0.5">
-                          <div className="font-medium">
-                            Ditolak admin {w.adminNote ? `: "${w.adminNote}"` : ""}
-                          </div>
-                          <div className="text-[10px] text-muted-foreground">
-                            (Saldo tetap aman)
-                          </div>
-                        </div>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right font-semibold">
-                      {formatIDR(w.amount)}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-right">
+                    <span className="block text-sm font-bold">{formatIDR(w.amount)}</span>
+                    <span className="mt-0.5 block text-[10px] text-primary">Lihat detail</span>
+                  </span>
+                </button>
+              ))}
+            </div>
             {withdrawsF.length > 0 && (
               <TablePagination
                 currentPage={safeWithdrawalsPage}
@@ -4256,6 +4410,191 @@ function PenghasilanSection({ store }: { store: Store }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Detail Riwayat Pembayaran */}
+      <Dialog
+        open={!!detailEarning}
+        onOpenChange={(open) => {
+          if (!open) setDetailEarning(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Receipt className="h-5 w-5 text-brand" />
+              Detail Pembayaran
+            </DialogTitle>
+            <DialogDescription>
+              Rincian reward pekerjaan yang tercatat di dompet kamu.
+            </DialogDescription>
+          </DialogHeader>
+          {detailEarning && (
+            <div className="space-y-4">
+              <div className="rounded-xl border border-brand/20 bg-brand/5 p-4">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  Nominal diterima
+                </p>
+                <p className="mt-0.5 font-display text-2xl font-bold text-brand">
+                  {formatIDR(detailEarning.amount)}
+                </p>
+                <div className="mt-2">
+                  <StatusBadge status={detailEarning.status} />
+                </div>
+              </div>
+              <dl className="space-y-2.5 text-sm">
+                <div className="flex items-start justify-between gap-4 border-b border-border pb-2.5">
+                  <dt className="shrink-0 text-muted-foreground">Tanggal</dt>
+                  <dd className="text-right font-medium">{detailEarning.date}</dd>
+                </div>
+                <div className="flex items-start justify-between gap-4 border-b border-border pb-2.5">
+                  <dt className="shrink-0 text-muted-foreground">Pekerjaan</dt>
+                  <dd className="text-right font-medium">{detailEarning.jobTitle || "-"}</dd>
+                </div>
+                <div className="flex items-start justify-between gap-4 border-b border-border pb-2.5">
+                  <dt className="shrink-0 text-muted-foreground">Platform</dt>
+                  <dd className="text-right font-medium">{detailEarning.platform || "-"}</dd>
+                </div>
+                <div className="flex items-start justify-between gap-4">
+                  <dt className="shrink-0 text-muted-foreground">ID Transaksi</dt>
+                  <dd className="max-w-[60%] break-all text-right font-mono text-[11px]">
+                    {detailEarning.id}
+                  </dd>
+                </div>
+              </dl>
+              <p className="rounded-lg bg-muted/60 p-3 text-[11px] leading-relaxed text-muted-foreground">
+                {detailEarning.status === "Berhasil"
+                  ? "Reward sudah disetujui admin dan masuk ke saldo dompet kamu."
+                  : detailEarning.status === "Ditolak"
+                    ? "Reward ditolak, dana tidak masuk ke saldo. Hubungi admin bila kamu merasa ini keliru."
+                    : "Reward masih menunggu verifikasi admin. Saldo akan bertambah setelah disetujui."}
+              </p>
+            </div>
+          )}
+          <DialogFooter className="gap-2 sm:justify-between">
+            {detailEarning && availableToWithdraw > 0 ? (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setDetailEarning(null);
+                  handleOpenWithdraw();
+                }}
+              >
+                <Wallet className="mr-1 h-4 w-4" /> Tarik Saldo
+              </Button>
+            ) : (
+              <span />
+            )}
+            <Button variant="outline" onClick={() => setDetailEarning(null)}>
+              Tutup
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Detail Riwayat Pencairan */}
+      <Dialog
+        open={!!detailWithdrawal}
+        onOpenChange={(open) => {
+          if (!open) setDetailWithdrawal(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Banknote className="h-5 w-5 text-brand" />
+              Detail Pencairan
+            </DialogTitle>
+            <DialogDescription>
+              Rincian pengajuan pencairan saldo ke rekening / e-wallet kamu.
+            </DialogDescription>
+          </DialogHeader>
+          {detailWithdrawal && (
+            <div className="space-y-4">
+              <div className="rounded-xl border border-border bg-muted/40 p-4">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  Nominal pencairan
+                </p>
+                <p className="mt-0.5 font-display text-2xl font-bold">
+                  {formatIDR(detailWithdrawal.amount)}
+                </p>
+                <div className="mt-2">
+                  <StatusBadge
+                    status={
+                      detailWithdrawal.status === "Menunggu"
+                        ? "Menunggu Verifikasi"
+                        : detailWithdrawal.status
+                    }
+                  />
+                </div>
+              </div>
+              <dl className="space-y-2.5 text-sm">
+                <div className="flex items-start justify-between gap-4 border-b border-border pb-2.5">
+                  <dt className="shrink-0 text-muted-foreground">Tanggal</dt>
+                  <dd className="text-right font-medium">{detailWithdrawal.date}</dd>
+                </div>
+                <div className="flex items-start justify-between gap-4 border-b border-border pb-2.5">
+                  <dt className="shrink-0 text-muted-foreground">Metode</dt>
+                  <dd className="text-right font-medium">{detailWithdrawal.method}</dd>
+                </div>
+                <div className="flex items-start justify-between gap-4 border-b border-border pb-2.5">
+                  <dt className="shrink-0 text-muted-foreground">No. Rekening</dt>
+                  <dd className="text-right font-mono text-xs">
+                    {detailWithdrawal.accountNo || "-"}
+                  </dd>
+                </div>
+                <div className="flex items-start justify-between gap-4">
+                  <dt className="shrink-0 text-muted-foreground">ID Pencairan</dt>
+                  <dd className="max-w-[60%] break-all text-right font-mono text-[11px]">
+                    {detailWithdrawal.id}
+                  </dd>
+                </div>
+                {detailWithdrawal.adminNote && (
+                  <div className="flex items-start justify-between gap-4 border-t border-border pt-2.5">
+                    <dt className="shrink-0 text-muted-foreground">Catatan Admin</dt>
+                    <dd className="text-right font-medium">{detailWithdrawal.adminNote}</dd>
+                  </div>
+                )}
+              </dl>
+              <p
+                className={cn(
+                  "rounded-lg p-3 text-[11px] leading-relaxed",
+                  detailWithdrawal.status === "Ditolak"
+                    ? "bg-rose-500/10 text-rose-600 dark:text-rose-400"
+                    : detailWithdrawal.status === "Berhasil"
+                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                      : "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+                )}
+              >
+                {detailWithdrawal.status === "Menunggu"
+                  ? "Pengajuan sedang diverifikasi admin. Saldo belum dipotong sampai pengajuan disetujui."
+                  : detailWithdrawal.status === "Berhasil"
+                    ? "Pencairan sudah ditransfer admin ke rekening / e-wallet kamu."
+                    : detailWithdrawal.status === "Ditolak"
+                      ? "Pengajuan ditolak. Saldo tetap aman dan tidak dipotong."
+                      : "Status pencairan sedang diperbarui oleh admin."}
+              </p>
+              {detailWithdrawal.proofUrl && (
+                <Button
+                  variant="outline"
+                  className="w-full gap-1.5 text-primary"
+                  onClick={() => {
+                    const url = detailWithdrawal.proofUrl;
+                    setDetailWithdrawal(null);
+                    setViewingProofUrl(url || null);
+                  }}
+                >
+                  <Eye className="h-4 w-4" /> Lihat Bukti Transfer
+                </Button>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDetailWithdrawal(null)}>
+              Tutup
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -4279,6 +4618,7 @@ function TransactionsSection({ store }: { store: Store }) {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [page, setPage] = useState(1);
+  const [selected, setSelected] = useState<TransactionRow | null>(null);
   const pageSize = 10;
 
   const rows = useMemo<TransactionRow[]>(() => {
@@ -4478,7 +4818,12 @@ function TransactionsSection({ store }: { store: Store }) {
               </TableHeader>
               <TableBody>
                 {paged.map((row) => (
-                  <TableRow key={`${row.type}-${row.id}`}>
+                  <TableRow
+                    key={`${row.type}-${row.id}`}
+                    className="cursor-pointer"
+                    title="Klik untuk melihat detail transaksi"
+                    onClick={() => setSelected(row)}
+                  >
                     <TableCell className="font-mono text-[11px] text-muted-foreground">
                       {row.id.slice(0, 14)}
                     </TableCell>
@@ -4518,18 +4863,20 @@ function TransactionsSection({ store }: { store: Store }) {
           {/* Mobile cards */}
           <div className="space-y-2.5 md:hidden">
             {paged.map((row) => (
-              <div
+              <button
                 key={`${row.type}-${row.id}`}
-                className="rounded-2xl border border-border bg-card p-3.5 shadow-sm"
+                type="button"
+                onClick={() => setSelected(row)}
+                className="w-full rounded-2xl border border-border bg-card p-3.5 text-left shadow-sm transition-colors active:bg-muted/40"
               >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold">{row.description}</p>
-                    <p className="mt-0.5 text-[10px] text-muted-foreground">
+                <span className="flex items-start justify-between gap-2">
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-semibold">{row.description}</span>
+                    <span className="mt-0.5 block text-[10px] text-muted-foreground">
                       {row.date} · {row.type}
-                    </p>
-                  </div>
-                  <p
+                    </span>
+                  </span>
+                  <span
                     className={cn(
                       "shrink-0 text-sm font-bold",
                       row.direction === "in"
@@ -4539,15 +4886,15 @@ function TransactionsSection({ store }: { store: Store }) {
                   >
                     {row.direction === "in" ? "+" : "−"}
                     {formatIDR(row.amount)}
-                  </p>
-                </div>
-                <div className="mt-2 flex items-center justify-between">
+                  </span>
+                </span>
+                <span className="mt-2 flex items-center justify-between">
                   <StatusBadge status={row.status} />
                   <span className="font-mono text-[10px] text-muted-foreground">
                     #{row.id.slice(0, 8)}
                   </span>
-                </div>
-              </div>
+                </span>
+              </button>
             ))}
             {filtered.length > pageSize && (
               <div className="flex items-center justify-between pt-1">
@@ -4575,6 +4922,91 @@ function TransactionsSection({ store }: { store: Store }) {
           </div>
         </>
       )}
+
+      {/* Detail Transaksi */}
+      <Dialog
+        open={!!selected}
+        onOpenChange={(open) => {
+          if (!open) setSelected(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Receipt className="h-5 w-5 text-brand" />
+              Detail Transaksi
+            </DialogTitle>
+            <DialogDescription>Rincian mutasi saldo dompet kamu.</DialogDescription>
+          </DialogHeader>
+          {selected && (
+            <div className="space-y-4">
+              <div className="rounded-xl border border-border bg-muted/40 p-4">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  {selected.direction === "in" ? "Dana masuk" : "Dana keluar"}
+                </p>
+                <p
+                  className={cn(
+                    "mt-0.5 font-display text-2xl font-bold",
+                    selected.direction === "in"
+                      ? "text-emerald-600 dark:text-emerald-400"
+                      : "text-rose-600 dark:text-rose-400",
+                  )}
+                >
+                  {selected.direction === "in" ? "+" : "−"}
+                  {formatIDR(selected.amount)}
+                </p>
+                <div className="mt-2">
+                  <StatusBadge status={selected.status} />
+                </div>
+              </div>
+              <dl className="space-y-2.5 text-sm">
+                <div className="flex items-start justify-between gap-4 border-b border-border pb-2.5">
+                  <dt className="shrink-0 text-muted-foreground">Tanggal</dt>
+                  <dd className="text-right font-medium">{selected.date}</dd>
+                </div>
+                <div className="flex items-start justify-between gap-4 border-b border-border pb-2.5">
+                  <dt className="shrink-0 text-muted-foreground">Deskripsi</dt>
+                  <dd className="text-right font-medium">{selected.description}</dd>
+                </div>
+                <div className="flex items-start justify-between gap-4 border-b border-border pb-2.5">
+                  <dt className="shrink-0 text-muted-foreground">Jenis</dt>
+                  <dd className="text-right font-medium">{selected.type}</dd>
+                </div>
+                <div className="flex items-start justify-between gap-4">
+                  <dt className="shrink-0 text-muted-foreground">ID Transaksi</dt>
+                  <dd className="max-w-[60%] break-all text-right font-mono text-[11px]">
+                    {selected.id}
+                  </dd>
+                </div>
+              </dl>
+              {selected.type === "Penarikan Saldo" &&
+                (() => {
+                  const proof = (store.state.withdrawals || []).find(
+                    (w) => w.id === selected.id && w.proofUrl,
+                  )?.proofUrl;
+                  if (!proof) return null;
+                  return (
+                    <Button
+                      variant="outline"
+                      className="w-full gap-1.5 text-primary"
+                      onClick={() => {
+                        setSelected(null);
+                        window.open(proof, "_blank", "noopener,noreferrer");
+                      }}
+                    >
+                      <Eye className="h-4 w-4" /> Lihat Bukti Transfer
+                    </Button>
+                  );
+                })()}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSelected(null)}>
+              Tutup
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
