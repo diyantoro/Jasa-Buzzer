@@ -1,7 +1,7 @@
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import type { Role } from "./mock-data";
-import { registerAccountFn, loginAccountFn } from "./accounts.functions";
+import { registerAccountFn, loginAccountFn, changePasswordFn } from "./accounts.functions";
 import { supabase } from "@/integrations/supabase/client";
 
 export type { Role };
@@ -101,9 +101,7 @@ export type Account = {
   avatarUrl?: string;
 };
 
-export async function registerAccount(
-  acc: Account,
-): Promise<{ ok: boolean; message?: string }> {
+export async function registerAccount(acc: Account): Promise<{ ok: boolean; message?: string }> {
   try {
     const res = await registerAccountFn({
       data: {
@@ -129,10 +127,7 @@ export async function registerAccount(
   }
 }
 
-export async function findAccount(
-  email: string,
-  password: string,
-): Promise<Session | null> {
+export async function findAccount(email: string, password: string): Promise<Session | null> {
   try {
     const res = await loginAccountFn({ data: { email: email.trim().toLowerCase(), password } });
     if (!res.ok) return null;
@@ -155,6 +150,21 @@ export async function findAccount(
   }
 }
 
+export async function changePassword(
+  email: string,
+  currentPassword: string,
+  newPassword: string,
+): Promise<{ ok: boolean; message?: string }> {
+  try {
+    const res = await changePasswordFn({
+      data: { email: email.trim().toLowerCase(), currentPassword, newPassword },
+    });
+    return res.ok ? { ok: true } : { ok: false, message: res.message };
+  } catch {
+    return { ok: false, message: "Gagal terhubung ke server. Coba lagi." };
+  }
+}
+
 export function useSession() {
   const [session, setS] = useState<Session | null>(null);
   useEffect(() => {
@@ -164,7 +174,11 @@ export function useSession() {
       void loadAvatarUrl(s.email).then((avatarUrl) => {
         if (avatarUrl) {
           const current = getSession();
-          if (current && current.email.toLowerCase() === s.email.toLowerCase() && !current.avatarUrl) {
+          if (
+            current &&
+            current.email.toLowerCase() === s.email.toLowerCase() &&
+            !current.avatarUrl
+          ) {
             setSession({ ...current, avatarUrl });
           }
         }

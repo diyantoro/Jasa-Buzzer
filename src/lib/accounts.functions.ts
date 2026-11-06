@@ -16,7 +16,11 @@ const registerSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6),
   role: z.enum(["admin", "buzzer", "customer"]),
-  phone: z.string().regex(/^\d*$/, "Nomor WhatsApp hanya boleh berisi angka.").optional().nullable(),
+  phone: z
+    .string()
+    .regex(/^\d*$/, "Nomor WhatsApp hanya boleh berisi angka.")
+    .optional()
+    .nullable(),
   city: z.string().optional().nullable(),
   bio: z.string().optional().nullable(),
   company: z.string().optional().nullable(),
@@ -40,6 +44,12 @@ const updateAccountSchema = z.object({
   timezone: z.string().optional(),
   currentPassword: z.string().optional(),
   newPassword: z.string().min(8).optional(),
+});
+
+const changePasswordSchema = z.object({
+  email: z.string().email(),
+  currentPassword: z.string().min(1),
+  newPassword: z.string().min(8),
 });
 
 const updateAdminRatingSchema = z.object({
@@ -67,7 +77,10 @@ export const registerAccountFn = createServerFn({ method: "POST" })
     try {
       const parsed = registerSchema.safeParse(raw);
       if (!parsed.success) {
-        return { ok: false as const, message: "Data tidak valid. Periksa email dan kata sandi Anda." };
+        return {
+          ok: false as const,
+          message: "Data tidak valid. Periksa email dan kata sandi Anda.",
+        };
       }
       const data = parsed.data;
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -99,10 +112,18 @@ export const registerAccountFn = createServerFn({ method: "POST" })
         ...(data.buzzer_category !== undefined && data.buzzer_category !== null
           ? { buzzer_category: data.buzzer_category }
           : {}),
-        ...(data.industry !== undefined && data.industry !== null ? { industry: data.industry } : {}),
-        ...(data.username !== undefined && data.username !== null ? { username: data.username } : {}),
-        ...(data.platform !== undefined && data.platform !== null ? { platform: data.platform } : {}),
-        ...(data.followers !== undefined && data.followers !== null ? { followers: data.followers } : {}),
+        ...(data.industry !== undefined && data.industry !== null
+          ? { industry: data.industry }
+          : {}),
+        ...(data.username !== undefined && data.username !== null
+          ? { username: data.username }
+          : {}),
+        ...(data.platform !== undefined && data.platform !== null
+          ? { platform: data.platform }
+          : {}),
+        ...(data.followers !== undefined && data.followers !== null
+          ? { followers: data.followers }
+          : {}),
         ...(data.avatar_url ? { avatar_url: data.avatar_url } : {}),
       };
 
@@ -118,7 +139,10 @@ export const registerAccountFn = createServerFn({ method: "POST" })
         const msg =
           insertError instanceof Error
             ? insertError.message
-            : typeof insertError === "object" && insertError && "message" in insertError && typeof insertError.message === "string"
+            : typeof insertError === "object" &&
+                insertError &&
+                "message" in insertError &&
+                typeof insertError.message === "string"
               ? insertError.message
               : String(insertError);
 
@@ -126,22 +150,31 @@ export const registerAccountFn = createServerFn({ method: "POST" })
         if (msg.includes("Invalid API key") || msg.includes("JWT")) {
           return {
             ok: false as const,
-            message: "API key Supabase tidak valid. Gunakan secret key server dari Supabase, bukan publishable key.",
+            message:
+              "API key Supabase tidak valid. Gunakan secret key server dari Supabase, bukan publishable key.",
           };
         }
 
         if (/column .* does not exist|undefined column/i.test(msg)) {
-          const { error: fallbackError } = await supabaseAdmin.from("app_accounts").insert(accountRow);
+          const { error: fallbackError } = await supabaseAdmin
+            .from("app_accounts")
+            .insert(accountRow);
           if (fallbackError) {
             console.error("[Register] Fallback database error:", fallbackError);
-            return { ok: false as const, message: "Gagal menyimpan akun. Periksa struktur tabel app_accounts di Supabase." };
+            return {
+              ok: false as const,
+              message: "Gagal menyimpan akun. Periksa struktur tabel app_accounts di Supabase.",
+            };
           }
           if (data.role === "customer") {
-            await supabaseAdmin.from("customer_accounts").upsert({
-              email,
-              name: data.company?.trim() || data.name.trim(),
-              active: true,
-            }, { onConflict: "email" });
+            await supabaseAdmin.from("customer_accounts").upsert(
+              {
+                email,
+                name: data.company?.trim() || data.name.trim(),
+                active: true,
+              },
+              { onConflict: "email" },
+            );
           }
           return { ok: true as const, account: { email, name: data.name.trim(), role: data.role } };
         }
@@ -154,11 +187,14 @@ export const registerAccountFn = createServerFn({ method: "POST" })
       }
 
       if (data.role === "customer") {
-        const { error: customerError } = await supabaseAdmin.from("customer_accounts").upsert({
-          email,
-          name: data.company?.trim() || data.name.trim(),
-          active: true,
-        }, { onConflict: "email" });
+        const { error: customerError } = await supabaseAdmin.from("customer_accounts").upsert(
+          {
+            email,
+            name: data.company?.trim() || data.name.trim(),
+            active: true,
+          },
+          { onConflict: "email" },
+        );
         if (customerError) {
           console.error("[Register] Customer profile database error:", customerError);
         }
@@ -170,13 +206,15 @@ export const registerAccountFn = createServerFn({ method: "POST" })
       if (err instanceof Error && err.message.includes("SUPABASE_SERVICE_ROLE_KEY")) {
         return {
           ok: false as const,
-          message: "Server belum dikonfigurasi. Tambahkan SUPABASE_SERVICE_ROLE_KEY di environment server.",
+          message:
+            "Server belum dikonfigurasi. Tambahkan SUPABASE_SERVICE_ROLE_KEY di environment server.",
         };
       }
       if (err instanceof Error && err.message.includes("Invalid API key")) {
         return {
           ok: false as const,
-          message: "API key Supabase tidak valid. Periksa SUPABASE_SERVICE_ROLE_KEY di environment server.",
+          message:
+            "API key Supabase tidak valid. Periksa SUPABASE_SERVICE_ROLE_KEY di environment server.",
         };
       }
       return { ok: false as const, message: "Gagal terhubung ke server. Coba lagi." };
@@ -194,7 +232,8 @@ export const loginAccountFn = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const email = data.email.trim().toLowerCase();
 
-    const selectColumns = "email, name, role, password_hash, phone, city, bio, company, industry, username, platform, followers, avatar_url";
+    const selectColumns =
+      "email, name, role, password_hash, phone, city, bio, company, industry, username, platform, followers, avatar_url";
 
     let row: any = null;
     try {
@@ -264,10 +303,14 @@ export const updateAccountFn = createServerFn({ method: "POST" })
       .maybeSingle();
 
     if (accountError) throw accountError;
-    if (!account || account.role !== "admin") return { ok: false as const, message: "Akun admin tidak ditemukan." };
+    if (!account || account.role !== "admin")
+      return { ok: false as const, message: "Akun admin tidak ditemukan." };
 
     if (data.newPassword) {
-      if (!data.currentPassword || account.password_hash !== await hashPassword(email, data.currentPassword)) {
+      if (
+        !data.currentPassword ||
+        account.password_hash !== (await hashPassword(email, data.currentPassword))
+      ) {
         return { ok: false as const, message: "Password lama tidak sesuai." };
       }
     }
@@ -279,6 +322,36 @@ export const updateAccountFn = createServerFn({ method: "POST" })
     };
 
     const { error } = await supabaseAdmin.from("app_accounts").update(update).eq("email", email);
+    if (error) throw error;
+    return { ok: true as const };
+  });
+
+export const changePasswordFn = createServerFn({ method: "POST" })
+  .validator((data: unknown) => data as z.input<typeof changePasswordSchema>)
+  .handler(async ({ data: raw }) => {
+    const parsed = changePasswordSchema.safeParse(raw);
+    if (!parsed.success) return { ok: false as const, message: "Data password tidak valid." };
+
+    const data = parsed.data;
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const email = data.email.trim().toLowerCase();
+    const { data: account, error: accountError } = await supabaseAdmin
+      .from("app_accounts")
+      .select("email, role, password_hash")
+      .eq("email", email)
+      .maybeSingle();
+
+    if (accountError) throw accountError;
+    if (!account) return { ok: false as const, message: "Akun tidak ditemukan." };
+    if (account.password_hash !== (await hashPassword(email, data.currentPassword))) {
+      return { ok: false as const, message: "Password lama tidak sesuai." };
+    }
+
+    const { error } = await supabaseAdmin
+      .from("app_accounts")
+      .update({ password_hash: await hashPassword(email, data.newPassword) })
+      .eq("email", email);
+
     if (error) throw error;
     return { ok: true as const };
   });
@@ -299,7 +372,8 @@ export const updateAdminRatingFn = createServerFn({ method: "POST" })
       .maybeSingle();
 
     if (accountError) throw accountError;
-    if (!account || account.role !== "admin") return { ok: false as const, message: "Akun admin tidak ditemukan." };
+    if (!account || account.role !== "admin")
+      return { ok: false as const, message: "Akun admin tidak ditemukan." };
 
     const { error } = await supabaseAdmin
       .from("buzzer_ratings")
@@ -326,12 +400,10 @@ export const deleteAdminRatingFn = createServerFn({ method: "POST" })
       .maybeSingle();
 
     if (accountError) throw accountError;
-    if (!account || account.role !== "admin") return { ok: false as const, message: "Akun admin tidak ditemukan." };
+    if (!account || account.role !== "admin")
+      return { ok: false as const, message: "Akun admin tidak ditemukan." };
 
-    const { error } = await supabaseAdmin
-      .from("buzzer_ratings")
-      .delete()
-      .eq("id", data.id);
+    const { error } = await supabaseAdmin.from("buzzer_ratings").delete().eq("id", data.id);
 
     if (error) throw error;
     return { ok: true as const };
@@ -341,7 +413,8 @@ export const submitFollowerUpdateFn = createServerFn({ method: "POST" })
   .validator((data: unknown) => data as z.input<typeof submitFollowerUpdateSchema>)
   .handler(async ({ data: raw }) => {
     const parsed = submitFollowerUpdateSchema.safeParse(raw);
-    if (!parsed.success) return { ok: false as const, message: "Data followers atau bukti tidak valid." };
+    if (!parsed.success)
+      return { ok: false as const, message: "Data followers atau bukti tidak valid." };
 
     const data = parsed.data;
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -352,7 +425,8 @@ export const submitFollowerUpdateFn = createServerFn({ method: "POST" })
       .eq("email", email)
       .maybeSingle();
     if (accountError) throw accountError;
-    if (!account || account.role !== "buzzer") return { ok: false as const, message: "Akun buzzer tidak ditemukan." };
+    if (!account || account.role !== "buzzer")
+      return { ok: false as const, message: "Akun buzzer tidak ditemukan." };
 
     const { error } = await (supabaseAdmin as any)
       .from("social_accounts")
@@ -368,6 +442,3 @@ export const submitFollowerUpdateFn = createServerFn({ method: "POST" })
     if (error) throw error;
     return { ok: true as const };
   });
-
-
-

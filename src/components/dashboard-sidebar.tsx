@@ -360,6 +360,9 @@ export function MobileBottomNav<K extends string>({
   onNavigate,
   onPrefetch,
   primaryKeys,
+  maxPrimary = MAX_PRIMARY_NAV,
+  featuredKey,
+  showMore = true,
 }: {
   nav: SidebarNavItem<K>[];
   activeKey: K;
@@ -368,17 +371,22 @@ export function MobileBottomNav<K extends string>({
   onPrefetch?: (key: K) => void;
   /** Menu yang tampil langsung di bottom nav. Sisanya masuk ke sheet "Lainnya". */
   primaryKeys?: K[];
+  /** Jumlah maksimum menu utama (default 4). */
+  maxPrimary?: number;
+  /** Menu yang ikonnya ditonjolkan dengan lingkaran penuh. */
+  featuredKey?: K;
+  /** Tampilkan tombol "Lainnya" untuk sisa navigasi. */
+  showMore?: boolean;
 }) {
   const [moreOpen, setMoreOpen] = useState(false);
 
   const primary = useMemo(() => {
-    if (!primaryKeys?.length) return nav.slice(0, MAX_PRIMARY_NAV);
-    const wanted = new Set(primaryKeys);
+    if (!primaryKeys?.length) return nav.slice(0, maxPrimary);
     const ordered = primaryKeys
       .map((key) => nav.find((item) => item.key === key))
       .filter((item): item is SidebarNavItem<K> => Boolean(item));
-    return ordered.slice(0, MAX_PRIMARY_NAV);
-  }, [nav, primaryKeys]);
+    return ordered.slice(0, maxPrimary);
+  }, [nav, primaryKeys, maxPrimary]);
 
   const overflow = useMemo(
     () => nav.filter((item) => !primary.some((p) => p.key === item.key)),
@@ -393,37 +401,49 @@ export function MobileBottomNav<K extends string>({
     setMoreOpen(false);
   };
 
-  const renderButton = (item: SidebarNavItem<K>, active: boolean) => (
-    <button
-      key={item.key}
-      type="button"
-      data-section={item.key}
-      onClick={() => select(item.key)}
-      onPointerDown={() => onPrefetch?.(item.key)}
-      aria-current={active ? "page" : undefined}
-      className={cn(
-        "relative flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1.5 text-[10px] font-medium transition-colors min-[380px]:text-[11px]",
-        active ? "text-brand" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-      )}
-    >
-      <span
-        aria-hidden="true"
+  const renderButton = (item: SidebarNavItem<K>, active: boolean) => {
+    const featured = featuredKey === item.key;
+    return (
+      <button
+        key={item.key}
+        type="button"
+        data-section={item.key}
+        onClick={() => select(item.key)}
+        onPointerDown={() => onPrefetch?.(item.key)}
+        aria-current={active ? "page" : undefined}
         className={cn(
-          "absolute top-0 h-[2px] w-6 rounded-full bg-brand transition-opacity",
-          active ? "opacity-100" : "opacity-0",
+          "relative flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1.5 text-[10px] font-medium transition-colors min-[380px]:text-[11px]",
+          active ? "text-brand" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
         )}
-      />
-      <span className="relative [&>svg]:h-[19px] [&>svg]:w-[19px]">
-        {item.icon}
-        {item.badge ? (
-          <span className="absolute -right-2 -top-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-rose-500 px-1 text-[9px] font-bold leading-none text-white ring-2 ring-background">
-            {item.badge > 99 ? "99+" : item.badge}
-          </span>
-        ) : null}
-      </span>
-      <span className="max-w-full truncate leading-tight">{item.shortLabel ?? item.label}</span>
-    </button>
-  );
+      >
+        <span
+          aria-hidden="true"
+          className={cn(
+            "absolute top-0 h-[2px] w-6 rounded-full bg-brand transition-opacity",
+            active && !featured ? "opacity-100" : "opacity-0",
+          )}
+        />
+        <span
+          className={cn(
+            "relative [&>svg]:h-[19px] [&>svg]:w-[19px]",
+            featured &&
+              "grid h-10 w-10 -translate-y-2 place-items-center rounded-full bg-brand text-white shadow-lg ring-4 ring-background transition-transform [&>svg]:h-5 [&>svg]:w-5",
+            featured && active && "bg-brand-glow",
+          )}
+        >
+          {item.icon}
+          {item.badge ? (
+            <span className="absolute -right-2 -top-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-rose-500 px-1 text-[9px] font-bold leading-none text-white ring-2 ring-background">
+              {item.badge > 99 ? "99+" : item.badge}
+            </span>
+          ) : null}
+        </span>
+        <span className={cn("max-w-full truncate leading-tight", featured && "-mt-1.5")}>
+          {item.shortLabel ?? item.label}
+        </span>
+      </button>
+    );
+  };
 
   return (
     <>
@@ -433,7 +453,7 @@ export function MobileBottomNav<K extends string>({
       >
         <div className="flex items-stretch gap-0.5 px-2 py-1.5 pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
           {primary.map((item) => renderButton(item, activeKey === item.key))}
-          {overflow.length > 0 && (
+          {showMore && overflow.length > 0 && (
             <button
               type="button"
               onClick={() => setMoreOpen(true)}
@@ -468,51 +488,53 @@ export function MobileBottomNav<K extends string>({
       </nav>
 
       <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
-        <SheetContent
-          side="bottom"
-          className="max-h-[80vh] overflow-y-auto rounded-t-2xl pb-[calc(1rem+env(safe-area-inset-bottom))] md:hidden"
-        >
-          <SheetHeader className="text-left">
-            <SheetTitle>Menu Lainnya</SheetTitle>
-            <SheetDescription>Pilih halaman yang ingin dibuka.</SheetDescription>
-          </SheetHeader>
-          <div className="mt-4 grid grid-cols-2 gap-2">
-            {overflow.map((item) => {
-              const active = activeKey === item.key;
-              return (
-                <button
-                  key={item.key}
-                  type="button"
-                  onClick={() => select(item.key)}
-                  onPointerDown={() => onPrefetch?.(item.key)}
-                  aria-current={active ? "page" : undefined}
-                  className={cn(
-                    "flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left text-sm font-medium transition-colors",
-                    active
-                      ? "border-brand/40 bg-brand/10 text-brand"
-                      : "border-border bg-card text-foreground hover:bg-muted/60",
-                  )}
-                >
-                  <span
-                    aria-hidden="true"
+        {showMore && (
+          <SheetContent
+            side="bottom"
+            className="max-h-[80vh] overflow-y-auto rounded-t-2xl pb-[calc(1rem+env(safe-area-inset-bottom))] md:hidden"
+          >
+            <SheetHeader className="text-left">
+              <SheetTitle>Menu Lainnya</SheetTitle>
+              <SheetDescription>Pilih halaman yang ingin dibuka.</SheetDescription>
+            </SheetHeader>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              {overflow.map((item) => {
+                const active = activeKey === item.key;
+                return (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => select(item.key)}
+                    onPointerDown={() => onPrefetch?.(item.key)}
+                    aria-current={active ? "page" : undefined}
                     className={cn(
-                      "grid h-8 w-8 shrink-0 place-items-center rounded-lg [&>svg]:h-[18px] [&>svg]:w-[18px]",
-                      active ? "bg-brand/15" : "bg-muted",
+                      "flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left text-sm font-medium transition-colors",
+                      active
+                        ? "border-brand/40 bg-brand/10 text-brand"
+                        : "border-border bg-card text-foreground hover:bg-muted/60",
                     )}
                   >
-                    {item.icon}
-                  </span>
-                  <span className="min-w-0 flex-1 text-[13px] leading-tight">{item.label}</span>
-                  {item.badge ? (
-                    <span className="ml-auto shrink-0 rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
-                      {item.badge > 99 ? "99+" : item.badge}
+                    <span
+                      aria-hidden="true"
+                      className={cn(
+                        "grid h-8 w-8 shrink-0 place-items-center rounded-lg [&>svg]:h-[18px] [&>svg]:w-[18px]",
+                        active ? "bg-brand/15" : "bg-muted",
+                      )}
+                    >
+                      {item.icon}
                     </span>
-                  ) : null}
-                </button>
-              );
-            })}
-          </div>
-        </SheetContent>
+                    <span className="min-w-0 flex-1 text-[13px] leading-tight">{item.label}</span>
+                    {item.badge ? (
+                      <span className="ml-auto shrink-0 rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
+                        {item.badge > 99 ? "99+" : item.badge}
+                      </span>
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+          </SheetContent>
+        )}
       </Sheet>
     </>
   );

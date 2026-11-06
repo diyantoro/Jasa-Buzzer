@@ -20,6 +20,7 @@ import {
   Facebook,
   Twitter,
   Music2,
+  MapPin,
   CheckCircle2,
   XCircle,
   Filter,
@@ -3002,6 +3003,7 @@ const platformIcon = (p: string) => {
   if (p === "TikTok") return <Music2 className="h-4 w-4" />;
   if (p === "X (Twitter)") return <Twitter className="h-4 w-4" />;
   if (p === "YouTube") return <Youtube className="h-4 w-4" />;
+  if (p === "Offline") return <MapPin className="h-4 w-4" />;
   return <Facebook className="h-4 w-4" />;
 };
 
@@ -4507,7 +4509,7 @@ function BuzzerSection() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {["Instagram", "TikTok", "X (Twitter)", "YouTube", "Facebook"].map((p) => (
+                    {["Instagram", "TikTok", "X (Twitter)", "YouTube", "Facebook", "Offline"].map((p) => (
                       <SelectItem key={p} value={p}>
                         {p}
                       </SelectItem>

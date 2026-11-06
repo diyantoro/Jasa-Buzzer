@@ -15,10 +15,16 @@ import {
   Wallet,
 } from "lucide-react";
 
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SupportComposeDialog } from "@/components/support-compose-dialog";
+import { useSupportMessages } from "@/lib/support-store";
 import { cn } from "@/lib/utils";
 
 type HelpRole = "customer" | "buzzer";
@@ -158,6 +164,26 @@ export function HelpSection({ role, user, onNavigate }: HelpSectionProps) {
   const isCustomer = role === "customer";
   const quickLinks = isCustomer ? CUSTOMER_QUICK_LINKS : BUZZER_QUICK_LINKS;
   const faqs = isCustomer ? CUSTOMER_FAQS : BUZZER_FAQS;
+  const support = useSupportMessages({ role, email: user.email });
+
+  const complaintHistory = useMemo(() => {
+    const email = user.email.trim().toLowerCase();
+    const messages = support.data.filter((msg) => msg.campaign_id === null);
+    return messages
+      .filter((msg) => msg.from_email.trim().toLowerCase() === email)
+      .map((msg) => {
+        const replied = messages.some(
+          (reply) =>
+            reply.from_role === "admin" &&
+            reply.created_at > msg.created_at &&
+            (reply.to_email.trim().toLowerCase() === email ||
+              reply.from_email.trim().toLowerCase() !== email),
+        );
+        return { ...msg, replied };
+      })
+      .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
+      .slice(0, 6);
+  }, [support.data, user.email]);
 
   const filteredFaqs = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -182,9 +208,13 @@ export function HelpSection({ role, user, onNavigate }: HelpSectionProps) {
             <LifeBuoy className="h-6 w-6" />
           </div>
           <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-wide text-primary">Pusat Bantuan</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-primary">
+              Pusat Bantuan
+            </p>
             <h2 className="mt-0.5 font-display text-xl font-bold sm:text-2xl">
-              {isCustomer ? "Butuh bantuan dengan pesanan Anda?" : "Butuh bantuan dengan job atau pembayaran?"}
+              {isCustomer
+                ? "Butuh bantuan dengan pesanan Anda?"
+                : "Butuh bantuan dengan job atau pembayaran?"}
             </h2>
             <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
               {isCustomer
@@ -243,7 +273,8 @@ export function HelpSection({ role, user, onNavigate }: HelpSectionProps) {
             <div>
               <h3 className="font-display text-base font-bold">Pertanyaan yang sering diajukan</h3>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                {filteredFaqs.length} pertanyaan{query.trim() ? ` cocok dengan “${query.trim()}”` : ""}
+                {filteredFaqs.length} pertanyaan
+                {query.trim() ? ` cocok dengan “${query.trim()}”` : ""}
               </p>
             </div>
           </div>
@@ -267,7 +298,11 @@ export function HelpSection({ role, user, onNavigate }: HelpSectionProps) {
           ) : (
             <Accordion type="single" collapsible className="mt-4 w-full">
               {filteredFaqs.map((faq, index) => (
-                <AccordionItem key={faq.question} value={`faq-${index}`} className="last:border-b-0">
+                <AccordionItem
+                  key={faq.question}
+                  value={`faq-${index}`}
+                  className="last:border-b-0"
+                >
                   <AccordionTrigger className="py-3.5 text-left text-sm font-semibold hover:no-underline">
                     {faq.question}
                   </AccordionTrigger>
@@ -360,6 +395,66 @@ export function HelpSection({ role, user, onNavigate }: HelpSectionProps) {
           </section>
         </aside>
       </div>
+
+      <section className="rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h3 className="font-display text-base font-bold">Riwayat Pengaduan</h3>
+            <p className="text-xs text-muted-foreground">
+              Status pengaduan yang kamu kirim ke tim support.
+            </p>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5"
+            onClick={() => setComposeOpen(true)}
+          >
+            <MessageCircle className="h-3.5 w-3.5" /> Buat Pengaduan
+          </Button>
+        </div>
+
+        {support.loading ? (
+          <div className="mt-4 space-y-2">
+            <div className="h-14 animate-pulse rounded-xl bg-muted" />
+            <div className="h-14 animate-pulse rounded-xl bg-muted" />
+          </div>
+        ) : complaintHistory.length === 0 ? (
+          <div className="mt-4 rounded-xl border border-dashed border-border bg-muted/20 p-5 text-center">
+            <p className="text-sm font-semibold">Belum ada pengaduan</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Kirim pesan jika mengalami kendala pada pekerjaan, bukti, atau pencairan saldo.
+            </p>
+          </div>
+        ) : (
+          <ul className="mt-3 divide-y divide-border">
+            {complaintHistory.map((item) => (
+              <li key={item.id} className="flex items-start justify-between gap-3 py-3">
+                <div className="min-w-0">
+                  <p className="line-clamp-2 text-xs sm:text-sm">{item.body}</p>
+                  <p className="mt-1 text-[10px] text-muted-foreground">
+                    {new Date(item.created_at).toLocaleDateString("id-ID", {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                    })}
+                  </p>
+                </div>
+                <span
+                  className={cn(
+                    "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold",
+                    item.replied
+                      ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                      : "bg-amber-500/15 text-amber-600 dark:text-amber-400",
+                  )}
+                >
+                  {item.replied ? "Dibalas Admin" : "Menunggu Balasan"}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       <SupportComposeDialog
         open={composeOpen}
