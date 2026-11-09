@@ -36,6 +36,7 @@ import {
 import { StatCard, StatusBadge } from "@/components/dashboard-shell";
 import { MobileBottomNav, SidebarNav, useSidebarCollapsed } from "@/components/dashboard-sidebar";
 import { CustomerHomepageSection } from "@/components/customer-homepage-section";
+import { PremiumStatCard } from "@/components/premium-stat-card";
 import { CustomerSettingsSection } from "@/components/customer-settings-section";
 import { HelpSection } from "@/components/help-section";
 import { NotificationDetailDialog } from "@/components/notification-detail-dialog";
@@ -454,6 +455,8 @@ function CustomerPage() {
                     name={store.state.profile.name || session.name}
                     onOrder={(svc) => openNewOrder(svc)}
                     onGoPesanan={() => go("pesanan")}
+                    onNavigate={(key) => go(key)}
+                    onDetail={setDetailService}
                   />
                 </SectionErrorBoundary>
               )}
@@ -1147,6 +1150,13 @@ function PesananSection({ store, customerEmail, onNew, onDetail, onProof }: {
 
   const allOrders = useMemo(() => [...remoteOrders, ...adminOrders], [remoteOrders, adminOrders]);
 
+  const orderStats = useMemo(() => ({
+    total: allOrders.length,
+    active: allOrders.filter((order) => order.status === "Berjalan").length,
+    verifying: allOrders.filter((order) => order.status === "Menunggu Verifikasi Admin" || order.status === "Menunggu" || order.status === "Diproses").length,
+    done: allOrders.filter((order) => order.status === "Selesai").length,
+  }), [allOrders]);
+
   const filtered = useMemo(() => allOrders.filter((o) => {
     if (status !== "Semua" && o.status !== status) return false;
     if (q && !o.campaignName.toLowerCase().includes(q.toLowerCase()) && !o.invoice.toLowerCase().includes(q.toLowerCase())) return false;
@@ -1159,7 +1169,44 @@ function PesananSection({ store, customerEmail, onNew, onDetail, onProof }: {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 sm:flex-row sm:items-center">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
+        <PremiumStatCard
+          label="Total Pesanan"
+          value={orderStats.total.toString()}
+          hint="Seluruh campaign"
+          icon={<ShoppingBag className="h-5 w-5" />}
+          tone="from-brand to-brand-glow"
+          cta="Lihat semua"
+          onClick={() => { setStatus("Semua"); setPage(1); }}
+        />
+        <PremiumStatCard
+          label="Sedang Berjalan"
+          value={orderStats.active.toString()}
+          hint="Campaign aktif"
+          icon={<TrendingUp className="h-5 w-5" />}
+          tone="from-sky-500 to-blue-600"
+          cta="Filter"
+          onClick={() => { setStatus("Berjalan"); setPage(1); }}
+        />
+        <PremiumStatCard
+          label="Menunggu Verifikasi"
+          value={orderStats.verifying.toString()}
+          hint="Menunggu konfirmasi admin"
+          icon={<Clock className="h-5 w-5" />}
+          tone="from-amber-500 to-orange-600"
+        />
+        <PremiumStatCard
+          label="Campaign Selesai"
+          value={orderStats.done.toString()}
+          hint="Siap diberi ulasan"
+          icon={<CheckCircle2 className="h-5 w-5" />}
+          tone="from-emerald-500 to-teal-600"
+          cta="Filter"
+          onClick={() => { setStatus("Selesai"); setPage(1); }}
+        />
+      </div>
+
+      <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm sm:flex-row sm:items-center">
         <div className="relative flex-1 min-w-0">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input className="pl-9 w-full" placeholder="Cari campaign / invoice..." value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} />
@@ -1459,13 +1506,13 @@ function KatalogSection({ onDetail, onOrder }: { store: Store; onDetail: (s: Ser
                     <div className="flex items-center justify-between gap-2">
                       <div>
                         <span className="text-[11px] font-medium text-muted-foreground">Harga Layanan</span>
-                        <p className="mt-0.5 text-base font-bold text-gradient-brand">
+                        <p className="mt-0.5 font-numeric text-base font-bold tabular-nums text-gradient-brand">
                           {formatIDR(price)}
                         </p>
                       </div>
                       <div className="text-right">
                         <span className="text-[11px] font-medium text-muted-foreground">Target Buzzer</span>
-                        <p className="mt-0.5 text-sm font-semibold text-foreground">
+                        <p className="mt-0.5 font-numeric text-sm font-semibold tabular-nums text-foreground">
                           {buzzers} buzzer
                         </p>
                       </div>
@@ -1611,6 +1658,33 @@ function PembayaranSection({
   const waitingAdminBills = combinedPayments.filter((p) => p.status === "Menunggu Verifikasi");
   const waitingAdminTotal = waitingAdminBills.reduce((a, p) => a + p.amount, 0);
 
+  const billSummary = unpaidBills.length > 0
+    ? {
+        label: "Tagihan Belum Dibayar",
+        value: unpaidBills.length.toString(),
+        hint: formatIDR(unpaidTotal),
+        icon: <CreditCard className="h-5 w-5" />,
+        tone: "from-rose-500 to-red-600",
+        filter: "Belum Dibayar" as PaymentStatus,
+      }
+    : waitingAdminBills.length > 0
+    ? {
+        label: "Menunggu Verifikasi Admin",
+        value: waitingAdminBills.length.toString(),
+        hint: formatIDR(waitingAdminTotal),
+        icon: <Clock className="h-5 w-5" />,
+        tone: "from-amber-500 to-orange-600",
+        filter: "Menunggu Verifikasi" as PaymentStatus,
+      }
+    : {
+        label: "Tagihan Aktif",
+        value: "0",
+        hint: "Semua pembayaran lunas",
+        icon: <CheckCircle2 className="h-5 w-5" />,
+        tone: "from-emerald-500 to-teal-600",
+        filter: "Lunas" as PaymentStatus,
+      };
+
   const filtered = combinedPayments.filter((p) => {
     if (status !== "Semua" && p.status !== status) return false;
     if (q && !p.invoice.toLowerCase().includes(q.toLowerCase()) && !p.campaignName.toLowerCase().includes(q.toLowerCase())) return false;
@@ -1622,16 +1696,36 @@ function PembayaranSection({
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
-        <StatCard label="Total Pembayaran" value={formatIDR(totalPaid)} hint="Sepanjang masa" icon={<CheckCircle2 className="h-5 w-5" />} />
-        {unpaidBills.length > 0 ? (
-          <StatCard label="Tagihan Belum Dibayar" value={unpaidBills.length.toString()} hint={formatIDR(unpaidTotal)} icon={<CreditCard className="h-5 w-5" />} />
-        ) : waitingAdminBills.length > 0 ? (
-          <StatCard label="Menunggu Verifikasi Admin" value={waitingAdminBills.length.toString()} hint={formatIDR(waitingAdminTotal)} icon={<Clock className="h-5 w-5 text-amber-500" />} />
-        ) : (
-          <StatCard label="Tagihan Aktif" value="0" hint="Semua lunas" icon={<CreditCard className="h-5 w-5" />} />
-        )}
-        <StatCard label="Total Transaksi" value={combinedPayments.length.toString()} hint="All time" icon={<FileText className="h-5 w-5" />} />
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
+        <PremiumStatCard
+          label="Total Pembayaran"
+          value={formatIDR(totalPaid)}
+          hint="Akumulasi pembayaran lunas"
+          icon={<CheckCircle2 className="h-5 w-5" />}
+          tone="from-emerald-500 to-teal-600"
+          cta="Semua transaksi"
+          onClick={() => { setStatus("Semua"); setPage(1); }}
+        />
+        <PremiumStatCard
+          label={billSummary.label}
+          value={billSummary.value}
+          hint={billSummary.hint}
+          icon={billSummary.icon}
+          tone={billSummary.tone}
+          cta="Filter"
+          onClick={() => { setStatus(billSummary.filter); setPage(1); }}
+        />
+        <div className="col-span-2 lg:col-span-1">
+          <PremiumStatCard
+            label="Total Transaksi"
+            value={combinedPayments.length.toString()}
+            hint="Seluruh riwayat pembayaran"
+            icon={<FileText className="h-5 w-5" />}
+            tone="from-sky-500 to-blue-600"
+            cta="Lihat semua"
+            onClick={() => { setStatus("Semua"); setPage(1); }}
+          />
+        </div>
       </div>
 
       {unpaidBills.length > 0 && (
@@ -3357,6 +3451,9 @@ function UlasanSection({
     ratingCountByCampaign.set(rating.campaign_id, (ratingCountByCampaign.get(rating.campaign_id) ?? 0) + 1);
   }
   const pendingReviews = completedCampaigns.filter((campaign) => (ratingCountByCampaign.get(campaign.id) ?? 0) < (jobsByCampaign.get(campaign.id)?.length ?? 0));
+  const givenAverage = myRatings.length > 0
+    ? myRatings.reduce((sum, rating) => sum + rating.stars, 0) / myRatings.length
+    : 0;
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
   const [stars, setStars] = useState(0);
   const [comment, setComment] = useState("");
@@ -3511,6 +3608,32 @@ function UlasanSection({
 
   return (
     <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-3">
+        <PremiumStatCard
+          label="Rating Diberikan"
+          value={givenAverage.toFixed(1)}
+          hint={myRatings.length > 0 ? `Dari ${myRatings.length} ulasan` : "Belum ada rating"}
+          icon={<Star className="h-5 w-5" />}
+          tone="from-amber-500 to-orange-600"
+        />
+        <PremiumStatCard
+          label="Ulasan Tersimpan"
+          value={myRatings.length.toString()}
+          hint="Total ulasan yang kamu berikan"
+          icon={<MessageCircle className="h-5 w-5" />}
+          tone="from-brand to-brand-glow"
+        />
+        <div className="col-span-2 xl:col-span-1">
+          <PremiumStatCard
+            label="Menunggu Dinilai"
+            value={pendingReviews.length.toString()}
+            hint={pendingReviews.length > 0 ? "Campaign selesai siap diberi ulasan" : "Semua campaign selesai sudah dinilai"}
+            icon={<Clock className="h-5 w-5" />}
+            tone={pendingReviews.length > 0 ? "from-fuchsia-500 to-purple-600" : "from-emerald-500 to-teal-600"}
+          />
+        </div>
+      </div>
+
       {pendingReviews.length > 0 && (
         <div className="rounded-2xl border border-primary/30 bg-primary/5 p-6 shadow-sm">
           <div className="mb-4">

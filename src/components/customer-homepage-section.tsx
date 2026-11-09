@@ -3,11 +3,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
   ArrowRight,
-
   CalendarDays,
   CheckCircle2,
+  ChevronRight,
   ClipboardCheck,
   Clock,
+  CreditCard,
   Eye,
   Facebook,
   Flame,
@@ -42,7 +43,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { StatCard } from "@/components/dashboard-shell";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { PremiumStatCard } from "@/components/premium-stat-card";
+import { CustomerAnalyticsCards } from "@/components/customer-dashboard-analytics";
 import { serviceImage } from "@/lib/service-images";
 
 import { cn } from "@/lib/utils";
@@ -55,6 +58,11 @@ import {
   type CampaignJob,
   type CampaignPlatform,
 } from "@/lib/campaign-store";
+import {
+  CUSTOMER_CAMPAIGN_STATUS_STYLES,
+  deriveCustomerCampaignStatus,
+  type CustomerCampaignStatus,
+} from "@/lib/customer-campaign-status";
 import { SERVICES, formatIDR, type Platform, type Service } from "@/lib/customer-store";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -68,6 +76,16 @@ const PLATFORM_ICON: Record<CampaignPlatform, React.ReactNode> = {
   LinkedIn: <Megaphone className="h-4 w-4" />,
 };
 
+const PLATFORM_TONE: Record<CampaignPlatform, string> = {
+  Instagram: "from-fuchsia-500 to-rose-500",
+  TikTok: "from-slate-700 to-slate-900",
+  "X (Twitter)": "from-sky-500 to-blue-600",
+  Facebook: "from-blue-500 to-indigo-600",
+  YouTube: "from-red-500 to-rose-600",
+  Telegram: "from-sky-400 to-cyan-500",
+  LinkedIn: "from-blue-600 to-sky-700",
+};
+
 const SERVICE_PLATFORM_ICON: Record<Platform, React.ReactNode> = {
   Instagram: <Instagram className="h-5 w-5" />,
   TikTok: <Music2 className="h-5 w-5" />,
@@ -77,56 +95,37 @@ const SERVICE_PLATFORM_ICON: Record<Platform, React.ReactNode> = {
   Telegram: <Send className="h-5 w-5" />,
 };
 
-type DerivedStatus =
-  | "Menunggu Pembayaran"
-  | "Menunggu Verifikasi Admin"
-  | "Pembayaran Ditolak"
-  | "Menunggu Konfirmasi"
-  | "Dibatalkan"
-  | "Menunggu Buzzer"
-  | "Sedang Dikerjakan"
-  | "Menunggu Verifikasi"
-  | "Selesai";
-
-function deriveStatus(campaign: Campaign, jobs: CampaignJob[]): DerivedStatus {
-  if (campaign.payment_status === "Menunggu Pembayaran") return "Menunggu Pembayaran";
-  if (campaign.payment_status === "Menunggu Verifikasi" || campaign.payment_status === "Menunggu Verifikasi Admin") {
-    return "Menunggu Verifikasi Admin";
-  }
-  if (campaign.payment_status === "Pembayaran Ditolak") return "Pembayaran Ditolak";
-  if (campaign.status === "Draft") return "Menunggu Konfirmasi";
-  if (campaign.status === "Dibatalkan") return "Dibatalkan";
-  if (campaign.status === "Selesai") return "Selesai";
-  if (jobs.length && jobs.every((j) => j.status === "Selesai")) return "Selesai";
-  if (jobs.some((j) => j.status === "Review")) return "Menunggu Verifikasi";
-  if (jobs.some((j) => j.status === "Diambil" || j.status === "Revisi")) return "Sedang Dikerjakan";
-  return "Menunggu Buzzer";
-}
-
-const STATUS_STYLES: Record<DerivedStatus, string> = {
-  "Menunggu Pembayaran": "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300",
-  "Menunggu Verifikasi Admin": "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300",
-  "Pembayaran Ditolak": "bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300",
-  "Menunggu Konfirmasi": "bg-purple-100 text-purple-700 dark:bg-purple-500/15 dark:text-purple-300",
-  Dibatalkan: "bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300",
-  "Menunggu Buzzer": "bg-slate-100 text-slate-700 dark:bg-slate-500/15 dark:text-slate-200",
-  "Sedang Dikerjakan": "bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300",
-  "Menunggu Verifikasi": "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300",
-  Selesai: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300",
-};
+type DerivedStatus = CustomerCampaignStatus;
 
 function StatusBadge({ status }: { status: DerivedStatus }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold",
-        STATUS_STYLES[status],
+        "inline-flex max-w-full items-center gap-1 truncate rounded-full px-2.5 py-0.5 text-xs font-semibold",
+        CUSTOMER_CAMPAIGN_STATUS_STYLES[status],
       )}
     >
-      <span className="h-1.5 w-1.5 rounded-full bg-current" />
-      {status}
+      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" />
+      <span className="truncate">{status}</span>
     </span>
   );
+}
+
+function initialsOf(value: string) {
+  const initials = value
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
+  return initials || "C";
+}
+
+function greetingForHour(hour: number) {
+  if (hour < 11) return "Selamat pagi";
+  if (hour < 15) return "Selamat siang";
+  if (hour < 18) return "Selamat sore";
+  return "Selamat malam";
 }
 
 function startingPrice(svc: Service) {
@@ -138,11 +137,17 @@ export function CustomerHomepageSection({
   name,
   onOrder,
   onGoPesanan,
+  onNavigate,
+  onDetail,
 }: {
   email: string;
   name?: string;
   onOrder?: (service?: Service) => void;
   onGoPesanan?: () => void;
+  onNavigate?: (
+    key: "homepage" | "pesanan" | "katalog" | "pembayaran" | "ulasan" | "bantuan" | "pengaturan",
+  ) => void;
+  onDetail?: (service: Service) => void;
 }) {
   const campaignsQuery = useCampaigns();
   const jobsQuery = useCampaignJobs();
@@ -224,7 +229,7 @@ export function CustomerHomepageSection({
     let selesai = 0;
     for (const c of myCampaigns) {
       const jobs = jobsByCampaign.get(c.id) ?? [];
-      const status = deriveStatus(c, jobs);
+      const status = deriveCustomerCampaignStatus(c, jobs);
       if (status === "Selesai") selesai++;
       else aktif++;
       dikerjakan += jobs.filter((j) => j.status === "Diambil" || j.status === "Revisi").length;
@@ -232,6 +237,22 @@ export function CustomerHomepageSection({
     }
     return { aktif, dikerjakan, verifikasi, selesai };
   }, [myCampaigns, jobsByCampaign]);
+
+  const totalBudget = useMemo(
+    () =>
+      myCampaigns.reduce(
+        (sum, campaign) =>
+          sum + Number(campaign.total_amount ?? campaign.package_price ?? campaign.budget ?? 0),
+        0,
+      ),
+    [myCampaigns],
+  );
+
+  const overallProgress = useMemo(() => {
+    if (myJobs.length === 0) return 0;
+    const done = myJobs.filter((job) => job.status === "Selesai").length;
+    return Math.round((done / myJobs.length) * 100);
+  }, [myJobs]);
 
   // Sinkronisasi data layanan dengan database katalog Supabase secara realtime
   const dynamicServices = useMemo(() => {
@@ -254,9 +275,27 @@ export function CustomerHomepageSection({
         catalogSlotsAvailable: baseSlots,
         thumbnailUrl: match.thumbnail_url || s.thumbnailUrl,
         packages: [
-          { tier: "Basic", price: basePrice, buzzers: baseSlots, reach: `${baseSlots} peserta`, benefits: s.packages[0]?.benefits || [] },
-          { tier: "Professional", price: Math.round(basePrice * 2.2), buzzers: Math.round(baseSlots * 2.4), reach: `${Math.round(baseSlots * 2.4)} peserta`, benefits: s.packages[1]?.benefits || [] },
-          { tier: "Enterprise", price: Math.round(basePrice * 4.5), buzzers: Math.round(baseSlots * 6), reach: `${Math.round(baseSlots * 6)} peserta`, benefits: s.packages[2]?.benefits || [] },
+          {
+            tier: "Basic",
+            price: basePrice,
+            buzzers: baseSlots,
+            reach: `${baseSlots} peserta`,
+            benefits: s.packages[0]?.benefits || [],
+          },
+          {
+            tier: "Professional",
+            price: Math.round(basePrice * 2.2),
+            buzzers: Math.round(baseSlots * 2.4),
+            reach: `${Math.round(baseSlots * 2.4)} peserta`,
+            benefits: s.packages[1]?.benefits || [],
+          },
+          {
+            tier: "Enterprise",
+            price: Math.round(basePrice * 4.5),
+            buzzers: Math.round(baseSlots * 6),
+            reach: `${Math.round(baseSlots * 6)} peserta`,
+            benefits: s.packages[2]?.benefits || [],
+          },
         ],
       };
     });
@@ -268,9 +307,10 @@ export function CustomerHomepageSection({
     for (const c of campaignsQuery.data) {
       count.set(c.platform, (count.get(c.platform) ?? 0) + 1);
     }
-    const score = (s: Service) =>
-      s.platforms.reduce((acc, p) => acc + (count.get(p) ?? 0), 0);
-    return [...dynamicServices].sort((a, b) => score(b) - score(a) || b.rating - a.rating).slice(0, 4);
+    const score = (s: Service) => s.platforms.reduce((acc, p) => acc + (count.get(p) ?? 0), 0);
+    return [...dynamicServices]
+      .sort((a, b) => score(b) - score(a) || b.rating - a.rating)
+      .slice(0, 4);
   }, [campaignsQuery.data, dynamicServices]);
 
   // Rekomendasi: berdasarkan platform yang paling sering dipakai customer ini.
@@ -280,8 +320,7 @@ export function CustomerHomepageSection({
     if (count.size === 0) {
       return [...dynamicServices].sort((a, b) => b.rating - a.rating).slice(4, 8);
     }
-    const score = (s: Service) =>
-      s.platforms.reduce((acc, p) => acc + (count.get(p) ?? 0), 0);
+    const score = (s: Service) => s.platforms.reduce((acc, p) => acc + (count.get(p) ?? 0), 0);
     return [...dynamicServices]
       .filter((s) => score(s) > 0)
       .sort((a, b) => score(b) - score(a) || b.rating - a.rating)
@@ -301,7 +340,9 @@ export function CustomerHomepageSection({
 
   const ongoing = useMemo(
     () =>
-      myCampaigns.filter((c) => deriveStatus(c, jobsByCampaign.get(c.id) ?? []) !== "Selesai"),
+      myCampaigns.filter(
+        (c) => deriveCustomerCampaignStatus(c, jobsByCampaign.get(c.id) ?? []) !== "Selesai",
+      ),
     [myCampaigns, jobsByCampaign],
   );
 
@@ -351,50 +392,191 @@ export function CustomerHomepageSection({
   }
 
   const firstName = (name || (email || "").split("@")[0] || "Customer").split(" ")[0];
+  const greeting = greetingForHour(new Date().getHours());
+  const initials = initialsOf(name || email || "Customer");
+
+  const statCards = [
+    {
+      label: "Total Campaign",
+      value: myCampaigns.length.toString(),
+      hint: "Semua campaign di akunmu",
+      icon: <Target className="h-5 w-5" />,
+      tone: "from-sky-500 to-blue-600",
+      cta: "Lihat pesanan",
+    },
+    {
+      label: "Sedang Dikerjakan",
+      value: stats.dikerjakan.toString(),
+      hint: "Buzzer aktif mengerjakan",
+      icon: <Loader2 className="h-5 w-5" />,
+      tone: "from-indigo-500 to-blue-600",
+      cta: "Pantau progress",
+    },
+    {
+      label: "Menunggu Verifikasi",
+      value: stats.verifikasi.toString(),
+      hint: "Bukti perlu direview",
+      icon: <ClipboardCheck className="h-5 w-5" />,
+      tone: "from-amber-500 to-orange-500",
+      cta: "Lihat bukti",
+    },
+    {
+      label: "Campaign Selesai",
+      value: stats.selesai.toString(),
+      hint: "Campaign tuntas",
+      icon: <CheckCircle2 className="h-5 w-5" />,
+      tone: "from-emerald-500 to-teal-500",
+      cta: "Beri ulasan",
+    },
+  ];
 
   return (
     <div className="space-y-8">
       {/* Hero greeting */}
-      <section className="relative overflow-hidden rounded-3xl border border-border bg-card p-4 sm:p-8">
-        <div className="absolute inset-x-0 top-0 h-1.5 gradient-brand" />
-        <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full gradient-brand opacity-15 blur-2xl" />
-        <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-          <div className="min-w-0">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-medium text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
-              <span className="relative flex h-1.5 w-1.5">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              </span>
-              Data realtime
-            </span>
-            <h2 className="mt-3 font-display text-2xl font-bold sm:text-3xl">
-              Halo, {firstName} 👋
-            </h2>
-            <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-              {ongoing.length > 0
-                ? `Ada ${ongoing.length} pesanan sedang berjalan dan ${stats.selesai} pesanan selesai.`
-                : "Belum ada pesanan berjalan. Yuk mulai campaign pertama Anda hari ini."}
-            </p>
-            <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-              <Button className="w-full sm:w-auto gradient-brand text-brand-foreground" onClick={() => onOrder?.()}>
-                <Plus className="mr-1.5 h-4 w-4" /> Buat Pesanan Baru
-              </Button>
-              <Button variant="outline" className="w-full sm:w-auto" onClick={() => onGoPesanan?.()}>
-                Lihat semua pesanan <ArrowRight className="ml-1.5 h-4 w-4" />
-              </Button>
+      <section className="dashboard-hero relative overflow-hidden rounded-3xl p-5 text-white shadow-glow sm:p-6">
+        <div className="pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full bg-white/10 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-24 -left-10 h-56 w-56 rounded-full bg-accent-warm/25 blur-3xl" />
+        <div className="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex min-w-0 items-start gap-3.5 sm:items-center">
+            <Avatar className="h-16 w-16 shrink-0 border-2 border-white/40 shadow-lg ring-4 ring-white/10 sm:h-[72px] sm:w-[72px]">
+              <AvatarFallback className="bg-white/20 text-base font-bold text-white">
+                {initials}
+              </AvatarFallback>
+            </Avatar>
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-white/75">{greeting},</p>
+              <h2 className="truncate font-display text-xl font-bold tracking-tight text-white sm:text-2xl">
+                {firstName}
+              </h2>
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-0.5 text-[11px] font-semibold ring-1 ring-inset ring-white/25">
+                  <span className="relative flex h-1.5 w-1.5">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-300 opacity-75" />
+                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                  </span>
+                  Data realtime
+                </span>
+                <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-0.5 text-[11px] font-semibold ring-1 ring-inset ring-white/25">
+                  <Users className="h-3 w-3" /> {myCampaigns.length} campaign
+                </span>
+                {stats.aktif > 0 && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-0.5 text-[11px] font-semibold ring-1 ring-inset ring-white/25">
+                    <TrendingUp className="h-3 w-3" /> {stats.aktif} aktif
+                  </span>
+                )}
+                {stats.selesai > 0 && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-0.5 text-[11px] font-semibold ring-1 ring-inset ring-white/25">
+                    <CheckCircle2 className="h-3 w-3" /> {stats.selesai} selesai
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 
+          <div className="w-full rounded-2xl border border-white/20 bg-white/10 p-3.5 backdrop-blur-md sm:p-4 lg:w-[340px]">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/70">
+                  Total Budget Campaign
+                </p>
+                <p className="truncate font-numeric text-lg font-bold tabular-nums text-white">
+                  {formatIDR(totalBudget)}
+                </p>
+              </div>
+              <span className="shrink-0 rounded-full bg-white/15 px-2 py-0.5 font-numeric text-[11px] font-semibold tabular-nums">
+                {overallProgress}% selesai
+              </span>
+            </div>
+            <div className="mt-3">
+              <div className="flex items-center justify-between text-[10px] text-white/75">
+                <span>
+                  {ongoing.length > 0
+                    ? `${ongoing.length} campaign berjalan`
+                    : "Belum ada campaign berjalan"}
+                </span>
+                <span className="font-numeric tabular-nums">
+                  {myJobs.filter((job) => job.status === "Selesai").length}/{myJobs.length} job
+                </span>
+              </div>
+              <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white/20">
+                <div
+                  className="h-full rounded-full bg-white transition-[width] duration-500"
+                  style={{ width: `${overallProgress}%` }}
+                />
+              </div>
+            </div>
+            <div className="mt-3 flex items-center justify-between text-[11px] text-white/80">
+              <span className="inline-flex items-center gap-1">
+                <Loader2 className="h-3 w-3" />
+                <span className="font-numeric font-semibold tabular-nums">{stats.dikerjakan}</span>
+                dikerjakan
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <ClipboardCheck className="h-3 w-3" />
+                <span className="font-numeric font-semibold tabular-nums">{stats.verifikasi}</span>
+                menunggu verifikasi
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="relative mt-4 flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            onClick={() => onOrder?.()}
+            className="w-full gap-1.5 bg-white text-brand shadow-sm hover:bg-white/90 sm:w-auto"
+          >
+            <Plus className="h-4 w-4" /> Buat Pesanan Baru
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => onGoPesanan?.()}
+            className="w-full gap-1.5 border border-white/25 bg-white/10 text-white hover:bg-white/20 hover:text-white sm:w-auto"
+          >
+            <ArrowRight className="h-4 w-4" /> Lihat Pesanan
+          </Button>
+          {onNavigate && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => onNavigate("pembayaran")}
+              className="w-full gap-1.5 border border-white/25 bg-white/10 text-white hover:bg-white/20 hover:text-white sm:w-auto"
+            >
+              <CreditCard className="h-4 w-4" /> Pembayaran
+            </Button>
+          )}
         </div>
       </section>
 
       {/* Ringkasan */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard label="Total Pesanan Aktif" value={stats.aktif.toString()} hint="Sedang berjalan" icon={<TrendingUp className="h-5 w-5" />} />
-        <StatCard label="Sedang Dikerjakan" value={stats.dikerjakan.toString()} hint="Buzzer aktif mengerjakan" icon={<Loader2 className="h-5 w-5" />} />
-        <StatCard label="Menunggu Verifikasi" value={stats.verifikasi.toString()} hint="Bukti perlu direview" icon={<ClipboardCheck className="h-5 w-5" />} />
-        <StatCard label="Selesai" value={stats.selesai.toString()} hint="Kampanye tuntas" icon={<CheckCircle2 className="h-5 w-5" />} />
-      </div>
+      <section className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+        {statCards.map((card) => (
+          <PremiumStatCard
+            key={card.label}
+            label={card.label}
+            value={card.value}
+            hint={card.hint}
+            icon={card.icon}
+            tone={card.tone}
+            cta={card.cta}
+            onClick={
+              onNavigate
+                ? () =>
+                    card.label === "Campaign Selesai" ? onNavigate("ulasan") : onNavigate("pesanan")
+                : undefined
+            }
+          />
+        ))}
+      </section>
+
+      <CustomerAnalyticsCards
+        campaigns={myCampaigns}
+        jobsByCampaign={jobsByCampaign}
+        email={email}
+        onNavigatePesanan={onNavigate ? () => onNavigate("pesanan") : onGoPesanan}
+        onNavigateUlasan={onNavigate ? () => onNavigate("ulasan") : undefined}
+      />
 
       {/* Mau pesan apa hari ini? */}
       <section>
@@ -404,7 +586,13 @@ export function CustomerHomepageSection({
         />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {quickServices.map((svc) => (
-            <ServiceCard key={svc.id} service={svc} onOrder={onOrder} highlight />
+            <ServiceCard
+              key={svc.id}
+              service={svc}
+              onOrder={onOrder}
+              onDetail={onDetail}
+              highlight
+            />
           ))}
         </div>
       </section>
@@ -419,7 +607,13 @@ export function CustomerHomepageSection({
           />
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {offlineServices.map((svc) => (
-              <ServiceCard key={svc.id} service={svc} onOrder={onOrder} compact />
+              <ServiceCard
+                key={svc.id}
+                service={svc}
+                onOrder={onOrder}
+                onDetail={onDetail}
+                compact
+              />
             ))}
           </div>
         </section>
@@ -434,7 +628,7 @@ export function CustomerHomepageSection({
         />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {popularServices.map((svc) => (
-            <ServiceCard key={svc.id} service={svc} onOrder={onOrder} compact />
+            <ServiceCard key={svc.id} service={svc} onOrder={onOrder} onDetail={onDetail} compact />
           ))}
         </div>
       </section>
@@ -452,43 +646,89 @@ export function CustomerHomepageSection({
         />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {recommendedServices.map((svc) => (
-            <ServiceCard key={svc.id} service={svc} onOrder={onOrder} compact />
+            <ServiceCard key={svc.id} service={svc} onOrder={onOrder} onDetail={onDetail} compact />
           ))}
         </div>
       </section>
 
       {/* Riwayat pesanan terakhir */}
       <section>
-        <SectionHeader title="Riwayat Pesanan Terakhir" subtitle="5 pesanan terbaru dari akun Anda" />
+        <SectionHeader
+          title="Riwayat Pesanan Terakhir"
+          subtitle="5 pesanan terbaru dari akun Anda"
+        />
         {recentOrders.length === 0 ? (
           <EmptyState
             title="Riwayat masih kosong"
             desc="Setiap pesanan yang Anda buat akan tercatat di sini."
+            action={
+              <Button
+                size="sm"
+                className="gradient-brand text-brand-foreground"
+                onClick={() => onOrder?.()}
+              >
+                <Plus className="mr-1.5 h-4 w-4" /> Buat Pesanan Pertama
+              </Button>
+            }
           />
         ) : (
-          <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
+          <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
             {recentOrders.map((c) => {
               const jobs = jobsByCampaign.get(c.id) ?? [];
-              const status = deriveStatus(c, jobs);
+              const status = deriveCustomerCampaignStatus(c, jobs);
+              const done = jobs.filter((job) => job.status === "Selesai").length;
+              const progress = jobs.length > 0 ? Math.round((done / jobs.length) * 100) : 0;
               return (
-                <li key={c.id} className="flex cursor-pointer items-center gap-3 p-3.5 sm:p-4 transition-colors hover:bg-muted/40" onClick={() => setDetail(c)}>
-                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-accent text-accent-foreground">
+                <li
+                  key={c.id}
+                  className="group flex cursor-pointer items-start gap-3 p-3.5 transition-colors hover:bg-muted/40 sm:items-center sm:p-4"
+                  onClick={() => setDetail(c)}
+                >
+                  <span
+                    className={cn(
+                      "mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br text-white shadow-sm sm:mt-0",
+                      PLATFORM_TONE[c.platform] ?? "from-brand to-brand-glow",
+                    )}
+                  >
                     {PLATFORM_ICON[c.platform] ?? <Sparkles className="h-4 w-4" />}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold">{c.title}</p>
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="truncate text-sm font-semibold">{c.title}</p>
+                      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 sm:hidden" />
+                    </div>
                     <p className="truncate text-xs text-muted-foreground">
-                      {c.platform} • {format(new Date(c.created_at), "d MMM yyyy", { locale: idLocale })}
+                      {c.platform} ·{" "}
+                      {format(new Date(c.created_at), "d MMM yyyy", { locale: idLocale })}
                     </p>
+                    <div className="mt-2 flex items-center gap-2">
+                      <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+                        <span
+                          className="block h-full rounded-full gradient-brand transition-[width] duration-500"
+                          style={{ width: `${progress}%` }}
+                        />
+                      </span>
+                      <span className="shrink-0 font-numeric text-[10px] tabular-nums text-muted-foreground">
+                        {progress}%
+                      </span>
+                    </div>
+                    <div className="mt-2 sm:hidden">
+                      <StatusBadge status={status} />
+                    </div>
                   </div>
-                  <div className="shrink-0"><StatusBadge status={status} /></div>
+                  <div className="hidden shrink-0 sm:block">
+                    <StatusBadge status={status} />
+                  </div>
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="hidden sm:inline-flex h-8 w-8 p-0"
+                    className="hidden h-8 w-8 p-0 sm:inline-flex"
                     title="Detail"
                     aria-label="Detail"
-                    onClick={() => setDetail(c)}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setDetail(c);
+                    }}
                   >
                     <Eye className="h-4 w-4" />
                   </Button>
@@ -501,7 +741,7 @@ export function CustomerHomepageSection({
 
       <CampaignDetailDialog
         campaign={detail}
-        jobs={detail ? jobsByCampaign.get(detail.id) ?? [] : []}
+        jobs={detail ? (jobsByCampaign.get(detail.id) ?? []) : []}
         customerEmail={email}
         customerName={name ?? email}
         onOpenChange={(v) => !v && setDetail(null)}
@@ -520,10 +760,16 @@ function SectionHeader({
   icon?: React.ReactNode;
 }) {
   return (
-    <div className="mb-4 flex items-center gap-2">
-      {icon}
-      <div>
-        <h2 className="font-display text-lg font-bold">{title}</h2>
+    <div className="mb-4 flex items-center gap-2.5">
+      {icon ? (
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-brand/10 text-brand">
+          {icon}
+        </span>
+      ) : (
+        <span aria-hidden="true" className="h-8 w-1.5 shrink-0 rounded-full gradient-brand" />
+      )}
+      <div className="min-w-0">
+        <h2 className="font-display text-lg font-bold tracking-tight">{title}</h2>
         {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
       </div>
     </div>
@@ -540,8 +786,8 @@ function EmptyState({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-card/50 p-12 text-center">
-      <div className="mb-3 grid h-14 w-14 place-items-center rounded-2xl bg-accent text-accent-foreground">
+    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-card/50 p-10 text-center sm:p-12">
+      <div className="mb-3 grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-brand/15 to-brand-glow/10 text-brand">
         <Inbox className="h-7 w-7" />
       </div>
       <p className="font-semibold">{title}</p>
@@ -554,18 +800,20 @@ function EmptyState({
 function ServiceCard({
   service,
   onOrder,
+  onDetail,
   compact,
   highlight,
 }: {
   service: Service;
   onOrder?: (svc?: Service) => void;
+  onDetail?: (svc: Service) => void;
   compact?: boolean;
   highlight?: boolean;
 }) {
   return (
     <article
       className={cn(
-        "group relative flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-lg",
+        "group relative flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm transition-all hover:-translate-y-0.5 hover:border-brand/40 hover:shadow-lg",
       )}
     >
       <div className={cn("relative overflow-hidden", highlight ? "h-36" : "h-28")}>
@@ -577,14 +825,19 @@ function ServiceCard({
           height={512}
           className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
         />
-        <div className={cn("absolute inset-0 bg-gradient-to-br opacity-50 mix-blend-multiply", service.image)} />
+        <div
+          className={cn(
+            "absolute inset-0 bg-gradient-to-br opacity-50 mix-blend-multiply",
+            service.image,
+          )}
+        />
         <div className="absolute inset-0 bg-gradient-to-t from-card/90 via-card/10 to-transparent" />
         <div className="absolute inset-x-0 top-0 flex items-center justify-between px-4 py-3 text-white">
           <span className="grid h-10 w-10 place-items-center rounded-xl bg-white/20 backdrop-blur">
             {service.category === "Offline Buzzer" ? (
               <MapPin className="h-5 w-5" />
             ) : (
-              SERVICE_PLATFORM_ICON[service.platforms[0]] ?? <Sparkles className="h-5 w-5" />
+              (SERVICE_PLATFORM_ICON[service.platforms[0]] ?? <Sparkles className="h-5 w-5" />)
             )}
           </span>
           <span className="inline-flex items-center gap-1 rounded-full bg-black/40 px-2 py-0.5 text-[11px] font-semibold backdrop-blur">
@@ -594,35 +847,55 @@ function ServiceCard({
       </div>
 
       <div className="flex flex-1 flex-col p-4">
-        <Badge variant="secondary" className="mb-2 w-fit text-[10px]">{service.category}</Badge>
-        <h3 className="font-display text-sm font-bold leading-tight">{service.name}</h3>
-        <p className={cn("mt-1 text-xs text-muted-foreground", compact ? "line-clamp-2" : "line-clamp-3")}>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Badge variant="secondary" className="text-[10px]">
+            {service.category}
+          </Badge>
+          <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+            {service.category === "Offline Buzzer" ? "Event" : service.platforms[0]}
+          </span>
+        </div>
+        <h3 className="mt-2 font-display text-sm font-bold leading-tight">{service.name}</h3>
+        <p
+          className={cn(
+            "mt-1 text-xs text-muted-foreground",
+            compact ? "line-clamp-2" : "line-clamp-3",
+          )}
+        >
           {service.desc}
         </p>
         <div className="mt-3 flex-1" />
         <p className="text-[11px] text-muted-foreground">Harga Pesanan</p>
-        <p className="font-display text-base font-bold">{formatIDR(startingPrice(service))}</p>
-        <Button
-          size="sm"
-          className="mt-3 w-full gradient-brand text-brand-foreground"
-          onClick={() => onOrder?.(service)}
-        >
-          Pesan Sekarang
-        </Button>
+        <p className="font-numeric text-lg font-bold tabular-nums text-gradient-brand">
+          {formatIDR(startingPrice(service))}
+        </p>
+        <div className="mt-3 flex items-center gap-2">
+          {onDetail && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-9 w-9 shrink-0 p-0"
+              title="Lihat detail layanan"
+              aria-label={`Lihat detail ${service.name}`}
+              onClick={() => onDetail(service)}
+            >
+              <Eye className="h-4 w-4" />
+            </Button>
+          )}
+          <Button
+            size="sm"
+            className="h-9 flex-1 gap-1 gradient-brand text-brand-foreground"
+            onClick={() => onOrder?.(service)}
+          >
+            Pesan <ArrowRight className="h-3.5 w-3.5" />
+          </Button>
+        </div>
       </div>
     </article>
   );
 }
 
-function MiniStat({
-  icon,
-  label,
-  value,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-}) {
+function MiniStat({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
     <div className="rounded-lg bg-muted/50 p-2 text-center">
       <div className="mb-0.5 flex items-center justify-center gap-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
@@ -648,7 +921,7 @@ function CampaignDetailDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   if (!campaign) return null;
-  const status = deriveStatus(campaign, jobs);
+  const status = deriveCustomerCampaignStatus(campaign, jobs);
   const done = jobs.filter((j) => j.status === "Selesai").length;
   const slots = Math.max(campaign.slots, 1);
   const progress = Math.min(100, Math.round((done / slots) * 100));
@@ -665,20 +938,31 @@ function CampaignDetailDialog({
             </Badge>
           </div>
           <DialogTitle className="mt-2 font-display text-xl">{campaign.title}</DialogTitle>
-          <DialogDescription className="whitespace-pre-line">
-            {campaign.brief}
-          </DialogDescription>
-          {campaign.payment_status === "Pembayaran Ditolak" && campaign.payment_rejection_reason && (
-            <p className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
-              Alasan penolakan pembayaran: {campaign.payment_rejection_reason}
-            </p>
-          )}
+          <DialogDescription className="whitespace-pre-line">{campaign.brief}</DialogDescription>
+          {campaign.payment_status === "Pembayaran Ditolak" &&
+            campaign.payment_rejection_reason && (
+              <p className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
+                Alasan penolakan pembayaran: {campaign.payment_rejection_reason}
+              </p>
+            )}
         </DialogHeader>
 
         <div className="grid gap-3 sm:grid-cols-3">
-          <MiniStat icon={<Target className="h-3.5 w-3.5" />} label="Target Buzzer" value={campaign.slots.toString()} />
-          <MiniStat icon={<Users className="h-3.5 w-3.5" />} label="Diambil" value={jobs.filter((j) => j.status !== "Tersedia").length.toString()} />
-          <MiniStat icon={<ClipboardCheck className="h-3.5 w-3.5" />} label="Selesai" value={done.toString()} />
+          <MiniStat
+            icon={<Target className="h-3.5 w-3.5" />}
+            label="Target Buzzer"
+            value={campaign.slots.toString()}
+          />
+          <MiniStat
+            icon={<Users className="h-3.5 w-3.5" />}
+            label="Diambil"
+            value={jobs.filter((j) => j.status !== "Tersedia").length.toString()}
+          />
+          <MiniStat
+            icon={<ClipboardCheck className="h-3.5 w-3.5" />}
+            label="Selesai"
+            value={done.toString()}
+          />
         </div>
 
         <div>
@@ -697,33 +981,41 @@ function CampaignDetailDialog({
             </p>
           ) : (
             <ul className="space-y-2">
-              {jobs.filter((j) => j.buzzer_email).map((j) => (
-                <li key={j.id} className="rounded-lg border border-border bg-card p-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold">
-                        {j.buzzer_name ?? "Menunggu buzzer"}
-                      </p>
-                      <p className="truncate text-xs text-muted-foreground">
-                        {j.buzzer_email ?? "—"}
-                      </p>
+              {jobs
+                .filter((j) => j.buzzer_email)
+                .map((j) => (
+                  <li key={j.id} className="rounded-lg border border-border bg-card p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold">
+                          {j.buzzer_name ?? "Menunggu buzzer"}
+                        </p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {j.buzzer_email ?? "—"}
+                        </p>
+                      </div>
+                      <span
+                        className={cn(
+                          "shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold",
+                          j.status === "Selesai" &&
+                            "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300",
+                          j.status === "Review" &&
+                            "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300",
+                          j.status === "Diambil" &&
+                            "bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300",
+                          j.status === "Revisi" &&
+                            "bg-orange-100 text-orange-700 dark:bg-orange-500/15 dark:text-orange-300",
+                          j.status === "Ditolak" &&
+                            "bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300",
+                          j.status === "Tersedia" &&
+                            "bg-slate-100 text-slate-700 dark:bg-slate-500/15 dark:text-slate-200",
+                        )}
+                      >
+                        {j.status}
+                      </span>
                     </div>
-                    <span
-                      className={cn(
-                        "shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold",
-                        j.status === "Selesai" && "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300",
-                        j.status === "Review" && "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300",
-                        j.status === "Diambil" && "bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300",
-                        j.status === "Revisi" && "bg-orange-100 text-orange-700 dark:bg-orange-500/15 dark:text-orange-300",
-                        j.status === "Ditolak" && "bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300",
-                        j.status === "Tersedia" && "bg-slate-100 text-slate-700 dark:bg-slate-500/15 dark:text-slate-200",
-                      )}
-                    >
-                      {j.status}
-                    </span>
-                  </div>
-                </li>
-              ))}
+                  </li>
+                ))}
             </ul>
           )}
         </div>
