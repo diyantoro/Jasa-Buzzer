@@ -329,7 +329,12 @@ export function LevelCard({ email, name, simple = false }: { email: string; name
   return (
     <>
       <div
-        className="group cursor-pointer rounded-2xl border border-border bg-card p-3 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md sm:p-4"
+        className={cn(
+          "group cursor-pointer",
+          simple
+            ? "rounded-none bg-transparent p-0"
+            : "rounded-2xl border border-border bg-card p-3 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md sm:p-4",
+        )}
         role="button"
         tabIndex={0}
         onClick={openDetail}
@@ -349,13 +354,12 @@ export function LevelCard({ email, name, simple = false }: { email: string; name
           </div>
           <div className="hidden shrink-0 text-right sm:block">
             <p className="text-xs text-muted-foreground">Bayaran per Job</p>
-            <p className="font-display font-bold text-gradient-brand">{level && level.payout > 0 ? formatIDR(level.payout) : "—"}</p>
+            <p className="font-numeric font-bold tabular-nums text-gradient-brand">{level && level.payout > 0 ? formatIDR(level.payout) : "—"}</p>
           </div>
           <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
         </div>
         <div className="mt-2 flex min-w-0 items-center justify-between gap-3 text-xs">
           <span className="truncate text-muted-foreground">{followers.toLocaleString("id-ID")} Followers terverifikasi</span>
-          <span className="shrink-0 text-muted-foreground sm:hidden">{level && level.payout > 0 ? formatIDR(level.payout) : "—"} / Job</span>
           <Button
             variant="link"
             size="sm"
@@ -368,6 +372,32 @@ export function LevelCard({ email, name, simple = false }: { email: string; name
             Lihat Detail
           </Button>
         </div>
+        <div className="mt-1 flex items-center justify-between gap-2 text-xs sm:hidden">
+          <span className="text-muted-foreground">Bayaran per job</span>
+          <span className="shrink-0 font-numeric font-semibold tabular-nums text-gradient-brand">
+            {level && level.payout > 0 ? formatIDR(level.payout) : "—"}
+          </span>
+        </div>
+        {level ? (
+          <div className="mt-3">
+            <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+              <span className="truncate">{next ? `Menuju ${next.name}` : "Level tertinggi tercapai"}</span>
+              <span className="shrink-0 font-numeric font-semibold tabular-nums text-foreground">
+                {progress}%
+              </span>
+            </div>
+            <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full rounded-full gradient-brand transition-all duration-500"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+          </div>
+        ) : (
+          <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
+            Level akan ditetapkan admin setelah akun media sosial diverifikasi.
+          </p>
+        )}
       </div>
 
       <Dialog open={openLevels} onOpenChange={setOpenLevels}>

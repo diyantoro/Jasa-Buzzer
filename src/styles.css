@@ -374,6 +374,44 @@ body.register-buzzer-page[data-scroll-locked] {
       color-mix(in oklab, var(--brand) 44%, #0b1220) 100%
     );
 }
+/* Hero dashboard buzzer: gradient brand + glow cyan + aksen hangat tipis. */
+@utility dashboard-hero {
+  background-color: color-mix(in oklab, var(--brand) 58%, #0b1220);
+  background-image:
+    radial-gradient(
+      120% 120% at 0% 0%,
+      color-mix(in oklab, var(--brand-glow) 55%, transparent) 0%,
+      transparent 58%
+    ),
+    radial-gradient(
+      95% 95% at 100% 0%,
+      color-mix(in oklab, var(--accent-warm) 30%, transparent) 0%,
+      transparent 62%
+    ),
+    linear-gradient(
+      135deg,
+      color-mix(in oklab, var(--brand) 88%, #0b1220) 0%,
+      color-mix(in oklab, var(--brand) 58%, #0b1220) 100%
+    );
+}
+.dark .dashboard-hero {
+  background-image:
+    radial-gradient(
+      120% 120% at 0% 0%,
+      color-mix(in oklab, var(--brand-glow) 45%, transparent) 0%,
+      transparent 60%
+    ),
+    radial-gradient(
+      95% 95% at 100% 0%,
+      color-mix(in oklab, var(--accent-warm) 22%, transparent) 0%,
+      transparent 64%
+    ),
+    linear-gradient(
+      135deg,
+      color-mix(in oklab, var(--brand) 82%, #0b1220) 0%,
+      color-mix(in oklab, var(--brand) 52%, #0b1220) 100%
+    );
+}
 @utility bg-navbar {
   background-color: var(--navbar);
 }

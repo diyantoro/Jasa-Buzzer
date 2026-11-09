@@ -91,8 +91,11 @@ import {
   getBuzzerPercentageForLevel,
   useBuzzerLevels,
   levelFromFollowers,
+  levelProgress,
+  nextLevel,
   type BuzzerLevel,
 } from "@/lib/buzzer-level";
+import { BuzzerAnalyticsCards } from "@/components/buzzer-dashboard-analytics";
 import { BuzzerNotifBell, BuzzerNotifSheet } from "@/components/buzzer-notif-sheet";
 import { BuzzerSettingsSection } from "@/components/buzzer-settings-section";
 import { HelpSection } from "@/components/help-section";
@@ -484,8 +487,23 @@ const PLATFORM_ICON: Record<string, ReactNode> = {
   Offline: <MapPin className="h-3.5 w-3.5" />,
 };
 
+const PLATFORM_TONE: Record<string, string> = {
+  TikTok: "from-slate-900 to-slate-600",
+  Instagram: "from-fuchsia-500 to-orange-400",
+  "X (Twitter)": "from-slate-800 to-slate-500",
+  Facebook: "from-blue-600 to-sky-500",
+  YouTube: "from-red-600 to-rose-500",
+  Telegram: "from-sky-500 to-cyan-500",
+  LinkedIn: "from-blue-700 to-blue-500",
+  Offline: "from-emerald-500 to-teal-500",
+};
+
 function platformIcon(platform: string) {
   return PLATFORM_ICON[platform] ?? <MapPin className="h-3.5 w-3.5" />;
+}
+
+function platformTone(platform: string) {
+  return PLATFORM_TONE[platform] ?? "from-brand to-brand-glow";
 }
 
 function BuzzerPage() {
@@ -1124,6 +1142,22 @@ function DashboardSection({
   const firstName = (state.profile.name || "Buzzer").split(" ")[0];
   const verify = verificationLabel(verificationStatus);
 
+  const levelInfo = useBuzzerLevel(state.profile.email);
+  const levels = useBuzzerLevels();
+  const fallbackFollowers = state.profile.followers || 0;
+  const activeLevel = levelInfo.level ?? levelFromFollowers(fallbackFollowers, levels);
+  const activeFollowers = levelInfo.assigned ? levelInfo.followers : fallbackFollowers;
+  const nextLv = levelInfo.assigned ? levelInfo.next : nextLevel(activeFollowers, levels);
+  const levelPct = levelInfo.assigned ? levelInfo.progress : levelProgress(activeFollowers, levels);
+
+  const { data: allRatings } = useBuzzerRatings();
+  const myRatings = useMemo(() => {
+    const key = (state.profile.email || "").trim().toLowerCase();
+    return allRatings.filter((rating) => (rating.buzzer_email || "").toLowerCase() === key);
+  }, [allRatings, state.profile.email]);
+  const ratingAvg =
+    myRatings.length > 0 ? averageStars(myRatings) : Number(state.profile.rating || 0);
+
   const activeStatuses: JobStatus[] = ["Diambil", "Upload", "Review", "Revisi"];
   const activeJobs = jobs.filter((j) => activeStatuses.includes(j.status));
   const completedJobs = jobs.filter((j) => j.status === "Selesai");
@@ -1196,7 +1230,7 @@ function DashboardSection({
       value: formatIDR(totalIncome),
       hint: "Akumulasi reward disetujui",
       icon: <TrendingUp className="h-5 w-5" />,
-      tone: "from-blue-500 to-indigo-500",
+      tone: "from-sky-500 to-blue-600",
       target: "dompet",
       cta: "Lihat riwayat pembayaran",
     },
@@ -1214,7 +1248,7 @@ function DashboardSection({
       value: String(Math.max(completedJobs.length, state.profile.jobsCompleted || 0)),
       hint: "Total pekerjaan tuntas",
       icon: <CircleCheck className="h-5 w-5" />,
-      tone: "from-violet-500 to-fuchsia-500",
+      tone: "from-indigo-500 to-blue-600",
       target: "pekerjaan",
       cta: "Lihat pekerjaan saya",
     },
@@ -1233,62 +1267,119 @@ function DashboardSection({
   return (
     <div className="space-y-5">
       {/* Welcome */}
-      <section className="relative overflow-hidden rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
-        <div className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-brand/10 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-24 right-24 h-48 w-48 rounded-full bg-fuchsia-500/10 blur-3xl" />
-        <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3.5">
-            <Avatar className="h-14 w-14 border-2 border-background shadow-md sm:h-16 sm:w-16">
+      <section className="dashboard-hero relative overflow-hidden rounded-3xl p-5 text-white shadow-glow sm:p-6">
+        <div className="pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full bg-white/10 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-24 -left-10 h-56 w-56 rounded-full bg-accent-warm/25 blur-3xl" />
+        <div className="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex min-w-0 items-start gap-3.5 sm:items-center">
+            <Avatar className="h-16 w-16 shrink-0 border-2 border-white/40 shadow-lg ring-4 ring-white/10 sm:h-[72px] sm:w-[72px]">
               {state.profile.avatarUrl && (
                 <AvatarImage src={state.profile.avatarUrl} alt={state.profile.name} />
               )}
-              <AvatarFallback className="gradient-brand text-base font-bold text-brand-foreground">
+              <AvatarFallback className="bg-white/20 text-base font-bold text-white">
                 {initialsOf(state.profile.name)}
               </AvatarFallback>
             </Avatar>
             <div className="min-w-0">
-              <p className="text-xs font-medium text-muted-foreground">{greeting},</p>
-              <h2 className="truncate font-display text-xl font-bold tracking-tight sm:text-2xl">
-                {firstName} 👋
+              <p className="text-xs font-medium text-white/75">{greeting},</p>
+              <h2 className="truncate font-display text-xl font-bold tracking-tight text-white sm:text-2xl">
+                {firstName}
               </h2>
-              <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                <span
-                  className={cn(
-                    "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold",
-                    verify.className,
-                  )}
-                >
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-0.5 text-[11px] font-semibold ring-1 ring-inset ring-white/25">
                   {verify.icon} {verify.label}
                 </span>
-                <span className="text-[11px] text-muted-foreground">
-                  {activeJobs.length} pekerjaan aktif · {state.profile.platform || "Semua platform"}
+                <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-0.5 text-[11px] font-semibold ring-1 ring-inset ring-white/25">
+                  {activeLevel.emoji} {activeLevel.name}
+                </span>
+                {myRank > 0 && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-0.5 text-[11px] font-semibold ring-1 ring-inset ring-white/25">
+                    <Trophy className="h-3 w-3" /> #{myRank} peringkat
+                  </span>
+                )}
+                <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-0.5 text-[11px] font-semibold ring-1 ring-inset ring-white/25">
+                  <Users className="h-3 w-3" />
+                  {activeFollowers.toLocaleString("id-ID")} followers
                 </span>
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onNavigate("notifikasi")}
-              className="gap-1.5"
-            >
-              <Bell className="h-4 w-4" />
-              Notifikasi
-              {notifState.unreadCount > 0 && (
-                <span className="ml-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white">
-                  {notifState.unreadCount > 99 ? "99+" : notifState.unreadCount}
+
+          <div className="w-full rounded-2xl border border-white/20 bg-white/10 p-3.5 backdrop-blur-md sm:p-4 lg:w-[340px]">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/70">
+                  Level Buzzer
+                </p>
+                <p className="truncate font-display text-lg font-bold text-white">
+                  {activeLevel.name}
+                </p>
+              </div>
+              <span className="shrink-0 rounded-full bg-white/15 px-2 py-0.5 font-numeric text-[11px] font-semibold tabular-nums">
+                {activeLevel.payout > 0
+                  ? `${formatIDR(activeLevel.payout)} / job`
+                  : "Payout campaign"}
+              </span>
+            </div>
+            <div className="mt-3">
+              <div className="flex items-center justify-between text-[10px] text-white/75">
+                <span>{nextLv ? `Menuju ${nextLv.name}` : "Level tertinggi tercapai"}</span>
+                <span className="font-numeric tabular-nums">{levelPct}%</span>
+              </div>
+              <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white/20">
+                <div
+                  className="h-full rounded-full bg-white transition-[width] duration-500"
+                  style={{ width: `${levelPct}%` }}
+                />
+              </div>
+            </div>
+            <div className="mt-3 flex items-center justify-between text-[11px] text-white/80">
+              <span className="inline-flex items-center gap-1">
+                <Star className="h-3 w-3 fill-amber-300 text-amber-300" />
+                <span className="font-numeric font-semibold tabular-nums">
+                  {ratingAvg.toFixed(1)}
                 </span>
-              )}
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => onNavigate("cari")}
-              className="gradient-brand gap-1.5 text-brand-foreground shadow-glow"
-            >
-              <Search className="h-4 w-4" /> Cari Pekerjaan
-            </Button>
+                rating
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <BriefcaseBusiness className="h-3 w-3" />
+                <span className="font-numeric font-semibold tabular-nums">{activeJobs.length}</span>
+                pekerjaan aktif
+              </span>
+            </div>
           </div>
+        </div>
+
+        <div className="relative mt-4 flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            onClick={() => onNavigate("cari")}
+            className="gap-1.5 bg-white text-brand shadow-sm hover:bg-white/90"
+          >
+            <Search className="h-4 w-4" /> Cari Pekerjaan
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => onNavigate("dompet")}
+            className="gap-1.5 border border-white/25 bg-white/10 text-white hover:bg-white/20 hover:text-white"
+          >
+            <Wallet className="h-4 w-4" /> Dompet
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => onNavigate("notifikasi")}
+            className="gap-1.5 border border-white/25 bg-white/10 text-white hover:bg-white/20 hover:text-white"
+          >
+            <Bell className="h-4 w-4" />
+            Notifikasi
+            {notifState.unreadCount > 0 && (
+              <span className="ml-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-rose-500 px-1 font-numeric text-[10px] font-bold text-white">
+                {notifState.unreadCount > 99 ? "99+" : notifState.unreadCount}
+              </span>
+            )}
+          </Button>
         </div>
       </section>
 
@@ -1301,26 +1392,39 @@ function DashboardSection({
             onClick={() => onNavigate(card.target)}
             title={card.cta}
             aria-label={`${card.label}: ${card.cta}`}
-            className="group rounded-2xl border border-border bg-card p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-brand/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="group relative overflow-hidden rounded-2xl border border-border bg-card p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-brand/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
-            <div className="flex items-start justify-between gap-2">
+            <span
+              aria-hidden="true"
+              className={cn("absolute inset-x-0 top-0 h-1 bg-gradient-to-r opacity-80", card.tone)}
+            />
+            <span
+              aria-hidden="true"
+              className={cn(
+                "pointer-events-none absolute -right-8 -top-10 h-24 w-24 rounded-full bg-gradient-to-br opacity-10 blur-2xl transition-opacity group-hover:opacity-20",
+                card.tone,
+              )}
+            />
+            <div className="relative flex items-start justify-between gap-2">
               <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground sm:text-xs">
                 {card.label}
               </p>
               <span
                 className={cn(
-                  "grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br text-white shadow-sm",
+                  "grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br text-white shadow-sm",
                   card.tone,
                 )}
               >
                 {card.icon}
               </span>
             </div>
-            <p className="mt-2 font-display text-lg font-bold tracking-tight sm:text-2xl">
+            <p className="relative mt-2 font-numeric text-lg font-bold tracking-tight tabular-nums sm:text-2xl">
               {card.value}
             </p>
-            <p className="mt-1 line-clamp-2 text-[11px] text-muted-foreground">{card.hint}</p>
-            <span className="mt-2 inline-flex items-center gap-1 text-[10px] font-semibold text-brand opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
+            <p className="relative mt-1 line-clamp-2 min-h-[2.4em] text-[11px] text-muted-foreground">
+              {card.hint}
+            </p>
+            <span className="relative mt-2 inline-flex items-center gap-1 text-[10px] font-semibold text-brand opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
               {card.cta} <ChevronRight className="h-3 w-3" />
             </span>
           </button>
@@ -1334,25 +1438,31 @@ function DashboardSection({
             <div>
               <h3 className="font-display text-base font-bold sm:text-lg">Grafik Penghasilan</h3>
               <div className="mt-1 flex items-center gap-2">
-                <span className="font-display text-xl font-bold">{formatIDR(chartTotal)}</span>
-                <span
-                  className={cn(
-                    "inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
-                    trend >= 0
-                      ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
-                      : "bg-rose-500/15 text-rose-600 dark:text-rose-400",
-                  )}
-                >
-                  {trend >= 0 ? (
-                    <ArrowUpRight className="h-3 w-3" />
-                  ) : (
-                    <ArrowDownRight className="h-3 w-3" />
-                  )}
-                  {Math.abs(trend)}%
+                <span className="font-numeric text-xl font-bold tabular-nums">
+                  {formatIDR(chartTotal)}
                 </span>
+                {chartTotal > 0 && (
+                  <span
+                    className={cn(
+                      "inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 font-numeric text-[10px] font-semibold tabular-nums",
+                      trend >= 0
+                        ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                        : "bg-rose-500/15 text-rose-600 dark:text-rose-400",
+                    )}
+                  >
+                    {trend >= 0 ? (
+                      <ArrowUpRight className="h-3 w-3" />
+                    ) : (
+                      <ArrowDownRight className="h-3 w-3" />
+                    )}
+                    {Math.abs(trend)}%
+                  </span>
+                )}
               </div>
               <p className="text-[11px] text-muted-foreground">
-                Periode {period} · dibanding periode sebelumnya
+                {chartTotal > 0
+                  ? `Periode ${period} · dibanding periode sebelumnya`
+                  : "Belum ada pembayaran berhasil pada periode ini"}
               </p>
             </div>
             <div className="flex flex-wrap gap-1 rounded-xl bg-muted/60 p-1">
@@ -1364,7 +1474,7 @@ function DashboardSection({
                   className={cn(
                     "rounded-lg px-2.5 py-1 text-[11px] font-semibold transition-colors sm:text-xs",
                     period === p.key
-                      ? "bg-card text-foreground shadow-sm"
+                      ? "bg-brand text-brand-foreground shadow-sm"
                       : "text-muted-foreground hover:text-foreground",
                   )}
                 >
@@ -1374,66 +1484,84 @@ function DashboardSection({
             </div>
           </div>
 
-          <div className="mt-4 h-[210px] w-full sm:h-[240px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData} margin={{ top: 8, right: 6, left: -18, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="incomeGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.35} />
-                    <stop offset="55%" stopColor="#6366f1" stopOpacity={0.14} />
-                    <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  stroke="currentColor"
-                  className="text-border"
-                  vertical={false}
-                />
-                <XAxis
-                  dataKey="label"
-                  tickLine={false}
-                  axisLine={false}
-                  tick={{ fontSize: 11, fill: "currentColor" }}
-                  className="text-muted-foreground"
-                />
-                <YAxis
-                  tickLine={false}
-                  axisLine={false}
-                  width={58}
-                  tick={{ fontSize: 10, fill: "currentColor" }}
-                  className="text-muted-foreground"
-                  tickFormatter={(value: number) =>
-                    value >= 1000000
-                      ? `${Math.round(value / 1000000)}jt`
-                      : value >= 1000
-                        ? `${Math.round(value / 1000)}rb`
-                        : String(value)
-                  }
-                />
-                <RechartsTooltip
-                  cursor={{ stroke: "#3b82f6", strokeDasharray: "4 4" }}
-                  contentStyle={{
-                    borderRadius: 12,
-                    border: "1px solid var(--border)",
-                    background: "var(--card)",
-                    color: "var(--foreground)",
-                    fontSize: 12,
-                    boxShadow: "0 10px 30px rgba(15, 23, 42, 0.12)",
-                  }}
-                  formatter={(value: number) => [formatIDR(Number(value)), "Penghasilan"]}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="value"
-                  stroke="#3b82f6"
-                  strokeWidth={2.5}
-                  fill="url(#incomeGradient)"
-                  activeDot={{ r: 4, strokeWidth: 2, stroke: "#fff" }}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
+          {chartTotal <= 0 ? (
+            <div className="mt-4 flex h-[210px] w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-muted/20 p-6 text-center sm:h-[240px]">
+              <BarChart3 className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
+              <p className="text-sm font-medium">Belum ada penghasilan pada periode ini</p>
+              <p className="max-w-[280px] text-[11px] leading-relaxed text-muted-foreground">
+                Selesaikan campaign pertamamu atau pilih periode lain untuk melihat grafik.
+              </p>
+              <Button
+                size="sm"
+                variant="outline"
+                className="mt-1"
+                onClick={() => onNavigate("cari")}
+              >
+                Cari Pekerjaan
+              </Button>
+            </div>
+          ) : (
+            <div className="mt-4 h-[210px] w-full sm:h-[240px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartData} margin={{ top: 8, right: 6, left: -18, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="incomeGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="var(--brand)" stopOpacity={0.38} />
+                      <stop offset="55%" stopColor="var(--brand-glow)" stopOpacity={0.16} />
+                      <stop offset="100%" stopColor="var(--brand-glow)" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    stroke="currentColor"
+                    className="text-border"
+                    vertical={false}
+                  />
+                  <XAxis
+                    dataKey="label"
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fontSize: 11, fill: "currentColor" }}
+                    className="text-muted-foreground"
+                  />
+                  <YAxis
+                    tickLine={false}
+                    axisLine={false}
+                    width={58}
+                    tick={{ fontSize: 10, fill: "currentColor" }}
+                    className="text-muted-foreground"
+                    tickFormatter={(value: number) =>
+                      value >= 1000000
+                        ? `${Math.round(value / 1000000)}jt`
+                        : value >= 1000
+                          ? `${Math.round(value / 1000)}rb`
+                          : String(value)
+                    }
+                  />
+                  <RechartsTooltip
+                    cursor={{ stroke: "var(--brand)", strokeDasharray: "4 4" }}
+                    contentStyle={{
+                      borderRadius: 12,
+                      border: "1px solid var(--border)",
+                      background: "var(--card)",
+                      color: "var(--foreground)",
+                      fontSize: 12,
+                      boxShadow: "0 10px 30px rgba(15, 23, 42, 0.12)",
+                    }}
+                    formatter={(value: number) => [formatIDR(Number(value)), "Penghasilan"]}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="value"
+                    stroke="var(--brand)"
+                    strokeWidth={2.5}
+                    fill="url(#incomeGradient)"
+                    activeDot={{ r: 4, strokeWidth: 2, stroke: "#fff" }}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </div>
 
         <div className="rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-5">
@@ -1452,10 +1580,10 @@ function DashboardSection({
           </div>
 
           {myRow && (
-            <div className="mt-3 rounded-xl border border-brand/25 bg-brand/5 p-3">
+            <div className="mt-3 rounded-xl border border-brand/25 bg-gradient-to-r from-brand/10 via-brand/5 to-transparent p-3">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex min-w-0 items-center gap-2">
-                  <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-brand text-xs font-bold text-brand-foreground">
+                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full gradient-brand font-numeric text-xs font-bold text-brand-foreground shadow-sm">
                     {myRank > 0 ? `#${myRank}` : "-"}
                   </span>
                   <div className="min-w-0">
@@ -1465,7 +1593,9 @@ function DashboardSection({
                     </p>
                   </div>
                 </div>
-                <p className="shrink-0 text-xs font-bold">{formatIDR(myRow.earnings)}</p>
+                <p className="shrink-0 font-numeric text-xs font-bold tabular-nums">
+                  {formatIDR(myRow.earnings)}
+                </p>
               </div>
             </div>
           )}
@@ -1486,39 +1616,48 @@ function DashboardSection({
                 <div
                   key={row.email}
                   className={cn(
-                    "flex items-center justify-between gap-2 rounded-lg px-1.5 py-2",
-                    row.isMe && "bg-brand/5",
+                    "flex items-center justify-between gap-2 rounded-xl px-1.5 py-2 transition-colors hover:bg-muted/50",
+                    row.isMe && "bg-brand/5 ring-1 ring-inset ring-brand/20",
                   )}
                 >
                   <div className="flex min-w-0 items-center gap-2">
                     <span
                       className={cn(
-                        "grid h-6 w-6 shrink-0 place-items-center rounded-full text-[10px] font-bold",
+                        "grid h-6 w-6 shrink-0 place-items-center rounded-full font-numeric text-[10px] font-bold ring-1 ring-inset",
                         index === 0
-                          ? "bg-amber-400 text-amber-950"
+                          ? "bg-amber-400 text-amber-950 ring-amber-300"
                           : index === 1
-                            ? "bg-slate-300 text-slate-800"
+                            ? "bg-slate-300 text-slate-800 ring-slate-200 dark:bg-slate-400/30 dark:text-slate-100 dark:ring-slate-400/40"
                             : index === 2
-                              ? "bg-orange-300 text-orange-950"
-                              : "bg-muted text-muted-foreground",
+                              ? "bg-orange-300 text-orange-950 ring-orange-200 dark:bg-orange-400/30 dark:text-orange-100 dark:ring-orange-400/40"
+                              : "bg-muted text-muted-foreground ring-border",
                       )}
                     >
                       {index + 1}
                     </span>
-                    <Avatar className="h-7 w-7 shrink-0">
+                    <Avatar className="h-7 w-7 shrink-0 ring-1 ring-border">
                       {row.avatarUrl && <AvatarImage src={row.avatarUrl} alt={row.name} />}
                       <AvatarFallback className="bg-muted text-[9px] font-bold">
                         {initialsOf(row.name)}
                       </AvatarFallback>
                     </Avatar>
                     <div className="min-w-0">
-                      <p className="truncate text-xs font-semibold">{row.name}</p>
+                      <p className="flex min-w-0 items-center gap-1.5 text-xs font-semibold">
+                        <span className="truncate">{row.name}</span>
+                        {row.isMe && (
+                          <span className="shrink-0 rounded-full bg-brand/15 px-1.5 py-0.5 text-[9px] font-bold text-brand">
+                            Kamu
+                          </span>
+                        )}
+                      </p>
                       <p className="text-[10px] text-muted-foreground">
                         {row.level} · {row.jobs} job
                       </p>
                     </div>
                   </div>
-                  <span className="shrink-0 text-[11px] font-bold">{formatIDR(row.earnings)}</span>
+                  <span className="shrink-0 font-numeric text-[11px] font-bold tabular-nums">
+                    {formatIDR(row.earnings)}
+                  </span>
                 </div>
               ))
             )}
@@ -1526,9 +1665,18 @@ function DashboardSection({
         </div>
       </section>
 
+      <BuzzerAnalyticsCards
+        jobs={jobs}
+        earnings={state.earnings}
+        email={state.profile.email}
+        fallbackRating={Number(state.profile.rating || 0)}
+        onNavigateJobs={() => onNavigate("cari")}
+        onNavigateRatings={() => onNavigate("ulasan")}
+      />
+
       {/* Pekerjaan terbaru + aktivitas */}
-      <section className="grid gap-4 lg:grid-cols-2">
-        <div className="rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-5">
+      <section className="grid min-w-0 gap-4 lg:grid-cols-2">
+        <div className="min-w-0 rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-5">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-display text-base font-bold sm:text-lg">Pekerjaan Terbaru</h3>
             <Button
@@ -1556,7 +1704,7 @@ function DashboardSection({
               }
             />
           ) : (
-            <div className="space-y-2.5">
+            <div className="min-w-0 space-y-2.5">
               {showcaseJobs.map((job) => {
                 const action = parseBuzzerJobBrief(job.brief, job.title, job.platform).taskAction;
                 return (
@@ -1564,9 +1712,14 @@ function DashboardSection({
                     key={job.id}
                     type="button"
                     onClick={() => onNavigate("cari")}
-                    className="flex w-full items-center gap-3 rounded-xl border border-border bg-background/60 p-3 text-left transition-colors hover:border-brand/30 hover:bg-brand/5"
+                    className="group flex w-full items-center gap-3 rounded-xl border border-border bg-background/60 p-3 text-left transition-all hover:-translate-y-0.5 hover:border-brand/30 hover:bg-brand/5 hover:shadow-sm"
                   >
-                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-accent text-accent-foreground">
+                    <span
+                      className={cn(
+                        "grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br text-white shadow-sm [&>svg]:h-4 [&>svg]:w-4",
+                        platformTone(job.platform),
+                      )}
+                    >
                       {platformIcon(job.platform)}
                     </span>
                     <span className="min-w-0 flex-1">
@@ -1581,17 +1734,28 @@ function DashboardSection({
                           {jobStatusLabel(job)}
                         </span>
                       </span>
-                      <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
+                      <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
                         <span className="inline-flex items-center gap-1">
                           {platformIcon(job.platform)} {job.platform}
                         </span>
                         <span>· {action || "Tugas campaign"}</span>
-                        <span>· {formatIDR(job.payout)}</span>
                         <span>· {job.slotsLeft ?? 1} slot</span>
-                        {job.deadline && <span>· {job.deadline}</span>}
+                        {job.deadline && (
+                          <span className="inline-flex items-center gap-1">
+                            <CalendarDays className="h-3 w-3" /> {job.deadline}
+                          </span>
+                        )}
                       </span>
                     </span>
-                    <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span className="flex shrink-0 items-center gap-2">
+                      <span className="text-right">
+                        <span className="block font-numeric text-sm font-bold tabular-nums">
+                          {formatIDR(job.payout)}
+                        </span>
+                        <span className="block text-[10px] text-muted-foreground">reward</span>
+                      </span>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+                    </span>
                   </button>
                 );
               })}
@@ -1599,7 +1763,7 @@ function DashboardSection({
           )}
         </div>
 
-        <div className="rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-5">
+        <div className="min-w-0 rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-5">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-display text-base font-bold sm:text-lg">Aktivitas Terakhir</h3>
             <Button
@@ -1618,7 +1782,7 @@ function DashboardSection({
               desc="Aktivitas pekerjaan dan pembayaran akan tampil di sini."
             />
           ) : (
-            <ol className="relative space-y-3 before:absolute before:left-[15px] before:top-2 before:h-[calc(100%-16px)] before:w-px before:bg-border">
+            <ol className="relative min-w-0 space-y-3 before:absolute before:left-[15px] before:top-2 before:h-[calc(100%-16px)] before:w-px before:bg-border">
               {activities.map((item) => {
                 const icon =
                   item.type === "task_approved" || item.type === "payout" ? (
