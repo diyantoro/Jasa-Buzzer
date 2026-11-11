@@ -83,10 +83,90 @@ export async function updateLevelPayout(name: string, payout: number) {
   return !error;
 }
 
+/* ---------------- Sinkronisasi realtime (tanpa reload) ---------------- */
+
+let levelChannel: ReturnType<typeof supabase.channel> | null = null;
+let levelSubscribers = 0;
+let syncBound = false;
+
+const syncLevelData = () => {
+  void refreshAssignedLevels();
+  void refreshLevels();
+};
+
+const handleVisibility = () => {
+  if (typeof document !== "undefined" && document.visibilityState === "visible") syncLevelData();
+};
+
+function bindLevelSyncListeners() {
+  if (typeof window === "undefined" || syncBound) return;
+  syncBound = true;
+  window.addEventListener("focus", syncLevelData);
+  window.addEventListener("online", syncLevelData);
+  window.addEventListener("storage", syncLevelData);
+  window.addEventListener("buzzhub:social-accounts-updated", syncLevelData);
+  window.addEventListener("buzzhub:buzzer-store", syncLevelData);
+  document.addEventListener("visibilitychange", handleVisibility);
+}
+
+function unbindLevelSyncListeners() {
+  if (typeof window === "undefined" || !syncBound) return;
+  syncBound = false;
+  window.removeEventListener("focus", syncLevelData);
+  window.removeEventListener("online", syncLevelData);
+  window.removeEventListener("storage", syncLevelData);
+  window.removeEventListener("buzzhub:social-accounts-updated", syncLevelData);
+  window.removeEventListener("buzzhub:buzzer-store", syncLevelData);
+  document.removeEventListener("visibilitychange", handleVisibility);
+}
+
+function ensureLevelRealtime() {
+  if (!isSupabaseConfigured() || levelChannel) return;
+  levelChannel = supabase
+    .channel("buzzer_level_stream")
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "buzzer_wallets" },
+      () => { void refreshAssignedLevels(); },
+    )
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "buzzer_levels" },
+      () => { void refreshLevels(); },
+    )
+    .subscribe();
+}
+
+/**
+ * Menjaga level tetap sinkron tanpa reload: mendengarkan perubahan tabel
+ * `buzzer_wallets`/`buzzer_levels` via Supabase Realtime, plus refresh saat tab
+ * kembali fokus (fallback bila websocket terputus).
+ */
+function useLevelSync() {
+  useEffect(() => {
+    levelSubscribers += 1;
+    // Muat data terbaru saat komponen pertama kali dipasang.
+    void refreshLevels();
+    void refreshAssignedLevels();
+    bindLevelSyncListeners();
+    ensureLevelRealtime();
+
+    return () => {
+      levelSubscribers = Math.max(0, levelSubscribers - 1);
+      if (levelSubscribers > 0) return;
+      unbindLevelSyncListeners();
+      if (levelChannel) {
+        try { void supabase.removeChannel(levelChannel); } catch {}
+        levelChannel = null;
+      }
+    };
+  }, []);
+}
+
 /** Daftar level (ambang + payout) yang reaktif terhadap perubahan admin. */
 export function useBuzzerLevels(): BuzzerLevel[] {
   useSyncExternalStore(subscribe, () => VERSION, () => 0);
-  useEffect(() => { void refreshLevels(); }, []);
+  useLevelSync();
   return LEVELS;
 }
 
@@ -242,7 +322,7 @@ export async function assignLevelFromVerification(
 
 export function useAssignedLevels(): Record<string, AssignedLevel> {
   useSyncExternalStore(aSubscribe, () => AVERSION, () => 0);
-  useEffect(() => { void refreshAssignedLevels(); }, []);
+  useLevelSync();
   return ASSIGNED;
 }
 
