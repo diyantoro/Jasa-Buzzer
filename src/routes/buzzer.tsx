@@ -6022,6 +6022,21 @@ function ProfilSection({
   const verify = verificationLabel(verificationStatus ?? null);
   const socialMap = new Map(socialAccounts.map((acc) => [acc.platform.toLowerCase(), acc]));
 
+  // Level buzzer (agregat) — hanya untuk kategori yang punya komponen online.
+  const levelInfo = useBuzzerLevel(state.profile.email);
+  const hasLevel = isOnlineBuzzerCategory(state.profile.buzzerCategory);
+  const levelFollowers = levelInfo.assigned ? levelInfo.followers : verifiedFollowers;
+  const hasLevelData = hasLevel && (levelInfo.assigned || verifiedFollowers > 0);
+  const activeLevel = hasLevelData
+    ? (levelInfo.level ?? levelFromFollowers(levelFollowers, levelInfo.levels))
+    : null;
+  const nextLv = hasLevelData
+    ? (levelInfo.assigned ? levelInfo.next : nextLevel(levelFollowers, levelInfo.levels))
+    : null;
+  const levelPct = hasLevelData
+    ? (levelInfo.assigned ? levelInfo.progress : levelProgress(levelFollowers, levelInfo.levels))
+    : 0;
+
   const resetPasswordForm = () => {
     setCurrentPassword("");
     setNewPassword("");
@@ -6150,6 +6165,46 @@ function ProfilSection({
         <ProfileRow label="Platform Utama" value={state.profile.platform} />
         <ProfileRow label="Followers" value={displayFollowers.toLocaleString("id-ID")} />
         <ProfileRow label="Bio" value={state.profile.bio || "-"} />
+
+        {/* Level buzzer ringkas — hanya untuk kategori dengan komponen online */}
+        {hasLevel && (
+          <div className="rounded-xl border border-border bg-muted/30 p-3">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-medium text-muted-foreground">Level Buzzer</span>
+              {activeLevel ? (
+                <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", activeLevel.badgeClass)}>
+                  {activeLevel.emoji} {activeLevel.name}
+                </span>
+              ) : (
+                <span className="text-[11px] font-medium text-muted-foreground">Belum ditetapkan</span>
+              )}
+            </div>
+            {activeLevel ? (
+              <>
+                <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-border">
+                  <div
+                    className="h-full rounded-full bg-emerald-500 transition-all"
+                    style={{ width: `${levelPct}%` }}
+                  />
+                </div>
+                <div className="mt-1.5 flex flex-wrap items-center justify-between gap-1 text-[11px] text-muted-foreground">
+                  <span>{levelFollowers.toLocaleString("id-ID")} followers terverifikasi</span>
+                  {nextLv ? (
+                    <span>
+                      Kurang {Math.max(0, nextLv.minFollowers - levelFollowers).toLocaleString("id-ID")} ke {nextLv.emoji} {nextLv.name}
+                    </span>
+                  ) : (
+                    <span>Level tertinggi 🎉</span>
+                  )}
+                </div>
+              </>
+            ) : (
+              <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                Level ditetapkan admin setelah akun media sosial terverifikasi.
+              </p>
+            )}
+          </div>
+        )}
 
         <div>
           <h3 className="mb-3 font-display text-base font-bold">Akun Sosial Media</h3>
