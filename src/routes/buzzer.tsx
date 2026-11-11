@@ -71,6 +71,7 @@ import {
   Lock,
   SlidersHorizontal,
   ArrowDownRight,
+  ArrowRight,
   Award,
   PackageCheck,
 } from "lucide-react";
@@ -93,6 +94,7 @@ import {
   levelFromFollowers,
   levelProgress,
   nextLevel,
+  isOnlineBuzzerCategory,
   type BuzzerLevel,
 } from "@/lib/buzzer-level";
 import { BuzzerAnalyticsCards } from "@/components/buzzer-dashboard-analytics";
@@ -657,9 +659,9 @@ function BuzzerPage() {
       ? { ...item, badge: notifState.unreadCount }
       : item,
   );
-  // Sidebar utama mengikuti 12 menu wajib; Akun Sosmed & Ulasan tetap dapat
-  // diakses dari tombol cepat di halaman profil.
-  const sidebarNav = navWithBadge.filter((item) => item.key !== "sosmed" && item.key !== "ulasan");
+  // "Akun Sosial Media" ditampilkan di sidebar agar mudah ditemukan (tempat
+  // pengajuan naik level). "Ulasan" tetap diakses dari tombol cepat di profil.
+  const sidebarNav = navWithBadge.filter((item) => item.key !== "ulasan");
   const renderSidebar = (isCollapsed = false, withToggle = false) => (
     <SidebarNav
       nav={sidebarNav}
@@ -815,7 +817,7 @@ function BuzzerPage() {
                 {key === "notifikasi" && (
                   <NotificationsSection notifState={notifState} onNavigate={go} />
                 )}
-                {key === "sosmed" && <SosmedSection email={session.email} name={session.name} />}
+                {key === "sosmed" && <SosmedSection email={session.email} name={session.name} category={store.state.profile.buzzerCategory || session.company} />}
                 {key === "ulasan" && <RatingUlasanSection store={store} />}
                 {key === "profil" && (
                   <ProfilSection
@@ -1145,10 +1147,11 @@ function DashboardSection({
   const levelInfo = useBuzzerLevel(state.profile.email);
   const levels = useBuzzerLevels();
   const fallbackFollowers = state.profile.followers || 0;
-  const activeLevel = levelInfo.level ?? levelFromFollowers(fallbackFollowers, levels);
-  const activeFollowers = levelInfo.assigned ? levelInfo.followers : fallbackFollowers;
-  const nextLv = levelInfo.assigned ? levelInfo.next : nextLevel(activeFollowers, levels);
-  const levelPct = levelInfo.assigned ? levelInfo.progress : levelProgress(activeFollowers, levels);
+  const isOnlineBuzzer = isOnlineBuzzerCategory(state.profile.buzzerCategory);
+  const activeLevel = isOnlineBuzzer ? (levelInfo.level ?? levelFromFollowers(fallbackFollowers, levels)) : null;
+  const activeFollowers = isOnlineBuzzer ? (levelInfo.assigned ? levelInfo.followers : fallbackFollowers) : fallbackFollowers;
+  const nextLv = isOnlineBuzzer ? (levelInfo.assigned ? levelInfo.next : nextLevel(activeFollowers, levels)) : null;
+  const levelPct = isOnlineBuzzer ? (levelInfo.assigned ? levelInfo.progress : levelProgress(activeFollowers, levels)) : 0;
 
   const { data: allRatings } = useBuzzerRatings();
   const myRatings = useMemo(() => {
@@ -1289,9 +1292,11 @@ function DashboardSection({
                 <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-0.5 text-[11px] font-semibold ring-1 ring-inset ring-white/25">
                   {verify.icon} {verify.label}
                 </span>
-                <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-0.5 text-[11px] font-semibold ring-1 ring-inset ring-white/25">
-                  {activeLevel.emoji} {activeLevel.name}
-                </span>
+                {isOnlineBuzzer && activeLevel && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-0.5 text-[11px] font-semibold ring-1 ring-inset ring-white/25">
+                    {activeLevel.emoji} {activeLevel.name}
+                  </span>
+                )}
                 {myRank > 0 && (
                   <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-0.5 text-[11px] font-semibold ring-1 ring-inset ring-white/25">
                     <Trophy className="h-3 w-3" /> #{myRank} peringkat
@@ -1306,48 +1311,62 @@ function DashboardSection({
           </div>
 
           <div className="w-full rounded-2xl border border-white/20 bg-white/10 p-3.5 backdrop-blur-md sm:p-4 lg:w-[340px]">
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/70">
-                  Level Buzzer
-                </p>
-                <p className="truncate font-display text-lg font-bold text-white">
-                  {activeLevel.name}
-                </p>
-              </div>
-              <span className="shrink-0 rounded-full bg-white/15 px-2 py-0.5 font-numeric text-[11px] font-semibold tabular-nums">
-                {activeLevel.payout > 0
-                  ? `${formatIDR(activeLevel.payout)} / job`
-                  : "Payout campaign"}
-              </span>
-            </div>
-            <div className="mt-3">
-              <div className="flex items-center justify-between text-[10px] text-white/75">
-                <span>{nextLv ? `Menuju ${nextLv.name}` : "Level tertinggi tercapai"}</span>
-                <span className="font-numeric tabular-nums">{levelPct}%</span>
-              </div>
-              <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white/20">
-                <div
-                  className="h-full rounded-full bg-white transition-[width] duration-500"
-                  style={{ width: `${levelPct}%` }}
-                />
-              </div>
-            </div>
-            <div className="mt-3 flex items-center justify-between text-[11px] text-white/80">
-              <span className="inline-flex items-center gap-1">
-                <Star className="h-3 w-3 fill-amber-300 text-amber-300" />
-                <span className="font-numeric font-semibold tabular-nums">
-                  {ratingAvg.toFixed(1)}
+            {isOnlineBuzzer ? (
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/70">
+                    Level Buzzer
+                  </p>
+                  <p className="truncate font-display text-lg font-bold text-white">
+                    {activeLevel?.name}
+                  </p>
+                </div>
+                <span className="shrink-0 rounded-full bg-white/15 px-2 py-0.5 font-numeric text-[11px] font-semibold tabular-nums">
+                  {activeLevel && activeLevel.payout > 0
+                    ? `${formatIDR(activeLevel.payout)} / job`
+                    : "Payout campaign"}
                 </span>
-                rating
-              </span>
-              <span className="inline-flex items-center gap-1">
-                <BriefcaseBusiness className="h-3 w-3" />
-                <span className="font-numeric font-semibold tabular-nums">{activeJobs.length}</span>
-                pekerjaan aktif
-              </span>
-            </div>
-          </div>
+              </div>
+            ) : (
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/70">
+                    Level Buzzer
+                  </p>
+                  <p className="truncate font-display text-lg font-bold text-white">Tidak tersedia</p>
+                </div>
+              </div>
+            )}
+            {isOnlineBuzzer && (
+              <>
+                <div className="mt-3">
+                  <div className="flex items-center justify-between text-[10px] text-white/75">
+                    <span>{nextLv ? `Menuju ${nextLv.name}` : "Level tertinggi tercapai"}</span>
+                    <span className="font-numeric tabular-nums">{levelPct}%</span>
+                  </div>
+                  <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white/20">
+                    <div
+                      className="h-full rounded-full bg-white transition-[width] duration-500"
+                      style={{ width: `${levelPct}%` }}
+                    />
+                  </div>
+                </div>
+                <div className="mt-3 flex items-center justify-between text-[11px] text-white/80">
+                  <span className="inline-flex items-center gap-1">
+                    <Star className="h-3 w-3 fill-amber-300 text-amber-300" />
+                    <span className="font-numeric font-semibold tabular-nums">
+                      {ratingAvg.toFixed(1)}
+                    </span>
+                    rating
+                  </span>
+                  <span className="inline-flex items-center gap-1">
+                    <BriefcaseBusiness className="h-3 w-3" />
+                    <span className="font-numeric font-semibold tabular-nums">{activeJobs.length}</span>
+                    pekerjaan aktif
+                  </span>
+                </div>
+              </>
+            )}
         </div>
 
         <div className="relative mt-4 flex flex-wrap items-center gap-2">
@@ -1381,6 +1400,7 @@ function DashboardSection({
             )}
           </Button>
         </div>
+      </div>
       </section>
 
       {/* Statistik */}
@@ -1828,7 +1848,36 @@ function DashboardSection({
       </section>
 
       <div className="rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-5">
-        <LevelCard email={state.profile.email} name={state.profile.name} simple />
+        {isOnlineBuzzer ? (
+          <LevelCard
+            email={state.profile.email}
+            name={state.profile.name}
+            simple
+            category={state.profile.buzzerCategory}
+            onAjukan={() => onNavigate("sosmed")}
+          />
+        ) : (
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-emerald-500/15 text-emerald-600">
+                <Users className="h-5 w-5" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Pembaruan Followers</p>
+                <p className="text-sm text-muted-foreground">
+                  Level Buzzer hanya untuk <b>Buzzer Online</b>. Kamu tetap bisa mengajukan pembaruan followers untuk diverifikasi admin.
+                </p>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              className="shrink-0 bg-emerald-600 text-emerald-50 hover:bg-emerald-500"
+              onClick={() => onNavigate("sosmed")}
+            >
+              <ArrowRight className="mr-1.5 h-4 w-4" /> Ajukan Sekarang
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -2868,9 +2917,11 @@ function JobCard({
     setConvertedCount(null);
   };
   const lv = useBuzzerLevel(store.state.profile.email);
-  const jobLevel = job.buzzerLevel ?? lv.level?.name ?? "Belum ditetapkan";
-  const buzzerPct = getBuzzerPercentageForLevel(job.buzzerLevel ?? lv.level?.name);
+  const isOnlineBuzzer = isOnlineBuzzerCategory(store.state.profile.buzzerCategory);
+  const jobLevel = isOnlineBuzzer ? (job.buzzerLevel ?? lv.level?.name ?? "Belum ditetapkan") : null;
+  const buzzerPct = getBuzzerPercentageForLevel(jobLevel);
   const grossPrice = Math.max(0, job.grossPrice ?? 0);
+  const levelPayout = isOnlineBuzzer ? Number(lv.level?.payout ?? 0) : 0;
   const payout = (() => {
     // Job yang sudah diambil memakai snapshot payout dari database. Ini
     // mencegah nominal berubah ketika level buzzer naik setelah job diambil.
@@ -2879,9 +2930,16 @@ function JobCard({
       if (snapshot > 0) return Math.round(snapshot);
     }
     if (grossPrice <= 0) return 0;
-    return Math.round((grossPrice * buzzerPct) / 100);
+    if (!isOnlineBuzzer) {
+      const snapshot = Number(job.buzzerAmount ?? job.payout ?? 0);
+      return Math.round(snapshot > 0 ? snapshot : 0);
+    }
+    // Opsi A: nominal tetap per job mengikuti payout level buzzer (payout_per_job).
+    if (levelPayout > 0) return Math.round(levelPayout);
+    const fallbackPct = getBuzzerPercentageForLevel(jobLevel);
+    return Math.round((grossPrice * fallbackPct) / 100);
   })();
-  const buzzerPercentage = buzzerPct;
+  const buzzerPercentage = isOnlineBuzzer ? buzzerPct : 0;
 
   const parsed = useMemo(
     () => parseBuzzerJobBrief(job.brief, job.title, job.platform),

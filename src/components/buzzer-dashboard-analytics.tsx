@@ -185,62 +185,66 @@ function StatusJobCard({
           }
         />
       ) : (
-        <div className="grid min-w-0 gap-4 sm:grid-cols-[minmax(0,190px)_1fr] sm:items-center">
-          <div className="relative mx-auto h-[180px] w-full max-w-[200px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={data}
-                  dataKey="value"
-                  nameKey="name"
-                  innerRadius={54}
-                  outerRadius={78}
-                  paddingAngle={3}
-                  stroke="none"
-                >
-                  {data.map((item) => (
-                    <Cell key={item.status} fill={item.color} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  content={<StatusTooltip />}
-                  wrapperStyle={{ outline: "none", zIndex: 20 }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-            <div className="pointer-events-none absolute inset-0 grid place-items-center text-center">
-              <div>
-                <p className="font-numeric text-2xl font-bold leading-none tabular-nums">{total}</p>
-                <p className="mt-1 text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
-                  Total job
-                </p>
+        <div className="@container min-w-0">
+          <div className="grid min-w-0 gap-3 @min-[280px]:grid-cols-[minmax(0,170px)_minmax(0,1fr)] @min-[280px]:items-center">
+            <div className="relative mx-auto h-[180px] w-full max-w-[190px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart margin={{ top: 4, right: 4, bottom: 4, left: 4 }}>
+                  <Pie
+                    data={data}
+                    dataKey="value"
+                    nameKey="name"
+                    innerRadius="62%"
+                    outerRadius="90%"
+                    paddingAngle={3}
+                    stroke="none"
+                  >
+                    {data.map((item) => (
+                      <Cell key={item.status} fill={item.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    content={<StatusTooltip />}
+                    wrapperStyle={{ outline: "none", zIndex: 20 }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="pointer-events-none absolute inset-0 grid place-items-center text-center">
+                <div>
+                  <p className="font-numeric text-2xl font-bold leading-none tabular-nums">
+                    {total}
+                  </p>
+                  <p className="mt-1 text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
+                    Total job
+                  </p>
+                </div>
               </div>
             </div>
+            <ul className="min-w-0 space-y-1.5">
+              {data.map((item) => {
+                const percent = Math.round((item.value / total) * 100);
+                return (
+                  <li
+                    key={item.status}
+                    className="flex items-center justify-between gap-2 rounded-lg bg-muted/30 px-2.5 py-1.5 text-xs"
+                  >
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span
+                        className="h-2 w-2 shrink-0 rounded-full"
+                        style={{ backgroundColor: item.color }}
+                        aria-hidden="true"
+                      />
+                      <span className="truncate text-muted-foreground">{item.name}</span>
+                    </span>
+                    <span className="shrink-0 font-numeric font-semibold tabular-nums">
+                      {item.value}
+                      <span className="ml-1 font-normal text-muted-foreground">({percent}%)</span>
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
           </div>
-          <ul className="space-y-1.5">
-            {data.map((item) => {
-              const percent = Math.round((item.value / total) * 100);
-              return (
-                <li
-                  key={item.status}
-                  className="flex items-center justify-between gap-3 rounded-lg bg-muted/30 px-3 py-2 text-xs"
-                >
-                  <span className="flex min-w-0 items-center gap-2">
-                    <span
-                      className="h-2 w-2 shrink-0 rounded-full"
-                      style={{ backgroundColor: item.color }}
-                      aria-hidden="true"
-                    />
-                    <span className="truncate text-muted-foreground">{item.name}</span>
-                  </span>
-                  <span className="shrink-0 font-numeric font-semibold tabular-nums">
-                    {item.value}
-                    <span className="ml-1 font-normal text-muted-foreground">({percent}%)</span>
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
         </div>
       )}
     </AnalyticsCard>

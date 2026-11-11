@@ -331,7 +331,7 @@ export async function approveApplication(id: string, note?: string) {
   reviewLocal(id, "approved", note);
   if (item) {
     await syncApprovedBuzzerToAccount({ ...item, status: "approved", reviewedAt: new Date().toISOString(), reviewNote: note });
-    await assignLevelFromVerification(item.email, item.name, item.followers);
+    await assignLevelFromVerification(item.email, item.name, item.followers, item.buzzerCategory);
     void notifyBuzzerApplicationStatus({
       buzzerEmail: item.email,
       buzzerName: item.name,
@@ -379,7 +379,7 @@ export async function updateApplication(id: string, updates: Partial<BuzzerAppli
   await upsertRemote(merged);
   if (merged.status === "approved") {
     await syncApprovedBuzzerToAccount(merged);
-    await assignLevelFromVerification(merged.email, merged.name, merged.followers);
+    await assignLevelFromVerification(merged.email, merged.name, merged.followers, merged.buzzerCategory);
   }
 }
 

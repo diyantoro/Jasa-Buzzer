@@ -32,11 +32,20 @@ import {
 } from "@/lib/social-store";
 import { VerifBadge, AccountFormDialog, LevelBadge } from "@/components/social-accounts-section";
 import { SOCIAL_PLATFORM_ICON } from "@/lib/social-platform-ui";
+import { useBuzzerApplications } from "@/lib/buzzer-verification";
 import { cn } from "@/lib/utils";
 
 
 export function AdminSocialSection() {
   const all = useAllSocialAccounts();
+  const applications = useBuzzerApplications();
+  const buzzerCategoryByEmail = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const app of applications) {
+      if (app.buzzerCategory) map.set(app.email.trim().toLowerCase(), app.buzzerCategory);
+    }
+    return map;
+  }, [applications]);
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<"Semua" | VerificationStatus | "Nonaktif">("Semua");
   const [platform, setPlatform] = useState<"Semua" | SocialPlatform>("Semua");
@@ -445,7 +454,7 @@ export function AdminSocialSection() {
                       </span>
                     )}
                   </TableCell>
-                  <TableCell><LevelBadge followers={levelFollowers(a.buzzerEmail)} /></TableCell>
+                  <TableCell><LevelBadge followers={levelFollowers(a.buzzerEmail)} category={buzzerCategoryByEmail.get(a.buzzerEmail) ?? "Buzzer Online"} /></TableCell>
                   <TableCell>
                     <div className="flex flex-col gap-1 items-start">
                       {a.rejectionNote?.startsWith("[Permintaan Nonaktif/Hapus]:") ? (
@@ -606,7 +615,7 @@ export function AdminSocialSection() {
                     <span className="text-xs text-muted-foreground italic">Belum diisi</span>
                   )}
                 </p>
-                <p className="flex items-center gap-2"><span className="text-muted-foreground">Level: </span><LevelBadge followers={levelFollowers(detail.buzzerEmail)} />
+                <p className="flex items-center gap-2"><span className="text-muted-foreground">Level: </span><LevelBadge followers={levelFollowers(detail.buzzerEmail)} category={buzzerCategoryByEmail.get(detail.buzzerEmail) ?? "Buzzer Online"} />
                   <span className="text-xs text-muted-foreground">dari {levelFollowers(detail.buzzerEmail).toLocaleString("id-ID")} followers terverifikasi</span>
                 </p>
                 <p className="flex items-center gap-2">

@@ -302,11 +302,20 @@ export async function syncBuzzerFollowersToProfile(buzzerEmail: string) {
 
   const totalFollowers = (accounts ?? []).reduce((sum, a) => sum + (Number(a.followers) || 0), 0);
   if (totalFollowers >= 0) {
+    const { data: buzzerAccount } = await supabase
+      .from("app_accounts")
+      .select("buzzer_category, company")
+      .eq("email", em)
+      .eq("role", "buzzer")
+      .maybeSingle();
+    const category =
+      (buzzerAccount as any)?.buzzer_category ?? (buzzerAccount as any)?.company ?? null;
+
     await Promise.all([
       supabase.from("app_accounts").update({ followers: totalFollowers }).eq("email", em).eq("role", "buzzer"),
       supabase.from("buzzer_applications").update({ followers: totalFollowers }).eq("email", em),
       supabase.from("buzzer_wallets").update({ followers: totalFollowers, verified_followers: totalFollowers }).eq("buzzer_email", em),
-      assignLevelFromVerification(em, "", totalFollowers),
+      assignLevelFromVerification(em, "", totalFollowers, category),
     ]);
 
     if (typeof window !== "undefined") {

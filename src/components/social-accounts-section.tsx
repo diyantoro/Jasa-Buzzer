@@ -3,7 +3,7 @@ import {
   Instagram, Music2, Facebook, Twitter, Youtube, Linkedin, Send, AtSign,
   ExternalLink, Search, Link2, Lock as LockIcon,
   Users, CheckCircle2, Clock, XCircle, Power, Camera, ChevronRight,
-  Plus, Upload, AlertCircle, Eye, Trash2,
+  Plus, Upload, AlertCircle, Eye, Trash2, ArrowRight,
 } from "lucide-react";
 
 import { toast } from "sonner";
@@ -28,7 +28,7 @@ import {
 } from "@/lib/social-store";
 import {
   useBuzzerLevel, useBuzzerLevels, levelFromFollowers, countedFollowers,
-  nextLevel as nextLevelOf, levelProgress as progressOf,
+  nextLevel as nextLevelOf, levelProgress as progressOf, isOnlineBuzzerCategory,
 } from "@/lib/buzzer-level";
 import { formatIDR } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
@@ -61,7 +61,7 @@ const PLATFORM_COLOR: Record<SocialPlatform, string> = {
 
 const CATEGORIES = ["Lifestyle", "Kuliner", "Fashion", "Hiburan", "Edukasi", "Teknologi", "Review", "Opini", "Gaming", "Bisnis", "Kesehatan"];
 
-export function SosmedSection({ email, name }: { email: string; name: string }) {
+export function SosmedSection({ email, name, category }: { email: string; name: string; category?: string | null }) {
   const store = useSocialAccounts(email, name);
   const lv = useBuzzerLevel(email);
   const [q, setQ] = useState("");
@@ -92,14 +92,69 @@ export function SosmedSection({ email, name }: { email: string; name: string }) 
 
   return (
     <div className="space-y-4">
-      {/* Level buzzer */}
-      <LevelCard email={email} name={name} />
+      {/* Level buzzer — hanya untuk kategori Buzzer Online */}
+      {isOnlineBuzzerCategory(category) ? (
+        <LevelCard
+          email={email}
+          name={name}
+          category={category}
+          onAjukan={() => {
+            const first = store.accounts[0];
+            if (first) setPembaruanAccount(first);
+            else toast.error("Belum ada akun sosial media. Tambahkan akun terlebih dahulu.");
+          }}
+        />
+      ) : (
+        <div className="rounded-2xl border border-border bg-card p-3 text-sm text-muted-foreground sm:p-4">
+          Level Buzzer hanya tersedia untuk kategori <b>Buzzer Online</b>. Buzzer offline tidak memiliki level.
+        </div>
+      )}
 
       {/* Stats — ringkas: hanya milik buzzer sendiri */}
       <div className="grid gap-3 sm:grid-cols-3">
         <StatCard label="Akun Saya" value={total.toString()} hint="Total akun terhubung" icon={<Link2 className="h-5 w-5" />} />
-        <StatCard label="Total Followers" value={totalFollowers.toLocaleString("id-ID")} hint={`${lv.followers.toLocaleString("id-ID")} dihitung untuk level`} icon={<Users className="h-5 w-5" />} />
+        <StatCard
+          label="Followers Terverifikasi"
+          value={lv.followers.toLocaleString("id-ID")}
+          hint={`Dihitung untuk level • ${totalFollowers.toLocaleString("id-ID")} total semua akun`}
+          icon={<Users className="h-5 w-5" />}
+        />
         <StatCard label="Akun Aktif" value={activeCount.toString()} hint={pendingCount > 0 ? `${pendingCount} menunggu verifikasi` : `${total - activeCount} nonaktif`} icon={<Power className="h-5 w-5" />} />
+      </div>
+
+      {/* Kartu pengajuan pembaruan followers & naik level */}
+      <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 sm:p-6 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <Upload className="h-6 w-6 text-emerald-600" />
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800 dark:text-emerald-200">
+                {isOnlineBuzzerCategory(category) ? "Ajukan Naik Level Buzzer" : "Ajukan Pembaruan Followers"}
+              </p>
+              <p className="text-xs text-emerald-900 dark:text-emerald-300/90 leading-tight">
+                {isOnlineBuzzerCategory(category)
+                  ? "Ubah jumlah followers & unggah bukti screenshot. Admin akan memverifikasi & menaikkan level jika disetujui."
+                  : "Ubah jumlah followers & unggah bukti screenshot. Admin akan memverifikasi datanya. Level hanya berlaku untuk Buzzer Online."}
+              </p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            variant="default"
+            className="w-full sm:w-auto bg-emerald-600 text-emerald-50 hover:bg-emerald-500 shadow-sm"
+            onClick={() => {
+              const first = store.accounts[0];
+              if (first) {
+                setPembaruanAccount(first);
+              } else {
+                toast.error("Belum ada akun sosial media. Tambahkan akun terlebih dahulu.");
+              }
+            }}
+            disabled={adding || store.accounts.length === 0}
+          >
+            <ArrowRight className="mr-1.5 h-4 w-4" /> Ajukan Sekarang
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
@@ -141,6 +196,7 @@ export function SosmedSection({ email, name }: { email: string; name: string }) 
               onView={() => setViewing(a)}
               onPembaruan={() => setPembaruanAccount(a)}
               onDeactivate={() => setDeactivateAccount(a)}
+              category={category}
             />
           ))}
         </div>
@@ -294,7 +350,8 @@ export function SosmedSection({ email, name }: { email: string; name: string }) 
 
 /* ---------------- Level card ---------------- */
 
-export function LevelCard({ email, name, simple = false }: { email: string; name: string; simple?: boolean }) {
+export function LevelCard({ email, name, simple = false, category, onAjukan }: { email: string; name: string; simple?: boolean; category?: string | null; onAjukan?: () => void }) {
+  const isOnline = isOnlineBuzzerCategory(category);
   const lv = useBuzzerLevel(email);
   const levels = useBuzzerLevels();
   // Konsisten dengan kartu akun sosial media: jika level belum ditetapkan admin,
@@ -302,10 +359,10 @@ export function LevelCard({ email, name, simple = false }: { email: string; name
   const { accounts } = useSocialAccounts(email, name);
   const verifiedFollowers = countedFollowers(accounts);
   const derived = levelFromFollowers(verifiedFollowers, levels);
-  const level = lv.level ?? (verifiedFollowers > 0 ? derived : null);
-  const followers = lv.level ? lv.followers : verifiedFollowers;
-  const next = nextLevelOf(followers, levels);
-  const progress = progressOf(followers, levels);
+  const level = isOnline ? (lv.level ?? (verifiedFollowers > 0 ? derived : null)) : null;
+  const followers = isOnline && lv.level ? lv.followers : verifiedFollowers;
+  const next = isOnline ? nextLevelOf(followers, levels) : null;
+  const progress = isOnline ? progressOf(followers, levels) : 0;
   const [openLevels, setOpenLevels] = useState(false);
   const grid = (
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
@@ -325,6 +382,22 @@ export function LevelCard({ email, name, simple = false }: { email: string; name
   );
 
   const openDetail = () => setOpenLevels(true);
+
+  if (!isOnline) {
+    if (simple) return null;
+    return (
+      <div className="space-y-3 rounded-2xl border border-border bg-card p-3 text-sm text-muted-foreground sm:p-4">
+        <p>
+          Level Buzzer hanya tersedia untuk kategori <b>Buzzer Online</b>. Buzzer offline tidak memiliki level.
+        </p>
+        {onAjukan && (
+          <Button size="sm" className="bg-emerald-600 text-emerald-50 hover:bg-emerald-500" onClick={onAjukan}>
+            <ArrowRight className="mr-1.5 h-4 w-4" /> Ajukan Pembaruan Followers
+          </Button>
+        )}
+      </div>
+    );
+  }
 
   return (
     <>
@@ -438,8 +511,19 @@ export function LevelCard({ email, name, simple = false }: { email: string; name
             <div className="grid gap-2">{grid}</div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="sm:justify-between">
             <Button variant="outline" onClick={() => setOpenLevels(false)}>Tutup</Button>
+            {onAjukan && (
+              <Button
+                className="bg-emerald-600 text-emerald-50 hover:bg-emerald-500"
+                onClick={() => {
+                  setOpenLevels(false);
+                  onAjukan();
+                }}
+              >
+                <ArrowRight className="mr-1.5 h-4 w-4" /> Ajukan Naik Level
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -448,9 +532,11 @@ export function LevelCard({ email, name, simple = false }: { email: string; name
 }
 
 
-export function LevelBadge({ followers, className }: { followers: number; className?: string }) {
+export function LevelBadge({ followers, className, category }: { followers: number; className?: string; category?: string | null }) {
+  const isOnline = isOnlineBuzzerCategory(category);
   const levels = useBuzzerLevels();
   const l = levelFromFollowers(followers, levels);
+  if (!isOnline) return null;
   return (
     <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold", l.badgeClass, className)}>
       {l.emoji} {l.name}
@@ -466,11 +552,13 @@ function AccountCard({
   onView,
   onPembaruan,
   onDeactivate,
+  category,
 }: {
   acc: SocialAccount;
   onView: () => void;
   onPembaruan: () => void;
   onDeactivate: () => void;
+  category?: string | null;
 }) {
 
   return (
@@ -556,7 +644,7 @@ function AccountCard({
         </dl>
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          <LevelBadge followers={acc.followers} />
+          <LevelBadge followers={acc.followers} category={category} />
         </div>
 
         <div className="mt-3 flex items-center gap-2">

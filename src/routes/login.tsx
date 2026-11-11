@@ -90,7 +90,7 @@ function LoginPage() {
           followers: app.followers,
           industry: app.category,
         });
-        await assignLevelFromVerification(app.email, app.name, app.followers);
+        await assignLevelFromVerification(app.email, app.name, app.followers, app.buzzerCategory);
 
         const restoredUser = await findAccount(app.email, password);
         setSession(

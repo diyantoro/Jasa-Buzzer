@@ -175,9 +175,9 @@ import {
 import { deleteAdminBuzzerRating, updateAdminBuzzerRating, useBuzzerRatings, type BuzzerRating } from "@/lib/rating-store";
 import { uploadCatalogThumbnail } from "@/lib/catalog-thumbnail-upload";
 import { CAMPAIGN_TYPES, notifyCustomerPaymentApproved, notifyCustomerPaymentRejected } from "@/lib/customer-store";
-import { useAssignedLevels, useBuzzerLevels, getBuzzerPercentageForLevel } from "@/lib/buzzer-level";
+import { useAssignedLevels, useBuzzerLevels, getBuzzerPercentageForLevel, assignLevelFromVerification } from "@/lib/buzzer-level";
 import { ProofLink } from "@/components/proof-link";
-import { adminApproveSocialAccount } from "@/lib/social-store";
+import { adminApproveSocialAccount, useAllSocialAccounts } from "@/lib/social-store";
 import { useAdminWallet } from "@/lib/admin-wallet-store";
 
 export const Route = createFileRoute("/admin")({
@@ -213,7 +213,7 @@ const navItems: { key: SectionKey; label: string; shortLabel?: string; icon: Rea
   { key: "verifikasi-pencairan", label: "Verifikasi Pencairan", icon: <Wallet className="h-4 w-4" /> },
   { key: "metode-pembayaran", label: "Metode Pembayaran", icon: <Building2 className="h-4 w-4" /> },
   { key: "pencairan", label: "Aktivitas", icon: <Activity className="h-4 w-4" /> },
-  { key: "sosmed", label: "Akun Sosial Media", icon: <Link2 className="h-4 w-4" /> },
+  { key: "sosmed", label: "Verifikasi Sosmed", shortLabel: "Sosmed", icon: <Link2 className="h-4 w-4" /> },
   { key: "ulasan", label: "Ulasan & Rating", icon: <Star className="h-4 w-4" /> },
   { key: "pengaturan", label: "Pengaturan", icon: <Settings className="h-4 w-4" /> },
 ];
@@ -250,7 +250,7 @@ const sectionMeta: Record<SectionKey, { title: string; subtitle: string }> = {
     title: "Aktivitas",
     subtitle: "Pantau tren aktivitas dan performa platform BuzzHub.",
   },
-  sosmed: { title: "Kelola Akun Sosial Media", subtitle: "Verifikasi akun sosmed milik buzzer" },
+  sosmed: { title: "Verifikasi Akun Sosial Media", subtitle: "Setujui pembaruan followers & verifikasi akun sosmed buzzer" },
   ulasan: { title: "Ulasan & Rating", subtitle: "Pantau seluruh ulasan customer terhadap buzzer" },
   pengaturan: { title: "Pengaturan", subtitle: "Konfigurasi akun & preferensi aplikasi" },
 };
@@ -300,10 +300,22 @@ function AdminPage() {
     role: "admin",
     email: session?.email ?? SUPPORT_ADMIN_EMAIL,
   });
+  const allSocialAccounts = useAllSocialAccounts();
+  const pendingSosmed = useMemo(
+    () =>
+      allSocialAccounts.filter(
+        (a) => a.verification === "Menunggu" || a.pendingVerification === "Menunggu",
+      ).length,
+    [allSocialAccounts],
+  );
   const nav = useMemo(
     () =>
-      navItems.map((item) => (item.key === "pesan" ? { ...item, badge: supportUnread } : item)),
-    [supportUnread],
+      navItems.map((item) => {
+        if (item.key === "pesan") return { ...item, badge: supportUnread };
+        if (item.key === "sosmed" && pendingSosmed > 0) return { ...item, badge: pendingSosmed };
+        return item;
+      }),
+    [supportUnread, pendingSosmed],
   );
 
   const markVisited = useCallback((key: SectionKey) => {
@@ -5781,7 +5793,12 @@ function VerifikasiSection({ mode = "accounts" }: { mode?: "accounts" | "jobs" }
     const assigned = job.buzzer_email ? assignedLevels[job.buzzer_email.trim().toLowerCase()] : undefined;
     const levelName = job.buzzer_level || assigned?.level || null;
     const buzzerPct = getBuzzerPercentageForLevel(levelName);
-    const buzzerShare = Math.round((total * buzzerPct) / 100);
+    const assignedLevel = levels.find((l) => l.name === levelName) ?? null;
+    const levelPayout = assignedLevel?.payout ?? 0;
+    const snapshot = Number(job.buzzer_amount ?? job.payout ?? 0);
+    const hasSnapshot = Number.isFinite(snapshot) && snapshot > 0;
+    // Opsi A: payout buzzer online = nominal tetap per job sesuai level (payout_per_job).
+    const buzzerShare = Math.min(Math.max(0, hasSnapshot ? snapshot : levelPayout), total);
     const adminShare = Math.max(0, total - buzzerShare);
     return {
       total,
@@ -5974,6 +5991,17 @@ function VerifikasiSection({ mode = "accounts" }: { mode?: "accounts" | "jobs" }
       });
       toast.success("Data buzzer berhasil diperbarui.");
       setEditBuzzer(null);
+      // Jika kategori buzzer berubah, perbarui status level (hanya Buzzer Online yang mendapat level).
+      const prevBuzzerCategory = editBuzzer.buzzerCategory || "Buzzer Online";
+      const nextBuzzerCategory = editBuzzerForm.buzzerCategory || "Buzzer Online";
+      if (prevBuzzerCategory !== nextBuzzerCategory) {
+        void assignLevelFromVerification(
+          editBuzzer.email,
+          editBuzzer.name,
+          Number(editBuzzerForm.followers) || 0,
+          nextBuzzerCategory,
+        );
+      }
       if (detail?.id === editBuzzer.id) {
         setDetail((prev) => prev ? {
           ...prev,

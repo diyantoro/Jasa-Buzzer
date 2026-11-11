@@ -127,6 +127,16 @@ export function countedFollowers(accounts: SocialAccount[]): number {
 
 export const verifiedFollowersOf = countedFollowers;
 
+/** Hanya buzzer kategori `Buzzer Online` yang boleh memiliki level buzzer. */
+export function isOnlineBuzzerCategory(category?: string | null): boolean {
+  const raw = (category ?? "").toString().trim().toLowerCase();
+  if (!raw) return true; // Belum ada data kategori → anggap Buzzer Online
+  // Nilai di database berbentuk "Buzzer Online", "Buzzer Offline",
+  // "Buzzer Offline-Online". Buang prefix "buzzer" sebelum dibandingkan.
+  const base = raw.replace(/^buzzer\s+/, "").trim();
+  return base === "online";
+}
+
 /* ---------------- Level yang sudah ditetapkan admin ---------------- */
 
 export type AssignedLevel = {
@@ -178,8 +188,28 @@ export async function assignLevelFromVerification(
   email: string,
   name: string,
   verifiedFollowers: number,
+  category?: string | null,
 ) {
   const lc = email.trim().toLowerCase();
+  if (!isOnlineBuzzerCategory(category)) {
+    // Level hanya boleh diberikan kepada buzzer online.
+    const { data: existingWallet } = await supabase
+      .from("buzzer_wallets")
+      .select("level")
+      .eq("buzzer_email", lc)
+      .maybeSingle();
+    if (existingWallet?.level) {
+      await supabase
+        .from("buzzer_wallets")
+        .update({
+          level: null,
+          level_assigned_at: null,
+        })
+        .eq("buzzer_email", lc);
+    }
+    await refreshAssignedLevels();
+    return null;
+  }
   if (LEVELS === DEFAULT_LEVELS) await refreshLevels();
   const lv = levelFromFollowers(verifiedFollowers);
   const oldRec = ASSIGNED[lc];

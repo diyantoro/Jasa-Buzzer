@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { notifyTaskApproved, notifyTaskRejected, notifyNewTaskAvailable } from "@/lib/buzzer-notification-store";
-import { getBuzzerPercentageForLevel } from "@/lib/buzzer-level";
+import { getBuzzerPercentageForLevel, currentLevels } from "@/lib/buzzer-level";
 import { getCachedRows, isCacheFresh, loadCachedRows } from "@/lib/query-cache";
 
 export type CampaignPlatform = "TikTok" | "Instagram" | "X (Twitter)" | "Facebook" | "YouTube" | "Telegram" | "LinkedIn";
@@ -882,20 +882,17 @@ export function calculateCampaignJobSplit(
 
   const level = job?.buzzer_level ?? job?.buzzerLevel;
   const targetPct = getBuzzerPercentageForLevel(level);
+  const levels = currentLevels();
+  const assignedLevel = levels.find((l) => l.name === level) ?? null;
+  const levelPayout = assignedLevel?.payout ?? 0;
+  const snapshot = Number(job?.buzzer_amount ?? job?.payout ?? 0);
+  const hasSnapshot = Number.isFinite(snapshot) && snapshot > 0;
+  // Opsi A: payout buzzer online = nominal tetap per job sesuai level (payout_per_job).
+  const buzzerShare = Math.min(Math.max(0, hasSnapshot ? snapshot : levelPayout), total);
+  const adminShare = Math.max(0, total - buzzerShare);
 
-  let buzzerShare: number;
-  let adminShare: number;
-
-  if (total > 0) {
-    buzzerShare = Math.round((total * targetPct) / 100);
-    adminShare = Math.max(0, total - buzzerShare);
-  } else {
-    buzzerShare = 0;
-    adminShare = 0;
-  }
-
-  const buzzerPercent = targetPct;
-  const adminPercent = 100 - targetPct;
+  const buzzerPercent = total > 0 ? Math.round((buzzerShare / total) * 10000) / 100 : targetPct;
+  const adminPercent = Math.max(0, 100 - buzzerPercent);
   return {
     total,
     buzzerPercent,
