@@ -162,9 +162,11 @@ export function SosmedSection({ email, name, category }: { email: string; name: 
                   </span>
                 </p>
                 <p className="text-xs text-emerald-900/90 dark:text-emerald-300/90 leading-tight">
-                  {levelTarget
-                    ? `Kurang ${levelGap.toLocaleString("id-ID")} followers lagi untuk ${levelTarget.emoji} ${levelTarget.name} (${levelTarget.minFollowers.toLocaleString("id-ID")}).`
-                    : "Level tertinggi sudah tercapai."}
+                  {!currentLevel
+                    ? "Level ditetapkan admin setelah akun media sosial terverifikasi."
+                    : levelTarget
+                      ? `Kurang ${levelGap.toLocaleString("id-ID")} followers lagi untuk ${levelTarget.emoji} ${levelTarget.name} (${levelTarget.minFollowers.toLocaleString("id-ID")}).`
+                      : "Level tertinggi sudah tercapai."}
                 </p>
                 <p className="mt-1 text-[11px] text-emerald-900/70 dark:text-emerald-300/70">
                   Level dihitung dari total followers semua akun terverifikasi. Perubahan berlaku setelah disetujui admin.
