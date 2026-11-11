@@ -207,14 +207,19 @@ export function countedFollowers(accounts: SocialAccount[]): number {
 
 export const verifiedFollowersOf = countedFollowers;
 
-/** Hanya buzzer kategori `Buzzer Online` yang boleh memiliki level buzzer. */
+/**
+ * Buzzer punya level jika kategorinya memiliki komponen online:
+ * - `Buzzer Online`           → punya level
+ * - `Buzzer Offline-Online`   → punya level (hybrid, ada bagian online)
+ * - `Buzzer Offline` (murni)  → TIDAK punya level
+ */
 export function isOnlineBuzzerCategory(category?: string | null): boolean {
   const raw = (category ?? "").toString().trim().toLowerCase();
   if (!raw) return true; // Belum ada data kategori → anggap Buzzer Online
   // Nilai di database berbentuk "Buzzer Online", "Buzzer Offline",
   // "Buzzer Offline-Online". Buang prefix "buzzer" sebelum dibandingkan.
   const base = raw.replace(/^buzzer\s+/, "").trim();
-  return base === "online";
+  return base !== "offline";
 }
 
 /* ---------------- Level yang sudah ditetapkan admin ---------------- */

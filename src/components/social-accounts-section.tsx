@@ -69,7 +69,11 @@ export function SosmedSection({ email, name, category }: { email: string; name: 
   const [viewing, setViewing] = useState<SocialAccount | null>(null);
   const [adding, setAdding] = useState(false);
   const [pembaruanAccount, setPembaruanAccount] = useState<SocialAccount | null>(null);
+  const [pembaruanIntent, setPembaruanIntent] = useState<"level" | "account">("account");
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [deactivateAccount, setDeactivateAccount] = useState<SocialAccount | null>(null);
+
+  const hasLevel = isOnlineBuzzerCategory(category);
 
   const filtered = useMemo(() => {
     let arr = store.accounts.slice();
@@ -90,24 +94,39 @@ export function SosmedSection({ email, name, category }: { email: string; name: 
   const activeCount = store.accounts.filter((a) => a.isActive && a.verification === "Terverifikasi").length;
   const pendingCount = store.accounts.filter((a) => a.verification === "Menunggu" || a.pendingVerification === "Menunggu").length;
 
+  // Level hanya untuk buzzer yang punya komponen online (Online & Offline-Online).
+  const verifiedFollowers = countedFollowers(store.accounts);
+  const levelFollowers = hasLevel ? (lv.assigned ? lv.followers : verifiedFollowers) : 0;
+  const currentLevel = hasLevel
+    ? (lv.level ?? (verifiedFollowers > 0 ? levelFromFollowers(verifiedFollowers, lv.levels) : null))
+    : null;
+  const levelTarget = hasLevel ? nextLevelOf(levelFollowers, lv.levels) : null;
+  const levelGap = levelTarget ? Math.max(0, levelTarget.minFollowers - levelFollowers) : 0;
+
+  const openPembaruan = (intent: "level" | "account" = "level") => {
+    const accounts = store.accounts.slice().sort((a, b) => b.followers - a.followers);
+    if (accounts.length === 0) {
+      toast.error("Belum ada akun sosial media. Tambahkan akun terlebih dahulu.");
+      return;
+    }
+    setPembaruanIntent(intent);
+    if (accounts.length === 1) {
+      setPembaruanAccount(accounts[0]);
+    } else {
+      setPickerOpen(true);
+    }
+  };
+
   return (
     <div className="space-y-4">
-      {/* Level buzzer — hanya untuk kategori Buzzer Online */}
-      {isOnlineBuzzerCategory(category) ? (
+      {/* Level buzzer — hanya untuk kategori yang punya komponen online */}
+      {hasLevel && (
         <LevelCard
           email={email}
           name={name}
           category={category}
-          onAjukan={() => {
-            const first = store.accounts[0];
-            if (first) setPembaruanAccount(first);
-            else toast.error("Belum ada akun sosial media. Tambahkan akun terlebih dahulu.");
-          }}
+          onAjukan={() => openPembaruan("level")}
         />
-      ) : (
-        <div className="rounded-2xl border border-border bg-card p-3 text-sm text-muted-foreground sm:p-4">
-          Level Buzzer hanya tersedia untuk kategori <b>Buzzer Online</b>. Buzzer offline tidak memiliki level.
-        </div>
       )}
 
       {/* Stats — ringkas: hanya milik buzzer sendiri */}
@@ -115,47 +134,55 @@ export function SosmedSection({ email, name, category }: { email: string; name: 
         <StatCard label="Akun Saya" value={total.toString()} hint="Total akun terhubung" icon={<Link2 className="h-5 w-5" />} />
         <StatCard
           label="Followers Terverifikasi"
-          value={lv.followers.toLocaleString("id-ID")}
-          hint={`Dihitung untuk level • ${totalFollowers.toLocaleString("id-ID")} total semua akun`}
+          value={verifiedFollowers.toLocaleString("id-ID")}
+          hint={
+            hasLevel
+              ? `Dihitung untuk level • ${totalFollowers.toLocaleString("id-ID")} total semua akun`
+              : `${totalFollowers.toLocaleString("id-ID")} total semua akun`
+          }
           icon={<Users className="h-5 w-5" />}
         />
         <StatCard label="Akun Aktif" value={activeCount.toString()} hint={pendingCount > 0 ? `${pendingCount} menunggu verifikasi` : `${total - activeCount} nonaktif`} icon={<Power className="h-5 w-5" />} />
       </div>
 
-      {/* Kartu pengajuan pembaruan followers & naik level */}
-      <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 sm:p-6 shadow-sm">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <Upload className="h-6 w-6 text-emerald-600" />
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800 dark:text-emerald-200">
-                {isOnlineBuzzerCategory(category) ? "Ajukan Naik Level Buzzer" : "Ajukan Pembaruan Followers"}
-              </p>
-              <p className="text-xs text-emerald-900 dark:text-emerald-300/90 leading-tight">
-                {isOnlineBuzzerCategory(category)
-                  ? "Ubah jumlah followers & unggah bukti screenshot. Admin akan memverifikasi & menaikkan level jika disetujui."
-                  : "Ubah jumlah followers & unggah bukti screenshot. Admin akan memverifikasi datanya. Level hanya berlaku untuk Buzzer Online."}
-              </p>
+      {/* Kartu pengajuan naik level — hanya untuk buzzer dengan komponen online */}
+      {hasLevel && (
+        <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 sm:p-6 shadow-sm">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <Upload className="h-6 w-6 shrink-0 text-emerald-600" />
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800 dark:text-emerald-200">
+                  Ajukan Naik Level Buzzer
+                </p>
+                <p className="mt-1 text-sm font-semibold text-emerald-900 dark:text-emerald-100">
+                  {currentLevel ? `${currentLevel.emoji} ${currentLevel.name}` : "Level belum ditetapkan"}
+                  <span className="ml-1.5 font-normal text-emerald-900/80 dark:text-emerald-200/80">
+                    · {levelFollowers.toLocaleString("id-ID")} followers terverifikasi
+                  </span>
+                </p>
+                <p className="text-xs text-emerald-900/90 dark:text-emerald-300/90 leading-tight">
+                  {levelTarget
+                    ? `Kurang ${levelGap.toLocaleString("id-ID")} followers lagi untuk ${levelTarget.emoji} ${levelTarget.name} (${levelTarget.minFollowers.toLocaleString("id-ID")}).`
+                    : "Level tertinggi sudah tercapai."}
+                </p>
+                <p className="mt-1 text-[11px] text-emerald-900/70 dark:text-emerald-300/70">
+                  Level dihitung dari total followers semua akun terverifikasi. Perubahan berlaku setelah disetujui admin.
+                </p>
+              </div>
             </div>
+            <Button
+              size="sm"
+              variant="default"
+              className="w-full shrink-0 bg-emerald-600 text-emerald-50 hover:bg-emerald-500 shadow-sm sm:w-auto"
+              onClick={() => openPembaruan("level")}
+              disabled={adding || store.accounts.length === 0}
+            >
+              <ArrowRight className="mr-1.5 h-4 w-4" /> Naikkan Level
+            </Button>
           </div>
-          <Button
-            size="sm"
-            variant="default"
-            className="w-full sm:w-auto bg-emerald-600 text-emerald-50 hover:bg-emerald-500 shadow-sm"
-            onClick={() => {
-              const first = store.accounts[0];
-              if (first) {
-                setPembaruanAccount(first);
-              } else {
-                toast.error("Belum ada akun sosial media. Tambahkan akun terlebih dahulu.");
-              }
-            }}
-            disabled={adding || store.accounts.length === 0}
-          >
-            <ArrowRight className="mr-1.5 h-4 w-4" /> Ajukan Sekarang
-          </Button>
         </div>
-      </div>
+      )}
 
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
         <p><LockIcon className="mr-2 inline h-4 w-4" />Akun yang ditambahkan perlu diverifikasi admin sebelum aktif untuk campaign.</p>
@@ -194,7 +221,7 @@ export function SosmedSection({ email, name, category }: { email: string; name: 
               key={a.id}
               acc={a}
               onView={() => setViewing(a)}
-              onPembaruan={() => setPembaruanAccount(a)}
+              onPembaruan={() => { setPembaruanIntent("account"); setPembaruanAccount(a); }}
               onDeactivate={() => setDeactivateAccount(a)}
               category={category}
             />
@@ -283,6 +310,7 @@ export function SosmedSection({ email, name, category }: { email: string; name: 
                   onClick={() => {
                     const target = viewing;
                     setViewing(null);
+                    setPembaruanIntent("account");
                     setPembaruanAccount(target);
                   }}
                 >
@@ -325,12 +353,59 @@ export function SosmedSection({ email, name, category }: { email: string; name: 
         />
       )}
 
+      {/* Pilih akun sebelum mengajukan (jika akun lebih dari satu) */}
+      <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Pilih Akun Sosial Media</DialogTitle>
+            <DialogDescription>
+              Pilih akun yang followers-nya ingin diperbarui. Level dihitung dari total semua akun terverifikasi.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[55vh] space-y-2 overflow-y-auto pr-1">
+            {store.accounts
+              .slice()
+              .sort((a, b) => b.followers - a.followers)
+              .map((a) => (
+                <button
+                  key={a.id}
+                  type="button"
+                  onClick={() => {
+                    setPickerOpen(false);
+                    setPembaruanAccount(a);
+                  }}
+                  className="flex w-full items-center gap-3 rounded-xl border border-border bg-card p-3 text-left transition-colors hover:bg-accent"
+                >
+                  <span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-gradient-to-br text-white", PLATFORM_COLOR[a.platform])}>
+                    {PLATFORM_ICON[a.platform]}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold">{a.username}</span>
+                    <span className="block truncate text-xs text-muted-foreground">
+                      {a.accountName} · {a.platform}
+                    </span>
+                    <span className="block text-xs text-muted-foreground">
+                      {a.followers.toLocaleString("id-ID")} followers · {a.verification}
+                    </span>
+                  </span>
+                  <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                </button>
+              ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPickerOpen(false)}>Batal</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Form Pembaruan (Khusus Buzzer) */}
       {pembaruanAccount && (
         <BuzzerPembaruanDialog
           account={pembaruanAccount}
           existing={store.accounts}
           email={email}
+          category={category}
+          intent={pembaruanIntent}
           onClose={() => setPembaruanAccount(null)}
         />
       )}
@@ -383,21 +458,7 @@ export function LevelCard({ email, name, simple = false, category, onAjukan }: {
 
   const openDetail = () => setOpenLevels(true);
 
-  if (!isOnline) {
-    if (simple) return null;
-    return (
-      <div className="space-y-3 rounded-2xl border border-border bg-card p-3 text-sm text-muted-foreground sm:p-4">
-        <p>
-          Level Buzzer hanya tersedia untuk kategori <b>Buzzer Online</b>. Buzzer offline tidak memiliki level.
-        </p>
-        {onAjukan && (
-          <Button size="sm" className="bg-emerald-600 text-emerald-50 hover:bg-emerald-500" onClick={onAjukan}>
-            <ArrowRight className="mr-1.5 h-4 w-4" /> Ajukan Pembaruan Followers
-          </Button>
-        )}
-      </div>
-    );
-  }
+  if (!isOnline) return null;
 
   return (
     <>
@@ -806,13 +867,23 @@ function BuzzerPembaruanDialog({
   account,
   existing,
   email,
+  category,
+  intent = "account",
   onClose,
 }: {
   account: SocialAccount;
   existing: SocialAccount[];
   email: string;
+  category?: string | null;
+  intent?: "level" | "account";
   onClose: () => void;
 }) {
+  // Level hanya relevan untuk buzzer dengan komponen online (Online & Offline-Online).
+  const levels = useBuzzerLevels();
+  const hasLevel = isOnlineBuzzerCategory(category);
+  const totalVerified = countedFollowers(existing);
+  const levelCurrent = levelFromFollowers(totalVerified, levels);
+  const isLevelIntent = intent === "level" && hasLevel;
   const [form, setForm] = useState({
     platform: account.platform,
     username: account.username,
@@ -838,6 +909,17 @@ function BuzzerPembaruanDialog({
   };
 
   const followersChanged = Number(form.followers) !== Number(account.followers);
+
+  // Proyeksi setelah admin menyetujui: akun ini akan terverifikasi dan
+  // followers-nya memakai nilai baru.
+  const accountVerified = account.verification === "Terverifikasi";
+  const projectedVerified = Math.max(
+    0,
+    totalVerified + (accountVerified ? Number(form.followers) - account.followers : Number(form.followers)),
+  );
+  const levelProjected = levelFromFollowers(projectedVerified, levels);
+  const levelCurrentLabel = totalVerified > 0 ? `${levelCurrent.emoji} ${levelCurrent.name}` : "Belum ada level";
+  const levelProjectedLabel = projectedVerified > 0 ? `${levelProjected.emoji} ${levelProjected.name}` : "Belum ada level";
 
   const handlePreSubmit = () => {
     if (!form.username.trim()) {
@@ -877,6 +959,11 @@ function BuzzerPembaruanDialog({
 
     if (followersChanged && !proofFile) {
       toast.error("Wajib mengunggah bukti screenshot followers jika jumlah followers diubah.");
+      return;
+    }
+
+    if (isLevelIntent && !followersChanged) {
+      toast.error("Ubah jumlah followers terlebih dahulu untuk mengajukan naik level.");
       return;
     }
 
@@ -934,10 +1021,12 @@ function BuzzerPembaruanDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Upload className="h-5 w-5 text-primary" />
-            Pembaruan Akun Sosial Media
+            {isLevelIntent ? "Ajukan Naik Level Buzzer" : "Pembaruan Akun Sosial Media"}
           </DialogTitle>
           <DialogDescription>
-            Perbarui data akun media sosial Anda atau ajukan pembaruan followers.
+            {isLevelIntent
+              ? "Perbarui jumlah followers akun ini dan unggah bukti screenshot. Level naik setelah disetujui admin."
+              : "Perbarui data akun media sosial Anda atau ajukan pembaruan followers."}
           </DialogDescription>
         </DialogHeader>
 
@@ -1112,6 +1201,23 @@ function BuzzerPembaruanDialog({
                     />
                   </label>
                 </div>
+
+                {hasLevel && (
+                  <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-2.5 text-xs text-emerald-900 dark:text-emerald-200">
+                    <div className="flex flex-wrap items-center justify-between gap-1">
+                      <span className="text-emerald-900/70 dark:text-emerald-300/70">Level saat ini</span>
+                      <span className="font-semibold">{levelCurrentLabel}</span>
+                    </div>
+                    <div className="mt-1 flex flex-wrap items-center justify-between gap-1">
+                      <span className="text-emerald-900/70 dark:text-emerald-300/70">Setelah disetujui admin</span>
+                      <span className="font-semibold">
+                        {levelProjected.name === levelCurrent.name && totalVerified > 0
+                          ? `${levelProjectedLabel} (tetap)`
+                          : `${levelCurrentLabel} → ${levelProjectedLabel}`}
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1187,12 +1293,33 @@ function BuzzerPembaruanDialog({
               <span className="font-mono truncate max-w-[200px] text-right text-primary">{form.profileUrl}</span>
             </div>
             {followersChanged && (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Followers Diajukan:</span>
-                <span className="font-semibold text-amber-600">{form.followers.toLocaleString("id-ID")}</span>
+              <div className="flex justify-between gap-2">
+                <span className="text-muted-foreground shrink-0">Followers:</span>
+                <span className="font-semibold">
+                  {account.followers.toLocaleString("id-ID")}
+                  <span className="mx-1 text-muted-foreground">→</span>
+                  <span className="text-amber-600 dark:text-amber-400">{form.followers.toLocaleString("id-ID")}</span>
+                </span>
               </div>
             )}
           </div>
+
+          {hasLevel && followersChanged && (
+            <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-900 dark:text-emerald-200 space-y-1.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-emerald-900/70 dark:text-emerald-300/70">Level setelah disetujui</span>
+                <span className="font-semibold">
+                  {levelProjected.name === levelCurrent.name && totalVerified > 0
+                    ? `${levelProjectedLabel} (tetap)`
+                    : `${levelCurrentLabel} → ${levelProjectedLabel}`}
+                </span>
+              </div>
+              <p className="text-[11px] leading-relaxed text-emerald-900/70 dark:text-emerald-300/70">
+                Level dihitung dari total {projectedVerified.toLocaleString("id-ID")} followers terverifikasi
+                (semua akun). Followers aktif di sistem baru berubah setelah admin menyetujui.
+              </p>
+            </div>
+          )}
         </div>
 
         <DialogFooter className="gap-2">

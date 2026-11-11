@@ -71,7 +71,6 @@ import {
   Lock,
   SlidersHorizontal,
   ArrowDownRight,
-  ArrowRight,
   Award,
   PackageCheck,
 } from "lucide-react";
@@ -1331,9 +1330,9 @@ function DashboardSection({
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/70">
-                    Level Buzzer
+                    Kategori Buzzer
                   </p>
-                  <p className="truncate font-display text-lg font-bold text-white">Tidak tersedia</p>
+                  <p className="truncate font-display text-lg font-bold text-white">Offline</p>
                 </div>
               </div>
             )}
@@ -1847,8 +1846,8 @@ function DashboardSection({
         </div>
       </section>
 
-      <div className="rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-5">
-        {isOnlineBuzzer ? (
+      {isOnlineBuzzer && (
+        <div className="rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-5">
           <LevelCard
             email={state.profile.email}
             name={state.profile.name}
@@ -1856,29 +1855,8 @@ function DashboardSection({
             category={state.profile.buzzerCategory}
             onAjukan={() => onNavigate("sosmed")}
           />
-        ) : (
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-start gap-3">
-              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-emerald-500/15 text-emerald-600">
-                <Users className="h-5 w-5" />
-              </span>
-              <div className="min-w-0">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Pembaruan Followers</p>
-                <p className="text-sm text-muted-foreground">
-                  Level Buzzer hanya untuk <b>Buzzer Online</b>. Kamu tetap bisa mengajukan pembaruan followers untuk diverifikasi admin.
-                </p>
-              </div>
-            </div>
-            <Button
-              size="sm"
-              className="shrink-0 bg-emerald-600 text-emerald-50 hover:bg-emerald-500"
-              onClick={() => onNavigate("sosmed")}
-            >
-              <ArrowRight className="mr-1.5 h-4 w-4" /> Ajukan Sekarang
-            </Button>
-          </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -2918,10 +2896,13 @@ function JobCard({
   };
   const lv = useBuzzerLevel(store.state.profile.email);
   const isOnlineBuzzer = isOnlineBuzzerCategory(store.state.profile.buzzerCategory);
-  const jobLevel = isOnlineBuzzer ? (job.buzzerLevel ?? lv.level?.name ?? "Belum ditetapkan") : null;
+  // Level hanya menentukan bayaran untuk job ONLINE. Job platform "Offline"
+  // selalu memakai nominal payout_per_buzzer dari admin.
+  const usesLevelPayout = isOnlineBuzzer && String(job.platform) !== "Offline";
+  const jobLevel = usesLevelPayout ? (job.buzzerLevel ?? lv.level?.name ?? "Belum ditetapkan") : null;
   const buzzerPct = getBuzzerPercentageForLevel(jobLevel);
   const grossPrice = Math.max(0, job.grossPrice ?? 0);
-  const levelPayout = isOnlineBuzzer ? Number(lv.level?.payout ?? 0) : 0;
+  const levelPayout = usesLevelPayout ? Number(lv.level?.payout ?? 0) : 0;
   const payout = (() => {
     // Job yang sudah diambil memakai snapshot payout dari database. Ini
     // mencegah nominal berubah ketika level buzzer naik setelah job diambil.
@@ -2930,7 +2911,7 @@ function JobCard({
       if (snapshot > 0) return Math.round(snapshot);
     }
     if (grossPrice <= 0) return 0;
-    if (!isOnlineBuzzer) {
+    if (!usesLevelPayout) {
       const snapshot = Number(job.buzzerAmount ?? job.payout ?? 0);
       return Math.round(snapshot > 0 ? snapshot : 0);
     }
@@ -2939,7 +2920,7 @@ function JobCard({
     const fallbackPct = getBuzzerPercentageForLevel(jobLevel);
     return Math.round((grossPrice * fallbackPct) / 100);
   })();
-  const buzzerPercentage = isOnlineBuzzer ? buzzerPct : 0;
+  const buzzerPercentage = usesLevelPayout ? buzzerPct : 0;
 
   const parsed = useMemo(
     () => parseBuzzerJobBrief(job.brief, job.title, job.platform),
@@ -3227,7 +3208,9 @@ function JobCard({
                 <p className="text-xs text-muted-foreground">Fee yang kamu terima</p>
                 <p className="font-display text-lg font-bold">{formatIDR(payout)}</p>
                 <p className="text-xs text-muted-foreground">
-                  Sudah termasuk potongan admin · Level {lv.level?.name ?? jobLevel}
+                  {usesLevelPayout
+                    ? `Sudah termasuk potongan admin · Level ${lv.level?.name ?? jobLevel}`
+                    : "Nominal tetap sesuai yang ditetapkan admin"}
                 </p>
               </div>
               <div className="rounded-xl border border-border bg-muted/40 p-3">
@@ -3243,7 +3226,7 @@ function JobCard({
               </h4>
               <div className="grid gap-2 text-sm sm:grid-cols-2">
                 <p>
-                  <span className="text-muted-foreground">Level:</span> <b>{jobLevel}</b>
+                  <span className="text-muted-foreground">Level:</span> <b>{usesLevelPayout ? jobLevel : "—"}</b>
                 </p>
                 <p>
                   <span className="text-muted-foreground">Yang kamu dapatkan:</span>{" "}
@@ -3800,7 +3783,7 @@ function JobCard({
           <div className="space-y-2 text-sm">
             <p>
               <span className="text-muted-foreground">Level:</span>{" "}
-              <span className="font-bold">{jobLevel}</span>
+              <span className="font-bold">{usesLevelPayout ? jobLevel : "—"}</span>
             </p>
             <p>
               <span className="text-muted-foreground">Payout yang kamu terima:</span>{" "}
