@@ -29,6 +29,7 @@ import {
 import {
   useBuzzerLevel, useBuzzerLevels, levelFromFollowers, countedFollowers,
   nextLevel as nextLevelOf, levelProgress as progressOf, isOnlineBuzzerCategory,
+  type BuzzerLevel,
 } from "@/lib/buzzer-level";
 import { formatIDR } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
@@ -227,6 +228,8 @@ export function SosmedSection({ email, name, category }: { email: string; name: 
               onDeactivate={() => setDeactivateAccount(a)}
               category={category}
               totalVerifiedFollowers={verifiedFollowers}
+              officialLevelName={currentLevel ? `${currentLevel.emoji} ${currentLevel.name}` : null}
+              levels={lv.levels}
             />
           ))}
         </div>
@@ -609,6 +612,44 @@ export function LevelBadge({ followers, className, category }: { followers: numb
 }
 
 
+/**
+ * Badge level **per akun** — bukan level resmi buzzer.
+ * Level resmi tetap satu (agregat semua akun terverifikasi), sedangkan
+ * badge ini menunjukkan level "jika akun ini berdiri sendiri".
+ */
+export function AccountLevelChip({
+  followers,
+  levels,
+  category,
+  officialLevelName,
+  className,
+}: {
+  followers: number;
+  levels?: BuzzerLevel[];
+  category?: string | null;
+  officialLevelName?: string | null;
+  className?: string;
+}) {
+  if (!isOnlineBuzzerCategory(category)) return null;
+  const l = levelFromFollowers(followers, levels);
+  const title = officialLevelName
+    ? `Level jika akun ini berdiri sendiri. Level resmi buzzer Anda: ${officialLevelName}.`
+    : "Level jika akun ini berdiri sendiri — bukan level resmi buzzer.";
+  return (
+    <span
+      title={title}
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold",
+        l.badgeClass,
+        className,
+      )}
+    >
+      Setara {l.emoji} {l.name}
+    </span>
+  );
+}
+
+
 /* ---------------- Card ---------------- */
 
 function AccountCard({
@@ -618,6 +659,8 @@ function AccountCard({
   onDeactivate,
   category,
   totalVerifiedFollowers = 0,
+  officialLevelName,
+  levels,
 }: {
   acc: SocialAccount;
   onView: () => void;
@@ -625,6 +668,8 @@ function AccountCard({
   onDeactivate: () => void;
   category?: string | null;
   totalVerifiedFollowers?: number;
+  officialLevelName?: string | null;
+  levels?: BuzzerLevel[];
 }) {
   // Level adalah milik buzzer (agregat). Badge di kartu akun hanya
   // menunjukkan kontribusi akun ini terhadap total followers terverifikasi.
@@ -723,6 +768,14 @@ function AccountCard({
         </dl>
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
+          {hasLevel && counted && (
+            <AccountLevelChip
+              followers={acc.followers}
+              levels={levels}
+              category={category}
+              officialLevelName={officialLevelName}
+            />
+          )}
           <span
             title={contributionTitle}
             className={cn(

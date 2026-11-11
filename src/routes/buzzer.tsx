@@ -84,7 +84,7 @@ import {
   YAxis,
 } from "recharts";
 
-import { SosmedSection, LevelCard } from "@/components/social-accounts-section";
+import { SosmedSection, LevelCard, AccountLevelChip } from "@/components/social-accounts-section";
 import { useSocialAccounts } from "@/lib/social-store";
 import {
   useBuzzerLevel,
@@ -6237,6 +6237,22 @@ function ProfilSection({
                         ? "Menunggu"
                         : "Kosong"}
                   </span>
+
+                  {account && (
+                    <p className="mt-1.5 text-[11px] font-semibold text-foreground">
+                      {account.followers.toLocaleString("id-ID")} followers
+                    </p>
+                  )}
+                  {account && hasLevel && account.verification === "Terverifikasi" && (
+                    <div className="mt-1">
+                      <AccountLevelChip
+                        followers={account.followers}
+                        levels={levelInfo.levels}
+                        category={state.profile.buzzerCategory}
+                        officialLevelName={activeLevel ? `${activeLevel.emoji} ${activeLevel.name}` : null}
+                      />
+                    </div>
+                  )}
                 </div>
               );
             })}
