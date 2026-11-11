@@ -94,6 +94,7 @@ import {
   levelProgress,
   nextLevel,
   isOnlineBuzzerCategory,
+  countedFollowers,
   type BuzzerLevel,
 } from "@/lib/buzzer-level";
 import { BuzzerAnalyticsCards } from "@/components/buzzer-dashboard-analytics";
@@ -6002,9 +6003,8 @@ function ProfilSection({
     (r) => r.buzzer_email.toLowerCase() === state.profile.email.toLowerCase(),
   );
   const avg = averageStars(myRatings);
-  const verifiedFollowers = socialAccounts
-    .filter((account) => account.verification === "Terverifikasi")
-    .reduce((sum, account) => sum + account.followers, 0);
+  // Konsisten dengan aturan level: hanya akun terverifikasi & masih aktif.
+  const verifiedFollowers = countedFollowers(socialAccounts);
   const displayFollowers = verifiedFollowers > 0 ? verifiedFollowers : state.profile.followers || 0;
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(state.profile);
