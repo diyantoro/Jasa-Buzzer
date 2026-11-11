@@ -584,7 +584,7 @@ export function CustomerHomepageSection({
           title="Mau pesan apa hari ini?"
           subtitle="Rekomendasi cepat untuk langsung membuat pesanan"
         />
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {quickServices.map((svc) => (
             <ServiceCard
               key={svc.id}
@@ -605,7 +605,7 @@ export function CustomerHomepageSection({
             subtitle="Ramai kan event, booth, dan grand opening dengan buzzer di lokasi"
             icon={<MapPin className="h-4 w-4 text-amber-500" />}
           />
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {offlineServices.map((svc) => (
               <ServiceCard
                 key={svc.id}
@@ -626,7 +626,7 @@ export function CustomerHomepageSection({
           subtitle="Paling banyak dipesan di platform BuzzHub"
           icon={<Flame className="h-4 w-4 text-orange-500" />}
         />
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {popularServices.map((svc) => (
             <ServiceCard key={svc.id} service={svc} onOrder={onOrder} onDetail={onDetail} compact />
           ))}
@@ -644,7 +644,7 @@ export function CustomerHomepageSection({
           }
           icon={<Sparkles className="h-4 w-4 text-violet-500" />}
         />
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {recommendedServices.map((svc) => (
             <ServiceCard key={svc.id} service={svc} onOrder={onOrder} onDetail={onDetail} compact />
           ))}
@@ -816,7 +816,7 @@ function ServiceCard({
         "group relative flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm transition-all hover:-translate-y-0.5 hover:border-brand/40 hover:shadow-lg",
       )}
     >
-      <div className={cn("relative overflow-hidden", highlight ? "h-36" : "h-28")}>
+      <div className={cn("relative overflow-hidden", highlight ? "h-28 sm:h-36" : "h-24 sm:h-28")}>
         <img
           src={serviceImage(service)}
           alt={`Ilustrasi layanan ${service.name} kategori ${service.category}`}
@@ -832,49 +832,55 @@ function ServiceCard({
           )}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-card/90 via-card/10 to-transparent" />
-        <div className="absolute inset-x-0 top-0 flex items-center justify-between px-4 py-3 text-white">
-          <span className="grid h-10 w-10 place-items-center rounded-xl bg-white/20 backdrop-blur">
+        <div className="absolute inset-x-0 top-0 flex items-center justify-between px-3 py-2 text-white sm:px-4 sm:py-3">
+          <span className="grid h-8 w-8 place-items-center rounded-lg bg-white/20 backdrop-blur sm:h-10 sm:w-10 sm:rounded-xl">
             {service.category === "Offline Buzzer" ? (
-              <MapPin className="h-5 w-5" />
+              <MapPin className="h-4 w-4 sm:h-5 sm:w-5" />
             ) : (
-              (SERVICE_PLATFORM_ICON[service.platforms[0]] ?? <Sparkles className="h-5 w-5" />)
+              (SERVICE_PLATFORM_ICON[service.platforms[0]] ?? (
+                <Sparkles className="h-4 w-4 sm:h-5 sm:w-5" />
+              ))
             )}
           </span>
-          <span className="inline-flex items-center gap-1 rounded-full bg-black/40 px-2 py-0.5 text-[11px] font-semibold backdrop-blur">
+          <span className="inline-flex items-center gap-1 rounded-full bg-black/40 px-1.5 py-0.5 text-[10px] font-semibold backdrop-blur sm:px-2 sm:text-[11px]">
             <Star className="h-3 w-3 fill-current" /> {service.rating}
           </span>
         </div>
       </div>
 
-      <div className="flex flex-1 flex-col p-4">
+      <div className="flex flex-1 flex-col p-3 sm:p-4">
         <div className="flex flex-wrap items-center gap-1.5">
-          <Badge variant="secondary" className="text-[10px]">
+          <Badge variant="secondary" className="text-[9px] sm:text-[10px]">
             {service.category}
           </Badge>
-          <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+          <span className="hidden rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground sm:inline-flex">
             {service.category === "Offline Buzzer" ? "Event" : service.platforms[0]}
           </span>
         </div>
-        <h3 className="mt-2 font-display text-sm font-bold leading-tight">{service.name}</h3>
-        <p
-          className={cn(
-            "mt-1 text-xs text-muted-foreground",
-            compact ? "line-clamp-2" : "line-clamp-3",
-          )}
-        >
-          {service.desc}
-        </p>
+        <h3 className="mt-2 line-clamp-2 font-display text-[13px] font-bold leading-tight sm:text-sm">
+          {service.name}
+        </h3>
+        <div className="mt-1 hidden sm:block">
+          <p
+            className={cn(
+              "text-xs text-muted-foreground",
+              compact ? "line-clamp-2" : "line-clamp-3",
+            )}
+          >
+            {service.desc}
+          </p>
+        </div>
         <div className="mt-3 flex-1" />
-        <p className="text-[11px] text-muted-foreground">Harga Pesanan</p>
-        <p className="font-numeric text-lg font-bold tabular-nums text-gradient-brand">
+        <p className="text-[10px] text-muted-foreground sm:text-[11px]">Harga Pesanan</p>
+        <p className="font-numeric text-base font-bold tabular-nums text-gradient-brand sm:text-lg">
           {formatIDR(startingPrice(service))}
         </p>
-        <div className="mt-3 flex items-center gap-2">
+        <div className="mt-3 flex items-center gap-1.5 sm:gap-2">
           {onDetail && (
             <Button
               size="sm"
               variant="outline"
-              className="h-9 w-9 shrink-0 p-0"
+              className="h-8 w-8 shrink-0 p-0 sm:h-9 sm:w-9"
               title="Lihat detail layanan"
               aria-label={`Lihat detail ${service.name}`}
               onClick={() => onDetail(service)}
@@ -884,10 +890,10 @@ function ServiceCard({
           )}
           <Button
             size="sm"
-            className="h-9 flex-1 gap-1 gradient-brand text-brand-foreground"
+            className="h-8 flex-1 gap-1 text-xs gradient-brand text-brand-foreground sm:h-9 sm:text-sm"
             onClick={() => onOrder?.(service)}
           >
-            Pesan <ArrowRight className="h-3.5 w-3.5" />
+            Pesan <ArrowRight className="hidden h-3.5 w-3.5 sm:inline" />
           </Button>
         </div>
       </div>
