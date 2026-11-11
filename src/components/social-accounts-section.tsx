@@ -226,6 +226,7 @@ export function SosmedSection({ email, name, category }: { email: string; name: 
               onPembaruan={() => { setPembaruanIntent("account"); setPembaruanAccount(a); }}
               onDeactivate={() => setDeactivateAccount(a)}
               category={category}
+              totalVerifiedFollowers={verifiedFollowers}
             />
           ))}
         </div>
@@ -616,13 +617,28 @@ function AccountCard({
   onPembaruan,
   onDeactivate,
   category,
+  totalVerifiedFollowers = 0,
 }: {
   acc: SocialAccount;
   onView: () => void;
   onPembaruan: () => void;
   onDeactivate: () => void;
   category?: string | null;
+  totalVerifiedFollowers?: number;
 }) {
+  // Level adalah milik buzzer (agregat). Badge di kartu akun hanya
+  // menunjukkan kontribusi akun ini terhadap total followers terverifikasi.
+  const hasLevel = isOnlineBuzzerCategory(category);
+  const counted = acc.verification === "Terverifikasi" && acc.isActive !== false;
+  const contributionPct =
+    hasLevel && counted && totalVerifiedFollowers > 0
+      ? Math.round((acc.followers / totalVerifiedFollowers) * 100)
+      : null;
+  const contributionTitle = !hasLevel
+    ? `${acc.followers.toLocaleString("id-ID")} followers`
+    : counted
+      ? `Kontribusi ${contributionPct ?? 0}% dari total ${totalVerifiedFollowers.toLocaleString("id-ID")} followers terverifikasi`
+      : "Akun ini belum/tidak ikut dihitung ke level buzzer";
 
   return (
     <div className="group overflow-hidden rounded-2xl border border-border bg-card shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
@@ -707,7 +723,24 @@ function AccountCard({
         </dl>
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          <LevelBadge followers={acc.followers} category={category} />
+          <span
+            title={contributionTitle}
+            className={cn(
+              "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold",
+              counted
+                ? "bg-primary/10 text-primary"
+                : "bg-muted text-muted-foreground",
+            )}
+          >
+            <Users className="h-3 w-3" />
+            {acc.followers.toLocaleString("id-ID")} followers
+            {contributionPct !== null && (
+              <span className="font-normal opacity-80">· {contributionPct}% dari level</span>
+            )}
+            {hasLevel && !counted && (
+              <span className="font-normal opacity-80">· belum dihitung</span>
+            )}
+          </span>
         </div>
 
         <div className="mt-3 flex items-center gap-2">

@@ -198,10 +198,13 @@ export function levelProgress(followers: number, levels: BuzzerLevel[] = LEVELS)
   return Math.min(100, Math.round(((followers - cur.minFollowers) / span) * 100));
 }
 
-/** Followers yang dihitung: hanya akun media sosial terverifikasi admin. */
+/**
+ * Followers yang dihitung untuk level: hanya akun media sosial yang sudah
+ * terverifikasi admin DAN masih aktif. Akun nonaktif tidak lagi menambah level.
+ */
 export function countedFollowers(accounts: SocialAccount[]): number {
   return accounts
-    .filter((a) => a.verification === "Terverifikasi")
+    .filter((a) => a.verification === "Terverifikasi" && a.isActive !== false)
     .reduce((s, a) => s + a.followers, 0);
 }
 

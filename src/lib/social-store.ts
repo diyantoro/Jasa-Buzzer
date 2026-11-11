@@ -298,7 +298,9 @@ export async function syncBuzzerFollowersToProfile(buzzerEmail: string) {
     .from("social_accounts")
     .select("followers, platform, verification")
     .eq("buzzer_email", em)
-    .ilike("verification", "Terverifikasi");
+    .ilike("verification", "Terverifikasi")
+    // Akun yang dinonaktifkan admin / disetujui nonaktif tidak dihitung ke level.
+    .or("is_active.is.null,is_active.eq.true");
 
   const totalFollowers = (accounts ?? []).reduce((sum, a) => sum + (Number(a.followers) || 0), 0);
   if (totalFollowers >= 0) {

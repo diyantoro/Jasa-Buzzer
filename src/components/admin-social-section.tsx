@@ -84,11 +84,12 @@ export function AdminSocialSection() {
     }
   };
 
-  // Level buzzer tetap memakai total followers akun yang terverifikasi.
+  // Level buzzer memakai total followers akun terverifikasi yang masih aktif.
   const verifiedFollowersByBuzzer = useMemo(() => {
     const followersByEmail = new Map<string, number>();
     for (const account of all) {
       if (account.verification !== "Terverifikasi") continue;
+      if (account.isActive === false) continue;
       const email = account.buzzerEmail.trim().toLowerCase();
       followersByEmail.set(email, (followersByEmail.get(email) ?? 0) + account.followers);
     }
