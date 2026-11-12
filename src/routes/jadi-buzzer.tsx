@@ -32,11 +32,11 @@ const STEPS = [
 ];
 
 const LEVELS = [
-  { emoji: "🥉", name: "Bronze", range: "0 – 10.000 followers" },
-  { emoji: "🥈", name: "Silver", range: "10.001 – 50.000 followers" },
-  { emoji: "🥇", name: "Gold", range: "50.001 – 100.000 followers" },
-  { emoji: "💎", name: "Platinum", range: "100.001 – 500.000 followers" },
-  { emoji: "👑", name: "Diamond", range: "500.000+ followers" },
+  { emoji: "🥉", name: "Bronze", range: "0 – 10.000 followers", pct: "40%" },
+  { emoji: "🥈", name: "Silver", range: "10.001 – 50.000 followers", pct: "45%" },
+  { emoji: "🥇", name: "Gold", range: "50.001 – 100.000 followers", pct: "50%" },
+  { emoji: "💎", name: "Platinum", range: "100.001 – 500.000 followers", pct: "55%" },
+  { emoji: "👑", name: "Diamond", range: "500.000+ followers", pct: "60%" },
 ];
 
 function JadiBuzzerPage() {
@@ -96,7 +96,9 @@ function JadiBuzzerPage() {
       <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
         <h2 className="font-display text-3xl font-bold">Sistem level buzzer</h2>
         <p className="mt-2 max-w-2xl text-muted-foreground">
-          Level ditentukan dari total followers akun media sosial yang telah diverifikasi admin. Nominal payout tiap level diatur oleh admin.
+          Status buzzer dihitung dari total followers semua akun media sosial yang telah diverifikasi
+          admin. Bayaran tiap job mengikuti level akun di platform job tersebut: Bronze 40%,
+          Silver 45%, Gold 50%, Platinum 55%, Diamond 60% dari harga job.
         </p>
         <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           {LEVELS.map((l) => (
@@ -104,11 +106,12 @@ function JadiBuzzerPage() {
               <div className="text-3xl">{l.emoji}</div>
               <h3 className="mt-2 font-display text-lg font-bold">{l.name}</h3>
               <p className="mt-1 text-sm text-muted-foreground">{l.range}</p>
+              <p className="mt-1 text-sm font-semibold text-gradient-brand">{l.pct} / job</p>
             </div>
           ))}
         </div>
         <p className="mt-6 flex items-center gap-2 text-sm text-muted-foreground">
-          <BadgeCheck className="h-4 w-4 text-brand" /> Level ditetapkan admin saat verifikasi dan tidak berubah otomatis.
+          <BadgeCheck className="h-4 w-4 text-brand" /> Status ditetapkan admin saat verifikasi dan tidak berubah otomatis.
         </p>
       </section>
 
