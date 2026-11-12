@@ -1378,19 +1378,6 @@ function DashboardSection({
                     />
                   </div>
                 </div>
-                {platformLevels.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    {platformLevels.map(({ platform, level: pl }) => (
-                      <span
-                        key={platform}
-                        title={`Job ${platform}: ${pl.percentage}% dari harga job`}
-                        className="rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-semibold"
-                      >
-                        {pl.emoji} {platform} {pl.percentage}%
-                      </span>
-                    ))}
-                  </div>
-                )}
                 <div className="mt-3 flex items-center justify-between text-[11px] text-white/80">
                   <span className="inline-flex items-center gap-1">
                     <Star className="h-3 w-3 fill-amber-300 text-amber-300" />
