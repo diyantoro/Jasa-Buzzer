@@ -64,6 +64,7 @@ import {
   type CustomerCampaignStatus,
 } from "@/lib/customer-campaign-status";
 import { SERVICES, formatIDR, type Platform, type Service } from "@/lib/customer-store";
+import { normalizeCatalogService } from "@/lib/service-catalog";
 import { Textarea } from "@/components/ui/textarea";
 
 const PLATFORM_ICON: Record<CampaignPlatform, React.ReactNode> = {
@@ -254,51 +255,17 @@ export function CustomerHomepageSection({
     return Math.round((done / myJobs.length) * 100);
   }, [myJobs]);
 
-  // Sinkronisasi data layanan dengan database katalog Supabase secara realtime
+  // Gabungkan katalog admin (produk nyata) dengan layanan bawaan sebagai pelengkap.
+  // Layanan admin menang jika judulnya sama, supaya harga & kuota tetap dari DB.
   const dynamicServices = useMemo(() => {
-    if (!catalogsQuery.data || catalogsQuery.data.length === 0) return SERVICES;
-    const catMap = new Map<string, (typeof catalogsQuery.data)[0]>();
-    for (const c of catalogsQuery.data) {
-      if (c.status === "Aktif") {
-        catMap.set(c.title.trim().toLowerCase(), c);
-      }
-    }
-    return SERVICES.map((s) => {
-      const match = catMap.get(s.name.trim().toLowerCase());
-      if (!match) return s;
-      const basePrice = Number(match.price);
-      const baseSlots = Number(match.slots);
-      return {
-        ...s,
-        catalogId: match.id,
-        catalogPricePerBuzzer: basePrice,
-        catalogSlotsAvailable: baseSlots,
-        thumbnailUrl: match.thumbnail_url || s.thumbnailUrl,
-        packages: [
-          {
-            tier: "Basic",
-            price: basePrice,
-            buzzers: baseSlots,
-            reach: `${baseSlots} peserta`,
-            benefits: s.packages[0]?.benefits || [],
-          },
-          {
-            tier: "Professional",
-            price: Math.round(basePrice * 2.2),
-            buzzers: Math.round(baseSlots * 2.4),
-            reach: `${Math.round(baseSlots * 2.4)} peserta`,
-            benefits: s.packages[1]?.benefits || [],
-          },
-          {
-            tier: "Enterprise",
-            price: Math.round(basePrice * 4.5),
-            buzzers: Math.round(baseSlots * 6),
-            reach: `${Math.round(baseSlots * 6)} peserta`,
-            benefits: s.packages[2]?.benefits || [],
-          },
-        ],
-      };
-    });
+    const adminServices = (catalogsQuery.data ?? [])
+      .filter((c) => c.status === "Aktif")
+      .map((c) => normalizeCatalogService(c));
+    const adminTitles = new Set(adminServices.map((s) => s.name.trim().toLowerCase()));
+    const builtInServices = SERVICES.filter(
+      (s) => !adminTitles.has(s.name.trim().toLowerCase()),
+    );
+    return [...adminServices, ...builtInServices];
   }, [catalogsQuery.data]);
 
   // Layanan populer: dihitung dari platform kampanye seluruh database (realtime).

@@ -133,6 +133,11 @@ import {
   type CampaignTypeKey,
 } from "@/lib/customer-store";
 import { exportToExcel, exportToPDF } from "@/lib/export-utils";
+import {
+  inferCatalogCampaignType,
+  normalizeCatalogPlatform,
+  normalizeCatalogService,
+} from "@/lib/service-catalog";
 import { serviceImage } from "@/lib/service-images";
 import { cn } from "@/lib/utils";
 import {
@@ -246,109 +251,6 @@ function normalizeServiceType(value?: string | null) {
   return String(value ?? "")
     .trim()
     .toLowerCase();
-}
-
-function normalizeCatalogPlatform(platform?: string | null): Platform {
-  const supported = [
-    "Instagram",
-    "TikTok",
-    "X (Twitter)",
-    "Facebook",
-    "YouTube",
-    "Telegram",
-  ] as const;
-  if (platform && supported.includes(platform as (typeof supported)[number]))
-    return platform as Platform;
-  return "Instagram";
-}
-
-function normalizeCatalogService(catalog: {
-  id: string;
-  title: string;
-  platform?: string | null;
-  service_type?: string | null;
-  description?: string | null;
-  price?: number | string | null;
-  slots?: number | string | null;
-  thumbnail_url?: string | null;
-}): Service {
-  const platform = normalizeCatalogPlatform(catalog.platform);
-  const title = String(catalog.title ?? "Layanan Katalog").trim() || "Layanan Katalog";
-  const serviceType = String(catalog.service_type ?? "Layanan buzzer").trim() || "Layanan buzzer";
-  const description = String(catalog.description ?? serviceType).trim() || serviceType;
-  const type =
-    inferCatalogCampaignType(catalog.service_type) ??
-    inferCatalogCampaignType(catalog.title) ??
-    "like";
-  const category = serviceType.includes("Offline") ? "Offline Buzzer" : "Online Buzzer";
-  const basePrice = Number(catalog.price ?? 0);
-  const baseSlots = Number(catalog.slots ?? 25);
-  return {
-    id: `catalog-${catalog.id}`,
-    catalogId: catalog.id,
-    category,
-    name: title,
-    platforms: [platform],
-    desc: serviceType,
-    longDesc: description,
-    rating: 4.9,
-    reviews: 45,
-    campaignType: type,
-    catalogPricePerBuzzer: basePrice,
-    catalogSlotsAvailable: baseSlots,
-    thumbnailUrl: catalog.thumbnail_url ?? null,
-    image: "from-fuchsia-500 to-pink-500",
-    benefits: [
-      "Buzzer terverifikasi & real people",
-      "Laporan realtime & transparan",
-      "Konten sesuai brand guideline",
-      "Garansi target reach tercapai",
-    ],
-    faqs: [
-      {
-        q: "Berapa lama campaign berjalan?",
-        a: "Rata-rata 5–14 hari tergantung kebutuhan campaign.",
-      },
-      { q: "Apakah bisa custom brief?", a: "Bisa, brief bisa didiskusikan sebelum eksekusi." },
-      { q: "Bagaimana laporan disampaikan?", a: "Dashboard realtime + PDF final report." },
-    ],
-    packages: [
-      {
-        tier: "Basic",
-        price: basePrice,
-        buzzers: baseSlots,
-        reach: `${baseSlots} target buzzer`,
-        benefits: ["Buzzer aktif", "Laporan progres"],
-      },
-      {
-        tier: "Professional",
-        price: Math.round(basePrice * 2.2),
-        buzzers: Math.round(baseSlots * 2.4),
-        reach: `${Math.round(baseSlots * 2.4)} target buzzer`,
-        benefits: ["Buzzer premium", "Briefing khusus"],
-      },
-      {
-        tier: "Enterprise",
-        price: Math.round(basePrice * 4.5),
-        buzzers: Math.round(baseSlots * 6),
-        reach: `${Math.round(baseSlots * 6)} target buzzer`,
-        benefits: ["Target besar", "Priority support"],
-      },
-    ],
-  };
-}
-
-function inferCatalogCampaignType(value?: string | null): CampaignTypeKey | undefined {
-  const source = (value ?? "").toLowerCase();
-  if (!source) return undefined;
-  if (source.includes("like") && source.includes("komentar")) return "like-komentar";
-  if (source.includes("like") && source.includes("comment")) return "like-komentar";
-  if (source.includes("like") && !source.includes("komentar")) return "like";
-  if (source.includes("komentar") || source.includes("comment")) return "komentar";
-  if (source.includes("share")) return "share";
-  if (source.includes("follow")) return "follow";
-  if (source.includes("review") || source.includes("ulasan")) return "review";
-  return undefined;
 }
 
 type Store = ReturnType<typeof useCustomerStore>;
@@ -3342,16 +3244,9 @@ const WIZ_PLATFORMS: Platform[] = [
 function deriveCatalogCampaignType(
   service: Service | null | undefined,
 ): CampaignTypeKey | undefined {
-  const raw = String(service?.campaignType ?? service?.desc ?? service?.name ?? "").toLowerCase();
-  if (!raw) return undefined;
-
-  if (raw.includes("like") && !raw.includes("komentar")) return "like";
-  if (raw.includes("komentar") || raw.includes("comment")) return "komentar";
-  if (raw.includes("like") && raw.includes("komentar")) return "like-komentar";
-  if (raw.includes("share")) return "share";
-  if (raw.includes("follow")) return "follow";
-  if (raw.includes("review") || raw.includes("ulasan")) return "review";
-  return undefined;
+  return inferCatalogCampaignType(
+    String(service?.campaignType ?? service?.desc ?? service?.name ?? ""),
+  );
 }
 
 function WizardDialog({
@@ -3373,6 +3268,8 @@ function WizardDialog({
       : initialService;
 
   const [step, setStep] = useState(1);
+  /** True kalau customer menekan "Ubah jenis campaign" pada layanan yang sudah spesifik. */
+  const [typeStepUnlocked, setTypeStepUnlocked] = useState(false);
   const [platform, setPlatform] = useState<Platform>(
     normalizedInitialService?.platforms[0] ?? "Instagram",
   );
@@ -3400,6 +3297,7 @@ function WizardDialog({
     );
     setService(normalizedInitialService);
     setBuzzerCount(1);
+    setTypeStepUnlocked(false);
     setPlatform(normalizedInitialService?.platforms[0] ?? "Instagram");
     setForm({ campaignName: "", description: "", linkOrLocation: "", startDate: "", endDate: "" });
     setOpenedFor(key);
@@ -3407,6 +3305,27 @@ function WizardDialog({
 
   const isCatalog = !!service?.catalogId;
   const isOffline = service?.category === "Offline Buzzer";
+  // Layanan yang sudah spesifik (mis. "Campaign Like") tidak perlu ditanya lagi
+  // jenis campaign-nya. Customer tetap bisa mengganti lewat tombol "Ubah".
+  const hasPresetType = !isCatalog && !isOffline && !!service?.campaignType;
+  const skipTypeStep = hasPresetType && !typeStepUnlocked;
+  const wizardSteps: number[] =
+    isOffline ? [3, 4, 5] : skipTypeStep && step !== 2 ? [1, 3, 4, 5] : [1, 2, 3, 4, 5];
+  const wizardStepIndex = Math.max(1, wizardSteps.indexOf(step) + 1);
+  const goNext = () => {
+    if (step === 1 && skipTypeStep) {
+      setStep(3);
+      return;
+    }
+    setStep(step + 1);
+  };
+  const goBack = () => {
+    if (step === 3 && skipTypeStep) {
+      setStep(1);
+      return;
+    }
+    setStep(step - 1);
+  };
   const selectedServiceType = service?.campaignType
     ? (CAMPAIGN_TYPES.find((item) => item.key === service.campaignType)?.name ?? "")
     : "";
@@ -3554,7 +3473,7 @@ function WizardDialog({
               ? "Konfirmasi Pesanan"
               : isOffline
                 ? `Pesan Buzzer Offline — Langkah ${step - 2} / 3`
-                : `Buat Pesanan Baru — Langkah ${step} / 5`}
+                : `Buat Pesanan Baru — Langkah ${wizardStepIndex} / ${wizardSteps.length}`}
           </DialogTitle>
           <DialogDescription className="break-words">
             {isCatalog
@@ -3567,7 +3486,7 @@ function WizardDialog({
 
         {!isCatalog && (
           <div className="flex w-full min-w-0 gap-1">
-            {(isOffline ? [3, 4, 5] : [1, 2, 3, 4, 5]).map((s) => (
+            {wizardSteps.map((s) => (
               <div
                 key={s}
                 className={cn(
@@ -3669,6 +3588,24 @@ function WizardDialog({
             <h4 className="font-semibold">
               {isOffline ? "Detail Event Offline" : "Isi Detail Campaign"}
             </h4>
+            {hasPresetType && (
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-muted/40 px-3 py-2 text-sm">
+                <span className="min-w-0 break-words">
+                  <span className="text-muted-foreground">Jenis campaign: </span>
+                  <b>{selectedServiceType || "Sesuai layanan"}</b>
+                </span>
+                <button
+                  type="button"
+                  className="shrink-0 text-xs font-semibold text-primary hover:underline"
+                  onClick={() => {
+                    setTypeStepUnlocked(true);
+                    setStep(2);
+                  }}
+                >
+                  Ubah
+                </button>
+              </div>
+            )}
             <Field label={isOffline ? "Nama Event / Campaign" : "Nama Campaign"}>
               <Input
                 value={form.campaignName}
@@ -3988,7 +3925,7 @@ function WizardDialog({
             variant="outline"
             disabled={!isCatalog && !isOffline && step <= 1}
             onClick={() =>
-              isCatalog || (isOffline && step <= 3) ? onOpenChange(false) : setStep(step - 1)
+              isCatalog || (isOffline && step <= 3) ? onOpenChange(false) : goBack()
             }
           >
             {isCatalog ? "Kembali" : isOffline && step <= 3 ? "Batal" : "Sebelumnya"}
@@ -3997,7 +3934,7 @@ function WizardDialog({
             <Button
               className="w-full gradient-brand text-brand-foreground sm:w-auto"
               disabled={
-                (step === 2 && !service) ||
+                (step === 2 && !service?.campaignType) ||
                 (step === 3 &&
                   (!form.campaignName.trim() ||
                     !form.description.trim() ||
@@ -4006,7 +3943,7 @@ function WizardDialog({
                     !form.startDate ||
                     !form.endDate))
               }
-              onClick={() => setStep(step + 1)}
+              onClick={goNext}
             >
               Lanjut
             </Button>
