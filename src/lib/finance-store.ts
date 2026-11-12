@@ -176,24 +176,34 @@ import {
   editWithdrawal as editLocalWithdrawal,
 } from "@/lib/buzzer-store";
 
-export async function updateWithdrawalStatus(
+/**
+ * Deteksi RPC yang belum ada di database (migration belum dijalankan).
+ * Dipakai agar aplikasi tetap jalan dengan jalur lama saat deploy
+ * mendahului migration.
+ */
+function isMissingRpc(error: any): boolean {
+  const code = String(error?.code ?? "");
+  const message = String(error?.message ?? "").toLowerCase();
+  return (
+    code === "42883" ||
+    code === "PGRST202" ||
+    message.includes("could not find the function")
+  );
+}
+
+const LEGACY_RPC_WARNING =
+  "[pencairan] RPC atomik belum tersedia di database — memakai jalur lama. " +
+  "Jalankan migration 20261112010000_atomic_withdrawal_rpc.sql.";
+
+/** Jalur lama (bukan atomik) — hanya dipakai saat RPC belum dimigrasikan. */
+async function updateWithdrawalStatusLegacy(
   id: string,
   status: WithdrawalStatus,
   adminNote?: string,
   proofUrl?: string,
 ) {
   const now = new Date().toISOString();
-  const patch: {
-    status: WithdrawalStatus;
-    admin_note?: string;
-    proof_url?: string;
-    approved_at?: string;
-    completed_at?: string;
-    updated_at: string;
-  } = {
-    status,
-    updated_at: now,
-  };
+  const patch: Record<string, any> = { status, updated_at: now };
   if (adminNote !== undefined) patch.admin_note = adminNote;
   if (proofUrl !== undefined) patch.proof_url = proofUrl;
   if (status === "Berhasil" || status === "Disetujui") {
@@ -201,9 +211,83 @@ export async function updateWithdrawalStatus(
     patch.completed_at = now;
   }
 
-  const { error } = await supabase.from("withdrawals").update(patch).eq("id", id);
-  if (error) {
-    console.error("Gagal update status withdrawal di Supabase:", error);
+  const { error } = await supabase.from("withdrawals").update(patch as any).eq("id", id);
+  if (error) throw new Error(error.message || "Gagal memperbarui status pencairan");
+
+  if (status !== "Berhasil" && status !== "Disetujui") return;
+
+  const { data: w } = await supabase
+    .from("withdrawals")
+    .select("buzzer_email, amount")
+    .eq("id", id)
+    .maybeSingle();
+
+  const emailNorm = w?.buzzer_email ? w.buzzer_email.trim().toLowerCase() : "";
+  const amount = Number(w?.amount || 0);
+  if (!emailNorm || amount <= 0) return;
+
+  const { data: wallet } = await supabase
+    .from("buzzer_wallets")
+    .select("balance")
+    .eq("buzzer_email", emailNorm)
+    .maybeSingle();
+
+  if (wallet) {
+    await supabase
+      .from("buzzer_wallets")
+      .update({ balance: Math.max(0, Number(wallet.balance || 0) - amount), updated_at: now })
+      .eq("buzzer_email", emailNorm);
+  }
+}
+
+/**
+ * Ubah status pencairan. Persetujuan & penolakan diproses lewat RPC atomik
+ * (`approve_withdrawal` / `reject_withdrawal`) agar saldo tidak pernah
+ * terpotong ganda maupun menjadi negatif.
+ */
+export async function updateWithdrawalStatus(
+  id: string,
+  status: WithdrawalStatus,
+  adminNote?: string,
+  proofUrl?: string,
+) {
+  const approved = status === "Berhasil" || status === "Disetujui";
+  let usedLegacy = false;
+
+  if (approved) {
+    const { error } = await (supabase as any).rpc("approve_withdrawal", {
+      p_withdrawal_id: id,
+      p_admin_note: adminNote ?? null,
+      p_proof_url: proofUrl ?? null,
+    });
+    if (error) {
+      if (!isMissingRpc(error)) {
+        throw new Error(error.message || "Gagal menyetujui pencairan");
+      }
+      usedLegacy = true;
+    }
+  } else if (status === "Ditolak") {
+    const { error } = await (supabase as any).rpc("reject_withdrawal", {
+      p_withdrawal_id: id,
+      p_reason: adminNote ?? "",
+    });
+    if (error) {
+      if (!isMissingRpc(error)) {
+        throw new Error(error.message || "Gagal menolak pencairan");
+      }
+      usedLegacy = true;
+    }
+  } else {
+    const { error } = await supabase
+      .from("withdrawals")
+      .update({ status, updated_at: new Date().toISOString() } as any)
+      .eq("id", id);
+    if (error) throw new Error(error.message || "Gagal memperbarui status pencairan");
+  }
+
+  if (usedLegacy) {
+    console.warn(LEGACY_RPC_WARNING);
+    await updateWithdrawalStatusLegacy(id, status, adminNote, proofUrl);
   }
 
   try {
@@ -216,25 +300,8 @@ export async function updateWithdrawalStatus(
     const emailNorm = w?.buzzer_email ? w.buzzer_email.trim().toLowerCase() : "";
     const amount = Number(w?.amount || 0);
 
-    // Jika disetujui / berhasil oleh admin, baru potong saldo dompet buzzer di Supabase
-    if ((status === "Berhasil" || status === "Disetujui") && emailNorm && amount > 0) {
-      const { data: wallet } = await supabase
-        .from("buzzer_wallets")
-        .select("balance")
-        .eq("buzzer_email", emailNorm)
-        .maybeSingle();
-
-      if (wallet) {
-        const newBalance = Math.max(0, Number(wallet.balance || 0) - amount);
-        await supabase
-          .from("buzzer_wallets")
-          .update({ balance: newBalance, updated_at: now })
-          .eq("buzzer_email", emailNorm);
-      }
-    }
-
     if (emailNorm) {
-      // Sync ke local store buzzer
+      // Sync ke local store buzzer (sumber kebenaran saldo tetap database).
       try {
         updateLocalWithdrawalStatus(emailNorm, id, status, adminNote, proofUrl);
       } catch (errLocal) {
@@ -251,11 +318,12 @@ export async function updateWithdrawalStatus(
       });
     }
   } catch (err) {
-    console.warn("Gagal memproses notifikasi atau refund payout:", err);
+    console.warn("Gagal memproses notifikasi payout:", err);
   }
 }
 
 export async function deleteWithdrawalRecord(id: string, buzzerEmail?: string) {
+  // Baca data sebelum dihapus: dibutuhkan untuk refund (jalur lama) & mirror lokal.
   const { data: w } = await supabase
     .from("withdrawals")
     .select("buzzer_email, amount, status")
@@ -263,25 +331,38 @@ export async function deleteWithdrawalRecord(id: string, buzzerEmail?: string) {
     .maybeSingle();
 
   const emailNorm = (w?.buzzer_email || buzzerEmail || "").trim().toLowerCase();
-  const wasApproved = w?.status === "Berhasil" || w?.status === "Disetujui";
-  const amount = Number(w?.amount || 0);
 
-  // Jika sebelumnya disetujui (saldo sudah dipotong), kembalikan saldo ke dompet buzzer di Supabase
-  if (wasApproved && emailNorm && amount > 0) {
-    const { data: wallet } = await supabase
-      .from("buzzer_wallets")
-      .select("balance")
-      .eq("buzzer_email", emailNorm)
-      .maybeSingle();
-    if (wallet) {
-      await supabase
-        .from("buzzer_wallets")
-        .update({ balance: Number(wallet.balance || 0) + amount, updated_at: new Date().toISOString() })
-        .eq("buzzer_email", emailNorm);
+  const { error } = await (supabase as any).rpc("delete_withdrawal", {
+    p_withdrawal_id: id,
+  });
+
+  if (error) {
+    if (!isMissingRpc(error)) {
+      throw new Error(error.message || "Gagal menghapus riwayat pencairan");
     }
-  }
 
-  await supabase.from("withdrawals").delete().eq("id", id);
+    console.warn(LEGACY_RPC_WARNING);
+    const wasApproved = w?.status === "Berhasil" || w?.status === "Disetujui";
+    const amount = Number(w?.amount || 0);
+
+    // Jika sebelumnya disetujui (saldo sudah dipotong), kembalikan saldo.
+    if (wasApproved && emailNorm && amount > 0) {
+      const { data: wallet } = await supabase
+        .from("buzzer_wallets")
+        .select("balance")
+        .eq("buzzer_email", emailNorm)
+        .maybeSingle();
+      if (wallet) {
+        await supabase
+          .from("buzzer_wallets")
+          .update({ balance: Number(wallet.balance || 0) + amount, updated_at: new Date().toISOString() })
+          .eq("buzzer_email", emailNorm);
+      }
+    }
+
+    const { error: deleteError } = await supabase.from("withdrawals").delete().eq("id", id);
+    if (deleteError) throw new Error(deleteError.message || "Gagal menghapus riwayat pencairan");
+  }
 
   if (emailNorm) {
     try {
@@ -292,15 +373,74 @@ export async function deleteWithdrawalRecord(id: string, buzzerEmail?: string) {
   }
 }
 
+type WithdrawalEditPatch = {
+  status?: WithdrawalStatus;
+  amount?: number;
+  method?: string;
+  account_no?: string;
+  admin_note?: string;
+};
+
+/** Jalur lama edit pencairan — hanya dipakai saat RPC belum dimigrasikan. */
+async function editWithdrawalRecordLegacy(
+  id: string,
+  patch: WithdrawalEditPatch,
+  current: { buzzer_email?: string | null; amount?: number | null; status?: string | null } | null,
+) {
+  const now = new Date().toISOString();
+  const prevStatus = current?.status ?? "Menunggu";
+  const newStatus = patch.status ?? prevStatus;
+  const prevAmount = Number(current?.amount || 0);
+  const newAmount = patch.amount !== undefined ? Number(patch.amount) : prevAmount;
+
+  const wasApproved = prevStatus === "Berhasil" || prevStatus === "Disetujui";
+  const isApproved = newStatus === "Berhasil" || newStatus === "Disetujui";
+
+  let delta = 0;
+  if (wasApproved && isApproved) delta = prevAmount - newAmount;
+  else if (!wasApproved && isApproved) delta = -newAmount;
+  else if (wasApproved && !isApproved) delta = prevAmount;
+
+  const updatePayload: Record<string, any> = { updated_at: now };
+  if (patch.status !== undefined) updatePayload.status = patch.status;
+  if (patch.amount !== undefined) updatePayload.amount = patch.amount;
+  if (patch.method !== undefined) updatePayload.method = patch.method;
+  if (patch.account_no !== undefined) updatePayload.account_no = patch.account_no;
+  if (patch.admin_note !== undefined) updatePayload.admin_note = patch.admin_note;
+  if (isApproved) {
+    updatePayload.approved_at = now;
+    updatePayload.completed_at = now;
+  }
+
+  const { error } = await supabase.from("withdrawals").update(updatePayload as any).eq("id", id);
+  if (error) throw new Error(error.message || "Gagal memperbarui data pencairan");
+
+  if (delta === 0) return;
+
+  const emailNorm = (current?.buzzer_email || "").trim().toLowerCase();
+  if (!emailNorm) return;
+
+  const { data: wallet } = await supabase
+    .from("buzzer_wallets")
+    .select("balance")
+    .eq("buzzer_email", emailNorm)
+    .maybeSingle();
+  if (!wallet) return;
+
+  const balance = Number(wallet.balance || 0);
+  if (balance + delta < 0) {
+    throw new Error("Saldo buzzer tidak mencukupi untuk perubahan ini");
+  }
+
+  await supabase
+    .from("buzzer_wallets")
+    .update({ balance: balance + delta, updated_at: now })
+    .eq("buzzer_email", emailNorm);
+}
+
 export async function editWithdrawalRecord(
   id: string,
-  patch: {
-    status?: WithdrawalStatus;
-    amount?: number;
-    method?: string;
-    account_no?: string;
-    admin_note?: string;
-  },
+  patch: WithdrawalEditPatch,
   buzzerEmail?: string
 ) {
   const { data: current } = await supabase
@@ -310,41 +450,25 @@ export async function editWithdrawalRecord(
     .maybeSingle();
 
   const emailNorm = (current?.buzzer_email || buzzerEmail || "").trim().toLowerCase();
-  const prevStatus = current?.status;
-  const newStatus = patch.status ?? prevStatus;
-  const prevAmount = Number(current?.amount || 0);
-  const newAmount = patch.amount !== undefined ? Number(patch.amount) : prevAmount;
 
-  const now = new Date().toISOString();
-  const updatePayload: Record<string, any> = { updated_at: now };
-  if (patch.status !== undefined) updatePayload.status = patch.status;
-  if (patch.amount !== undefined) updatePayload.amount = patch.amount;
-  if (patch.method !== undefined) updatePayload.method = patch.method;
-  if (patch.account_no !== undefined) updatePayload.account_no = patch.account_no;
-  if (patch.admin_note !== undefined) updatePayload.admin_note = patch.admin_note;
-  if (patch.status === "Berhasil" || patch.status === "Disetujui") {
-    updatePayload.approved_at = now;
-    updatePayload.completed_at = now;
+  const { error } = await (supabase as any).rpc("edit_withdrawal", {
+    p_withdrawal_id: id,
+    p_status: patch.status ?? null,
+    p_amount: patch.amount ?? null,
+    p_method: patch.method ?? null,
+    p_account_no: patch.account_no ?? null,
+    p_admin_note: patch.admin_note ?? null,
+  });
+
+  if (error) {
+    if (!isMissingRpc(error)) {
+      throw new Error(error.message || "Gagal memperbarui data pencairan");
+    }
+    console.warn(LEGACY_RPC_WARNING);
+    await editWithdrawalRecordLegacy(id, patch, current);
   }
 
-  await supabase.from("withdrawals").update(updatePayload as any).eq("id", id);
-
-  const wasApproved = prevStatus === "Berhasil" || prevStatus === "Disetujui";
-  const isApproved = newStatus === "Berhasil" || newStatus === "Disetujui";
-
   if (emailNorm) {
-    if (!wasApproved && isApproved && newAmount > 0) {
-      const { data: wallet } = await supabase.from("buzzer_wallets").select("balance").eq("buzzer_email", emailNorm).maybeSingle();
-      if (wallet) {
-        await supabase.from("buzzer_wallets").update({ balance: Math.max(0, Number(wallet.balance || 0) - newAmount), updated_at: now }).eq("buzzer_email", emailNorm);
-      }
-    } else if (wasApproved && !isApproved && prevAmount > 0) {
-      const { data: wallet } = await supabase.from("buzzer_wallets").select("balance").eq("buzzer_email", emailNorm).maybeSingle();
-      if (wallet) {
-        await supabase.from("buzzer_wallets").update({ balance: Number(wallet.balance || 0) + prevAmount, updated_at: now }).eq("buzzer_email", emailNorm);
-      }
-    }
-
     try {
       editLocalWithdrawal(emailNorm, id, {
         status: patch.status as any,
