@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { notifyTaskApproved, notifyTaskRejected, notifyNewTaskAvailable } from "@/lib/buzzer-notification-store";
-import { getBuzzerPercentageForLevel, currentLevels } from "@/lib/buzzer-level";
+import { getBuzzerPercentageForLevel, currentLevels, percentageForLevel } from "@/lib/buzzer-level";
 import { getCachedRows, isCacheFresh, loadCachedRows } from "@/lib/query-cache";
 
 export type CampaignPlatform = "TikTok" | "Instagram" | "X (Twitter)" | "Facebook" | "YouTube" | "Telegram" | "LinkedIn";
@@ -866,7 +866,7 @@ export async function createCampaign(input: Omit<Campaign, "id" | "created_at" |
   if (error) throw error;
 }
 
-/** Menghitung split pendapatan buzzer dan komisi admin berdasarkan level buzzer (Bronze 40%, Silver 45%, Gold 50%, Platinum 55%, Diamond 60%). */
+/** Menghitung split pendapatan buzzer dan komisi admin berdasarkan persentase level (Bronze 40%, Silver 45%, Gold 50%, Platinum 55%, Diamond 60%). */
 export function calculateCampaignJobSplit(
   job: (
     Pick<
@@ -881,14 +881,15 @@ export function calculateCampaignJobSplit(
   );
 
   const level = job?.buzzer_level ?? job?.buzzerLevel;
-  const targetPct = getBuzzerPercentageForLevel(level);
   const levels = currentLevels();
-  const assignedLevel = levels.find((l) => l.name === level) ?? null;
-  const levelPayout = assignedLevel?.payout ?? 0;
+  const targetPct = percentageForLevel(level, levels);
   const snapshot = Number(job?.buzzer_amount ?? job?.payout ?? 0);
   const hasSnapshot = Number.isFinite(snapshot) && snapshot > 0;
-  // Opsi A: payout buzzer online = nominal tetap per job sesuai level (payout_per_job).
-  const buzzerShare = Math.min(Math.max(0, hasSnapshot ? snapshot : levelPayout), total);
+  // Bagian buzzer = persentase level × harga job (maksimal sebesar harga job).
+  const buzzerShare = Math.min(
+    Math.max(0, hasSnapshot ? snapshot : Math.round((total * targetPct) / 100)),
+    total,
+  );
   const adminShare = Math.max(0, total - buzzerShare);
 
   const buzzerPercent = total > 0 ? Math.round((buzzerShare / total) * 10000) / 100 : targetPct;

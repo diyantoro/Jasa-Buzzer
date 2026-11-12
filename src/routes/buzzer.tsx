@@ -88,13 +88,15 @@ import { SosmedSection, LevelCard, AccountLevelChip } from "@/components/social-
 import { useSocialAccounts } from "@/lib/social-store";
 import {
   useBuzzerLevel,
-  getBuzzerPercentageForLevel,
   useBuzzerLevels,
   levelFromFollowers,
   levelProgress,
   nextLevel,
   isOnlineBuzzerCategory,
   countedFollowers,
+  levelForPlatform,
+  percentageForLevel,
+  payoutForJob,
   type BuzzerLevel,
 } from "@/lib/buzzer-level";
 import { BuzzerAnalyticsCards } from "@/components/buzzer-dashboard-analytics";
@@ -1146,12 +1148,37 @@ function DashboardSection({
 
   const levelInfo = useBuzzerLevel(state.profile.email);
   const levels = useBuzzerLevels();
+  const { accounts: dashSocialAccounts } = useSocialAccounts(state.profile.email, state.profile.name);
   const fallbackFollowers = state.profile.followers || 0;
   const isOnlineBuzzer = isOnlineBuzzerCategory(state.profile.buzzerCategory);
   const activeLevel = isOnlineBuzzer ? (levelInfo.level ?? levelFromFollowers(fallbackFollowers, levels)) : null;
   const activeFollowers = isOnlineBuzzer ? (levelInfo.assigned ? levelInfo.followers : fallbackFollowers) : fallbackFollowers;
   const nextLv = isOnlineBuzzer ? (levelInfo.assigned ? levelInfo.next : nextLevel(activeFollowers, levels)) : null;
   const levelPct = isOnlineBuzzer ? (levelInfo.assigned ? levelInfo.progress : levelProgress(activeFollowers, levels)) : 0;
+
+  // Level per platform: inilah yang menentukan persentase bayaran job.
+  const platformLevels = useMemo(() => {
+    const seen = new Set<string>();
+    const out: { platform: string; level: BuzzerLevel }[] = [];
+    for (const acc of dashSocialAccounts) {
+      if (acc.verification !== "Terverifikasi" || acc.isActive === false) continue;
+      if (seen.has(acc.platform)) continue;
+      seen.add(acc.platform);
+      const lv = levelForPlatform(dashSocialAccounts, acc.platform, levels);
+      if (lv) out.push({ platform: acc.platform, level: lv });
+    }
+    return out;
+  }, [dashSocialAccounts, levels]);
+
+  // Perkiraan reward untuk buzzer ini pada sebuah job.
+  const dashReward = (job: MergedJob) => {
+    const snapshot = Number(job.buzzerAmount ?? 0);
+    if (snapshot > 0) return snapshot;
+    if (String(job.platform) === "Offline") return Number(job.payout ?? job.grossPrice ?? 0);
+    const gross = Number(job.grossPrice ?? 0);
+    if (gross <= 0) return Number(job.payout ?? 0);
+    return payoutForJob(gross, dashSocialAccounts, String(job.platform), levels).amount;
+  };
 
   const { data: allRatings } = useBuzzerRatings();
   const myRatings = useMemo(() => {
@@ -1315,16 +1342,16 @@ function DashboardSection({
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/70">
-                    Level Buzzer
+                    Status Buzzer
                   </p>
                   <p className="truncate font-display text-lg font-bold text-white">
                     {activeLevel?.name}
                   </p>
                 </div>
                 <span className="shrink-0 rounded-full bg-white/15 px-2 py-0.5 font-numeric text-[11px] font-semibold tabular-nums">
-                  {activeLevel && activeLevel.payout > 0
-                    ? `${formatIDR(activeLevel.payout)} / job`
-                    : "Payout campaign"}
+                  {platformLevels.length > 0
+                    ? `${platformLevels.length} platform`
+                    : "Belum ada akun"}
                 </span>
               </div>
             ) : (
@@ -1351,6 +1378,19 @@ function DashboardSection({
                     />
                   </div>
                 </div>
+                {platformLevels.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {platformLevels.map(({ platform, level: pl }) => (
+                      <span
+                        key={platform}
+                        title={`Job ${platform}: ${pl.percentage}% dari harga job`}
+                        className="rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-semibold"
+                      >
+                        {pl.emoji} {platform} {pl.percentage}%
+                      </span>
+                    ))}
+                  </div>
+                )}
                 <div className="mt-3 flex items-center justify-between text-[11px] text-white/80">
                   <span className="inline-flex items-center gap-1">
                     <Star className="h-3 w-3 fill-amber-300 text-amber-300" />
@@ -1770,7 +1810,7 @@ function DashboardSection({
                     <span className="flex shrink-0 items-center gap-2">
                       <span className="text-right">
                         <span className="block font-numeric text-sm font-bold tabular-nums">
-                          {formatIDR(job.payout)}
+                          {formatIDR(dashReward(job))}
                         </span>
                         <span className="block text-[10px] text-muted-foreground">reward</span>
                       </span>
@@ -2896,14 +2936,20 @@ function JobCard({
     setConvertedCount(null);
   };
   const lv = useBuzzerLevel(store.state.profile.email);
+  const { accounts: mySocialAccounts } = useSocialAccounts(
+    store.state.profile.email,
+    store.state.profile.name,
+  );
   const isOnlineBuzzer = isOnlineBuzzerCategory(store.state.profile.buzzerCategory);
-  // Level hanya menentukan bayaran untuk job ONLINE. Job platform "Offline"
-  // selalu memakai nominal payout_per_buzzer dari admin.
+  // Bayaran online = harga job × persentase level akun yang platformnya cocok.
+  // Job platform "Offline" tetap memakai nominal payout_per_buzzer dari admin.
   const usesLevelPayout = isOnlineBuzzer && String(job.platform) !== "Offline";
-  const jobLevel = usesLevelPayout ? (job.buzzerLevel ?? lv.level?.name ?? "Belum ditetapkan") : null;
-  const buzzerPct = getBuzzerPercentageForLevel(jobLevel);
+  const platformLevel = usesLevelPayout
+    ? levelForPlatform(mySocialAccounts, String(job.platform), lv.levels)
+    : null;
+  const jobLevel = usesLevelPayout ? (job.buzzerLevel ?? platformLevel?.name ?? "Belum ditetapkan") : null;
+  const buzzerPct = usesLevelPayout ? percentageForLevel(job.buzzerLevel ?? platformLevel, lv.levels) : 0;
   const grossPrice = Math.max(0, job.grossPrice ?? 0);
-  const levelPayout = usesLevelPayout ? Number(lv.level?.payout ?? 0) : 0;
   const payout = (() => {
     // Job yang sudah diambil memakai snapshot payout dari database. Ini
     // mencegah nominal berubah ketika level buzzer naik setelah job diambil.
@@ -2916,10 +2962,7 @@ function JobCard({
       const snapshot = Number(job.buzzerAmount ?? job.payout ?? 0);
       return Math.round(snapshot > 0 ? snapshot : 0);
     }
-    // Opsi A: nominal tetap per job mengikuti payout level buzzer (payout_per_job).
-    if (levelPayout > 0) return Math.round(levelPayout);
-    const fallbackPct = getBuzzerPercentageForLevel(jobLevel);
-    return Math.round((grossPrice * fallbackPct) / 100);
+    return Math.min(grossPrice, Math.round((grossPrice * buzzerPct) / 100));
   })();
   const buzzerPercentage = usesLevelPayout ? buzzerPct : 0;
 
@@ -3210,7 +3253,7 @@ function JobCard({
                 <p className="font-display text-lg font-bold">{formatIDR(payout)}</p>
                 <p className="text-xs text-muted-foreground">
                   {usesLevelPayout
-                    ? `Sudah termasuk potongan admin · Level ${lv.level?.name ?? jobLevel}`
+                    ? `Job ${job.platform} · Level ${jobLevel} ${buzzerPct}%`
                     : "Nominal tetap sesuai yang ditetapkan admin"}
                 </p>
               </div>
@@ -6170,7 +6213,7 @@ function ProfilSection({
         {hasLevel && (
           <div className="rounded-xl border border-border bg-muted/30 p-3">
             <div className="flex items-center justify-between gap-2">
-              <span className="text-xs font-medium text-muted-foreground">Level Buzzer</span>
+              <span className="text-xs font-medium text-muted-foreground">Status Buzzer</span>
               {activeLevel ? (
                 <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", activeLevel.badgeClass)}>
                   {activeLevel.emoji} {activeLevel.name}

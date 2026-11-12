@@ -175,7 +175,7 @@ import {
 import { deleteAdminBuzzerRating, updateAdminBuzzerRating, useBuzzerRatings, type BuzzerRating } from "@/lib/rating-store";
 import { uploadCatalogThumbnail } from "@/lib/catalog-thumbnail-upload";
 import { CAMPAIGN_TYPES, notifyCustomerPaymentApproved, notifyCustomerPaymentRejected } from "@/lib/customer-store";
-import { useAssignedLevels, useBuzzerLevels, getBuzzerPercentageForLevel, assignLevelFromVerification } from "@/lib/buzzer-level";
+import { useAssignedLevels, useBuzzerLevels, getBuzzerPercentageForLevel, percentageForLevel, assignLevelFromVerification } from "@/lib/buzzer-level";
 import { ProofLink } from "@/components/proof-link";
 import { adminApproveSocialAccount, useAllSocialAccounts } from "@/lib/social-store";
 import { useAdminWallet } from "@/lib/admin-wallet-store";
@@ -5792,13 +5792,14 @@ function VerifikasiSection({ mode = "accounts" }: { mode?: "accounts" | "jobs" }
     const total = Math.max(0, Number(job.gross_price) || 0);
     const assigned = job.buzzer_email ? assignedLevels[job.buzzer_email.trim().toLowerCase()] : undefined;
     const levelName = job.buzzer_level || assigned?.level || null;
-    const buzzerPct = getBuzzerPercentageForLevel(levelName);
-    const assignedLevel = levels.find((l) => l.name === levelName) ?? null;
-    const levelPayout = assignedLevel?.payout ?? 0;
+    const buzzerPct = percentageForLevel(levelName, levels);
     const snapshot = Number(job.buzzer_amount ?? job.payout ?? 0);
     const hasSnapshot = Number.isFinite(snapshot) && snapshot > 0;
-    // Opsi A: payout buzzer online = nominal tetap per job sesuai level (payout_per_job).
-    const buzzerShare = Math.min(Math.max(0, hasSnapshot ? snapshot : levelPayout), total);
+    // Persentase level × harga job (bukan nominal tetap).
+    const buzzerShare = Math.min(
+      Math.max(0, hasSnapshot ? snapshot : Math.round((total * buzzerPct) / 100)),
+      total,
+    );
     const adminShare = Math.max(0, total - buzzerShare);
     return {
       total,

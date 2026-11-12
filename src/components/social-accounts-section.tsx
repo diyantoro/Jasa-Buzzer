@@ -29,9 +29,9 @@ import {
 import {
   useBuzzerLevel, useBuzzerLevels, levelFromFollowers, countedFollowers,
   nextLevel as nextLevelOf, levelProgress as progressOf, isOnlineBuzzerCategory,
+  percentageForLevel,
   type BuzzerLevel,
 } from "@/lib/buzzer-level";
-import { formatIDR } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
 import { uploadProofScreenshot } from "@/lib/proof-upload";
 import { notifySocialAccountSubmitted } from "@/lib/buzzer-notification-store";
@@ -456,7 +456,7 @@ export function LevelCard({ email, name, simple = false, category, onAjukan }: {
           )}
         >
           <p className="font-semibold">{l.emoji} {l.name}</p>
-          <p className="text-[10px]">{compact(l.minFollowers)}+ · {l.payout > 0 ? formatIDR(l.payout) : "—"}</p>
+          <p className="text-[10px]">{compact(l.minFollowers)}+ · {Number.isFinite(l.percentage) ? `${l.percentage}%` : "—"}</p>
         </div>
       ))}
     </div>
@@ -484,17 +484,19 @@ export function LevelCard({ email, name, simple = false, category, onAjukan }: {
             openDetail();
           }
         }}
-        aria-label="Lihat detail Level Buzzer"
+        aria-label="Lihat detail Status Buzzer"
       >
         <div className="flex min-w-0 items-center gap-3">
           <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-muted text-xl">{level?.emoji ?? "⏳"}</span>
           <div className="min-w-0 flex-1">
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">Level Buzzer</p>
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Status Buzzer</p>
             <p className="truncate font-display text-lg font-bold">{level?.name ?? "Belum ditetapkan"}</p>
           </div>
           <div className="hidden shrink-0 text-right sm:block">
-            <p className="text-xs text-muted-foreground">Bayaran per Job</p>
-            <p className="font-numeric font-bold tabular-nums text-gradient-brand">{level && level.payout > 0 ? formatIDR(level.payout) : "—"}</p>
+            <p className="text-xs text-muted-foreground">Akun terverifikasi</p>
+            <p className="font-numeric font-bold tabular-nums text-gradient-brand">
+              {accounts.filter((a) => a.verification === "Terverifikasi" && a.isActive !== false).length} platform
+            </p>
           </div>
           <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
         </div>
@@ -512,10 +514,13 @@ export function LevelCard({ email, name, simple = false, category, onAjukan }: {
             Lihat Detail
           </Button>
         </div>
+        <p className="mt-1 text-[11px] leading-tight text-muted-foreground">
+          Status dihitung dari total semua akun. Bayaran job mengikuti level akun di platform masing-masing.
+        </p>
         <div className="mt-1 flex items-center justify-between gap-2 text-xs sm:hidden">
-          <span className="text-muted-foreground">Bayaran per job</span>
+          <span className="text-muted-foreground">Akun terverifikasi</span>
           <span className="shrink-0 font-numeric font-semibold tabular-nums text-gradient-brand">
-            {level && level.payout > 0 ? formatIDR(level.payout) : "—"}
+            {accounts.filter((a) => a.verification === "Terverifikasi" && a.isActive !== false).length} platform
           </span>
         </div>
         {level ? (
@@ -543,19 +548,24 @@ export function LevelCard({ email, name, simple = false, category, onAjukan }: {
       <Dialog open={openLevels} onOpenChange={setOpenLevels}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Detail Level Buzzer</DialogTitle>
-            <DialogDescription>Level ditentukan dari followers akun media sosial yang sudah diverifikasi admin.</DialogDescription>
+            <DialogTitle>Detail Status Buzzer</DialogTitle>
+            <DialogDescription>
+              Status dihitung dari total followers semua akun terverifikasi. Persentase bayaran
+              mengikuti level akun di platform masing-masing.
+            </DialogDescription>
           </DialogHeader>
 
           <div className="flex items-center gap-3 rounded-xl border border-border bg-muted/40 p-3">
             <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-background text-2xl">{level?.emoji ?? "⏳"}</span>
             <div className="min-w-0 flex-1">
-              <p className="text-xs text-muted-foreground">Level saat ini</p>
+              <p className="text-xs text-muted-foreground">Status saat ini</p>
               <p className="font-display text-xl font-bold">{level?.name ?? "Belum ditetapkan"}</p>
             </div>
             <div className="text-right">
-              <p className="text-xs text-muted-foreground">Bayaran per Job</p>
-              <p className="font-semibold text-gradient-brand">{level && level.payout > 0 ? formatIDR(level.payout) : "—"}</p>
+              <p className="text-xs text-muted-foreground">Akun terverifikasi</p>
+              <p className="font-semibold text-gradient-brand">
+                {accounts.filter((a) => a.verification === "Terverifikasi" && a.isActive !== false).length} platform
+              </p>
             </div>
           </div>
 
@@ -613,9 +623,8 @@ export function LevelBadge({ followers, className, category }: { followers: numb
 
 
 /**
- * Badge level **per akun** — bukan level resmi buzzer.
- * Level resmi tetap satu (agregat semua akun terverifikasi), sedangkan
- * badge ini menunjukkan level "jika akun ini berdiri sendiri".
+ * Badge level **per akun/platform**. Level ini yang menentukan persentase
+ * bayaran job di platform tersebut (bukan level agregat buzzer).
  */
 export function AccountLevelChip({
   followers,
@@ -632,9 +641,10 @@ export function AccountLevelChip({
 }) {
   if (!isOnlineBuzzerCategory(category)) return null;
   const l = levelFromFollowers(followers, levels);
+  const pct = Number.isFinite(l.percentage) ? l.percentage : percentageForLevel(l, levels);
   const title = officialLevelName
-    ? `Level jika akun ini berdiri sendiri. Level resmi buzzer Anda: ${officialLevelName}.`
-    : "Level jika akun ini berdiri sendiri — bukan level resmi buzzer.";
+    ? `Akun ini: ${l.name} · job di platform ini dibayar ${pct}% dari harga job. Status buzzer: ${officialLevelName}.`
+    : `Akun ini: ${l.name} · job di platform ini dibayar ${pct}% dari harga job.`;
   return (
     <span
       title={title}
@@ -644,7 +654,8 @@ export function AccountLevelChip({
         className,
       )}
     >
-      Setara {l.emoji} {l.name}
+      {l.emoji} {l.name}
+      <span className="font-normal opacity-80">· {pct}%</span>
     </span>
   );
 }

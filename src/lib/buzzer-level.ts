@@ -11,8 +11,10 @@ export type BuzzerLevel = {
   name: BuzzerLevelName;
   minFollowers: number;
   maxFollowers: number | null;
-  /** Payout per job untuk level ini (rupiah), diatur admin di database */
+  /** Payout per job untuk level ini (rupiah) — arsip, tidak dipakai lagi */
   payout: number;
+  /** Persentase bagian buzzer dari harga job (diatur admin di database) */
+  percentage: number;
   badgeClass: string;
   emoji: string;
 };
@@ -40,11 +42,11 @@ export function getBuzzerPercentageForLevel(levelName?: string | null): number {
 
 /** Ambang default (dipakai sebelum data database termuat). */
 const DEFAULT_LEVELS: BuzzerLevel[] = [
-  { name: "Bronze", minFollowers: 0, maxFollowers: 10_000, payout: 0, badgeClass: BADGE.Bronze, emoji: "🥉" },
-  { name: "Silver", minFollowers: 10_001, maxFollowers: 50_000, payout: 0, badgeClass: BADGE.Silver, emoji: "🥈" },
-  { name: "Gold", minFollowers: 50_001, maxFollowers: 100_000, payout: 0, badgeClass: BADGE.Gold, emoji: "🥇" },
-  { name: "Platinum", minFollowers: 100_001, maxFollowers: 500_000, payout: 0, badgeClass: BADGE.Platinum, emoji: "💎" },
-  { name: "Diamond", minFollowers: 500_001, maxFollowers: null, payout: 0, badgeClass: BADGE.Diamond, emoji: "👑" },
+  { name: "Bronze", minFollowers: 0, maxFollowers: 10_000, payout: 0, percentage: 40, badgeClass: BADGE.Bronze, emoji: "🥉" },
+  { name: "Silver", minFollowers: 10_001, maxFollowers: 50_000, payout: 0, percentage: 45, badgeClass: BADGE.Silver, emoji: "🥈" },
+  { name: "Gold", minFollowers: 50_001, maxFollowers: 100_000, payout: 0, percentage: 50, badgeClass: BADGE.Gold, emoji: "🥇" },
+  { name: "Platinum", minFollowers: 100_001, maxFollowers: 500_000, payout: 0, percentage: 55, badgeClass: BADGE.Platinum, emoji: "💎" },
+  { name: "Diamond", minFollowers: 500_001, maxFollowers: null, payout: 0, percentage: 60, badgeClass: BADGE.Diamond, emoji: "👑" },
 ];
 
 let LEVELS: BuzzerLevel[] = DEFAULT_LEVELS;
@@ -56,6 +58,7 @@ const subscribe = (cb: () => void) => { listeners.add(cb); return () => { listen
 type LevelRow = {
   name: string; sort_order: number; min_followers: number;
   max_followers: number | null; payout_per_job: number; emoji: string;
+  payout_percentage?: number | null;
 };
 
 export async function refreshLevels() {
@@ -71,6 +74,10 @@ export async function refreshLevels() {
     minFollowers: Number(r.min_followers),
     maxFollowers: r.max_followers === null ? null : Number(r.max_followers),
     payout: Number(r.payout_per_job),
+    percentage:
+      r.payout_percentage === null || r.payout_percentage === undefined
+        ? getBuzzerPercentageForLevel(r.name)
+        : Number(r.payout_percentage),
     badgeClass: BADGE[r.name as BuzzerLevelName] ?? BADGE.Bronze,
     emoji: r.emoji || "⭐",
   }));
@@ -79,6 +86,16 @@ export async function refreshLevels() {
 
 export async function updateLevelPayout(name: string, payout: number) {
   const { error } = await supabase.from("buzzer_levels").update({ payout_per_job: payout }).eq("name", name);
+  await refreshLevels();
+  return !error;
+}
+
+/** Ubah persentase bagian buzzer untuk sebuah level (diatur admin). */
+export async function updateLevelPercentage(name: string, percentage: number) {
+  const { error } = await supabase
+    .from("buzzer_levels")
+    .update({ payout_percentage: percentage } as any)
+    .eq("name", name);
   await refreshLevels();
   return !error;
 }
@@ -225,6 +242,67 @@ export function isOnlineBuzzerCategory(category?: string | null): boolean {
   return base !== "offline";
 }
 
+/* ---------------- Level per platform & nominal job ---------------- */
+
+/** Samakan penulisan platform ("X (Twitter) " vs "x (twitter)"). */
+export function normalizePlatform(platform?: string | null): string {
+  return (platform ?? "").toString().trim().toLowerCase();
+}
+
+/** Level sebuah angka followers (tanpa melihat akun). */
+export function levelForFollowers(followers: number, levels: BuzzerLevel[] = LEVELS): BuzzerLevel {
+  return levelFromFollowers(Math.max(0, Number(followers) || 0), levels);
+}
+
+/**
+ * Level untuk sebuah platform: dihitung dari followers akun milik buzzer
+ * yang platformnya cocok, terverifikasi, dan masih aktif.
+ * Return `null` bila buzzer tidak punya akun di platform tersebut.
+ */
+export function levelForPlatform(
+  accounts: SocialAccount[],
+  platform: string,
+  levels: BuzzerLevel[] = LEVELS,
+): BuzzerLevel | null {
+  const key = normalizePlatform(platform);
+  if (!key) return null;
+  const matched = accounts.filter(
+    (a) => normalizePlatform(a.platform) === key && a.verification === "Terverifikasi" && a.isActive !== false,
+  );
+  if (matched.length === 0) return null;
+  const followers = matched.reduce((s, a) => s + (Number(a.followers) || 0), 0);
+  return levelFromFollowers(followers, levels);
+}
+
+/** Persentase bagian buzzer untuk sebuah level (nilai diatur admin). */
+export function percentageForLevel(
+  level?: BuzzerLevel | string | null,
+  levels: BuzzerLevel[] = LEVELS,
+): number {
+  const name = typeof level === "string" ? level : level?.name;
+  if (!name) return 40;
+  const found = levels.find((l) => l.name.toLowerCase() === name.toLowerCase());
+  if (found && Number.isFinite(found.percentage)) return found.percentage;
+  return getBuzzerPercentageForLevel(name);
+}
+
+/**
+ * Nominal yang diterima buzzer untuk sebuah job online:
+ * harga job × persentase level akun yang platformnya cocok.
+ */
+export function payoutForJob(
+  grossPrice: number,
+  accounts: SocialAccount[],
+  platform: string,
+  levels: BuzzerLevel[] = LEVELS,
+): { level: BuzzerLevel | null; percentage: number; amount: number } {
+  const level = levelForPlatform(accounts, platform, levels);
+  const percentage = percentageForLevel(level, levels);
+  const gross = Math.max(0, Math.round(Number(grossPrice) || 0));
+  const amount = Math.min(gross, Math.max(0, Math.round((gross * percentage) / 100)));
+  return { level, percentage, amount };
+}
+
 /* ---------------- Level yang sudah ditetapkan admin ---------------- */
 
 export type AssignedLevel = {
@@ -335,8 +413,9 @@ export function useAssignedLevels(): Record<string, AssignedLevel> {
 }
 
 /**
- * Level buzzer aktif: yang sudah ditetapkan admin. Jika belum ada penetapan,
- * buzzer belum memiliki level (null) dan payout mengikuti payout campaign.
+ * Level buzzer aktif: status resmi yang ditetapkan admin.
+ * Level ini hanya badge/peringkat — bayaran job dihitung dari level akun
+ * pada platform job tersebut (`levelForPlatform` + `payoutForJob`).
  */
 export function useBuzzerLevel(email: string | undefined) {
   const levels = useBuzzerLevels();
@@ -353,7 +432,11 @@ export function useBuzzerLevel(email: string | undefined) {
     assignedAt: rec?.assignedAt ?? null,
     next: nextLevel(followers, levels),
     progress: levelProgress(followers, levels),
-    /** Payout final untuk sebuah job: pakai payout level bila sudah ditetapkan. */
-    payout: (base: number) => (level && level.payout > 0 ? level.payout : base),
+    /** Bagian buzzer dari harga job berdasarkan persentase status ini. */
+    payout: (base: number) => {
+      const gross = Math.max(0, Math.round(Number(base) || 0));
+      const pct = percentageForLevel(level, levels);
+      return Math.min(gross, Math.max(0, Math.round((gross * pct) / 100)));
+    },
   };
 }
