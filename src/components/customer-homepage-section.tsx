@@ -57,6 +57,7 @@ import {
   type Campaign,
   type CampaignJob,
   type CampaignPlatform,
+  useServicePricings,
 } from "@/lib/campaign-store";
 import {
   CUSTOMER_CAMPAIGN_STATUS_STYLES,
@@ -64,7 +65,11 @@ import {
   type CustomerCampaignStatus,
 } from "@/lib/customer-campaign-status";
 import { SERVICES, formatIDR, type Platform, type Service } from "@/lib/customer-store";
-import { normalizeCatalogService } from "@/lib/service-catalog";
+import {
+  buildServicePricingIndex,
+  normalizeCatalogService,
+  servicePriceInfo,
+} from "@/lib/service-catalog";
 import { Textarea } from "@/components/ui/textarea";
 
 const PLATFORM_ICON: Record<CampaignPlatform, React.ReactNode> = {
@@ -129,8 +134,8 @@ function greetingForHour(hour: number) {
   return "Selamat malam";
 }
 
-function startingPrice(svc: Service) {
-  return Math.min(...svc.packages.map((p) => p.price));
+function startingPrice(svc: Service, pricingIndex?: Map<string, number>) {
+  return servicePriceInfo(svc, pricingIndex).amount;
 }
 
 export function CustomerHomepageSection({
@@ -152,6 +157,7 @@ export function CustomerHomepageSection({
 }) {
   const campaignsQuery = useCampaigns();
   const jobsQuery = useCampaignJobs();
+  const servicePricingsQuery = useServicePricings();
   const catalogsQuery = useServiceCatalogs();
 
   const [detail, setDetail] = useState<Campaign | null>(null);
@@ -267,6 +273,11 @@ export function CustomerHomepageSection({
     );
     return [...adminServices, ...builtInServices];
   }, [catalogsQuery.data]);
+
+  const pricingIndex = useMemo(
+    () => buildServicePricingIndex(servicePricingsQuery.data),
+    [servicePricingsQuery.data],
+  );
 
   // Layanan populer: dihitung dari platform kampanye seluruh database (realtime).
   const popularServices = useMemo(() => {
@@ -556,6 +567,7 @@ export function CustomerHomepageSection({
             <ServiceCard
               key={svc.id}
               service={svc}
+              pricingIndex={pricingIndex}
               onOrder={onOrder}
               onDetail={onDetail}
               highlight
@@ -595,7 +607,7 @@ export function CustomerHomepageSection({
         />
         <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {popularServices.map((svc) => (
-            <ServiceCard key={svc.id} service={svc} onOrder={onOrder} onDetail={onDetail} compact />
+            <ServiceCard key={svc.id} service={svc} pricingIndex={pricingIndex} onOrder={onOrder} onDetail={onDetail} compact />
           ))}
         </div>
       </section>
@@ -613,7 +625,7 @@ export function CustomerHomepageSection({
         />
         <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {recommendedServices.map((svc) => (
-            <ServiceCard key={svc.id} service={svc} onOrder={onOrder} onDetail={onDetail} compact />
+            <ServiceCard key={svc.id} service={svc} pricingIndex={pricingIndex} onOrder={onOrder} onDetail={onDetail} compact />
           ))}
         </div>
       </section>
@@ -766,12 +778,14 @@ function EmptyState({
 
 function ServiceCard({
   service,
+  pricingIndex,
   onOrder,
   onDetail,
   compact,
   highlight,
 }: {
   service: Service;
+  pricingIndex?: Map<string, number>;
   onOrder?: (svc?: Service) => void;
   onDetail?: (svc: Service) => void;
   compact?: boolean;
@@ -840,7 +854,8 @@ function ServiceCard({
         <div className="mt-3 flex-1" />
         <p className="text-[10px] text-muted-foreground sm:text-[11px]">Harga Pesanan</p>
         <p className="font-numeric text-base font-bold tabular-nums text-gradient-brand sm:text-lg">
-          {formatIDR(startingPrice(service))}
+          {servicePriceInfo(service, pricingIndex).prefix ? `${servicePriceInfo(service, pricingIndex).prefix} ` : ""}
+          {formatIDR(startingPrice(service, pricingIndex))}{servicePriceInfo(service, pricingIndex).unit ? ` ${servicePriceInfo(service, pricingIndex).unit}` : ""}
         </p>
         <div className="mt-3 flex items-center gap-1.5 sm:gap-2">
           {onDetail && (

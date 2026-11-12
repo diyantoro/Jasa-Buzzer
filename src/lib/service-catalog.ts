@@ -4,7 +4,8 @@
 // Dipakai di dua tempat agar konsisten:
 // - `src/routes/customer.tsx` (halaman Katalog / daftar layanan)
 // - `src/components/customer-homepage-section.tsx` (kartu rekomendasi homepage)
-import type { CampaignTypeKey, Platform, Service } from "@/lib/customer-store";
+import { CAMPAIGN_TYPES, type CampaignTypeKey, type Platform, type Service } from "@/lib/customer-store";
+import type { ServicePricing } from "@/lib/campaign-store";
 
 const SUPPORTED_PLATFORMS = [
   "Instagram",
@@ -119,3 +120,86 @@ export function normalizeCatalogService(catalog: CatalogServiceInput): Service {
     ],
   };
 }
+
+/** Kunci harga: `platform::jenis layanan` (huruf kecil, dirapikan). */
+function pricingKey(platform: string, serviceType: string) {
+  return `${platform}::${serviceType.trim().toLowerCase()}`;
+}
+
+/**
+ * Indeks harga per buzzer dari konfigurasi admin (`service_pricing`).
+ * Kalau ada beberapa baris untuk kombinasi yang sama, dipakai harga terendah.
+ */
+export function buildServicePricingIndex(pricings: ServicePricing[]): Map<string, number> {
+  const index = new Map<string, number>();
+  for (const pricing of pricings) {
+    if (pricing.status !== "Aktif") continue;
+    const price = Number(pricing.price_per_buzzer);
+    if (!Number.isFinite(price) || price <= 0) continue;
+    const key = pricingKey(pricing.platform, pricing.service_type);
+    const current = index.get(key);
+    if (current === undefined || price < current) index.set(key, price);
+  }
+  return index;
+}
+
+export type ServicePriceInfo = {
+  amount: number;
+  /** "/ buzzer" bila harga dihitung per buzzer (layanan online non-katalog). */
+  unit?: string;
+  /** "Mulai dari" bila total bergantung jumlah buzzer / platform. */
+  prefix?: string;
+  /** Label kecil di atas nominal pada kartu. */
+  label: string;
+  /**
+   * - `catalog`: harga paket dari katalog admin (sudah final).
+   * - `pricing`: harga per buzzer dari konfigurasi admin (sama dengan checkout).
+   * - `estimate`: perkiraan dari paket bawaan (admin belum mengisi harga).
+   */
+  source: "catalog" | "pricing" | "estimate";
+};
+
+/**
+ * Harga yang ditampilkan di kartu layanan. Untuk layanan online non-katalog,
+ * nilainya diambil dari `service_pricing` supaya sama dengan yang ditagih saat
+ * checkout. Offline & katalog memakai harga paket.
+ */
+export function servicePriceInfo(
+  service: Service,
+  pricingIndex?: Map<string, number>,
+): ServicePriceInfo {
+  const isCatalog = !!service.catalogId;
+  const isOffline = service.category === "Offline Buzzer";
+  const packagePrice = service.packages.length
+    ? Math.min(...service.packages.map((item) => Number(item.price) || 0))
+    : 0;
+
+  if (isCatalog || isOffline) {
+    return {
+      amount: isCatalog ? Number(service.catalogPricePerBuzzer ?? packagePrice) : packagePrice,
+      label: "Harga Pesanan",
+      source: isCatalog ? "catalog" : "estimate",
+    };
+  }
+
+  const typeName = service.campaignType
+    ? CAMPAIGN_TYPES.find((item) => item.key === service.campaignType)?.name
+    : undefined;
+  if (typeName && pricingIndex) {
+    const prices = service.platforms
+      .map((platform) => pricingIndex.get(pricingKey(platform, typeName)))
+      .filter((value): value is number => typeof value === "number");
+    if (prices.length > 0) {
+      return {
+        amount: Math.min(...prices),
+        unit: "/ buzzer",
+        prefix: "Mulai dari",
+        label: "Harga per buzzer",
+        source: "pricing",
+      };
+    }
+  }
+
+  return { amount: packagePrice, label: "Estimasi harga", source: "estimate" };
+}
+
