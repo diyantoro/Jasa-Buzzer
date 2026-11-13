@@ -33,6 +33,8 @@ import {
   Twitter,
   Facebook,
   Youtube,
+  Linkedin,
+  AtSign,
   Send,
   ChevronLeft,
   ChevronRight,
@@ -139,6 +141,7 @@ import {
   normalizeCatalogService,
   buildServicePricingTierIndex,
   tierPricesFor,
+  PLATFORM_LIST,
 } from "@/lib/service-catalog";
 import {
   BUZZER_TIERS,
@@ -250,6 +253,8 @@ const PLATFORM_ICON: Record<Platform, ReactNode> = {
   "X (Twitter)": <Twitter className="h-3.5 w-3.5" />,
   Facebook: <Facebook className="h-3.5 w-3.5" />,
   YouTube: <Youtube className="h-3.5 w-3.5" />,
+  LinkedIn: <Linkedin className="h-3.5 w-3.5" />,
+  Threads: <AtSign className="h-3.5 w-3.5" />,
   Telegram: <Send className="h-3.5 w-3.5" />,
 };
 
@@ -1019,7 +1024,7 @@ function ClickableStat({
 type DateRangePreset =
   "today" | "yesterday" | "last7" | "last30" | "thisMonth" | "lastMonth" | "custom" | "all";
 type StatusFilter = "all" | "active" | "pending" | "completed" | "cancelled";
-type PlatformFilter = "all" | Platform | "LinkedIn";
+type PlatformFilter = "all" | Platform;
 
 type FilterState = {
   preset: DateRangePreset;
@@ -1121,6 +1126,8 @@ const PLATFORM_FILTERS: { value: PlatformFilter; label: string }[] = [
   { value: "Facebook", label: "Facebook" },
   { value: "YouTube", label: "YouTube" },
   { value: "LinkedIn", label: "LinkedIn" },
+  { value: "Threads", label: "Threads" },
+  { value: "Telegram", label: "Telegram" },
 ];
 
 const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
@@ -3245,14 +3252,8 @@ function ServiceDetailDialogContent({
 }
 
 /* ====== Wizard ====== */
-const WIZ_PLATFORMS: Platform[] = [
-  "Instagram",
-  "TikTok",
-  "X (Twitter)",
-  "Facebook",
-  "YouTube",
-  "Telegram",
-];
+/** Semua platform yang dikenali aplikasi (8 platform). */
+const WIZ_PLATFORMS: Platform[] = [...PLATFORM_LIST];
 
 function deriveCatalogCampaignType(
   service: Service | null | undefined,

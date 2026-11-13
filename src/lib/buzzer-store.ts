@@ -13,7 +13,7 @@ export type JobStatus =
   | "Selesai"
   | "Ditolak";
 
-export type Platform = "TikTok" | "Instagram" | "X (Twitter)" | "Facebook" | "YouTube" | "Telegram" | "LinkedIn";
+export type Platform = "TikTok" | "Instagram" | "X (Twitter)" | "Facebook" | "YouTube" | "Telegram" | "LinkedIn" | "Threads";
 
 export type BuzzerJob = {
   id: string;

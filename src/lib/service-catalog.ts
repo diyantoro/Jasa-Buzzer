@@ -14,15 +14,19 @@ const SUPPORTED_PLATFORMS = [
   "X (Twitter)",
   "Facebook",
   "YouTube",
+  "LinkedIn",
+  "Threads",
   "Telegram",
 ] as const;
 
+/** Daftar platform yang dikenali aplikasi (dipakai ulang di UI). */
+export const PLATFORM_LIST: readonly Platform[] = SUPPORTED_PLATFORMS;
+
 /** Samakan nilai platform katalog menjadi Platform yang dikenal aplikasi. */
 export function normalizeCatalogPlatform(platform?: string | null): Platform {
-  if (platform && SUPPORTED_PLATFORMS.includes(platform as (typeof SUPPORTED_PLATFORMS)[number])) {
-    return platform as Platform;
-  }
-  return "Instagram";
+  const raw = (platform ?? "").trim();
+  const matched = SUPPORTED_PLATFORMS.find((item) => item.toLowerCase() === raw.toLowerCase());
+  return matched ?? "Instagram";
 }
 
 /** Tebak jenis campaign (Like, Komentar, ...) dari service_type atau judul. */

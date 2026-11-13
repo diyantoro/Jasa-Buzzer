@@ -4,7 +4,7 @@ import { notifyTaskApproved, notifyTaskRejected, notifyNewTaskAvailable } from "
 import { getBuzzerPercentageForLevel, currentLevels, percentageForLevel } from "@/lib/buzzer-level";
 import { getCachedRows, isCacheFresh, loadCachedRows } from "@/lib/query-cache";
 
-export type CampaignPlatform = "TikTok" | "Instagram" | "X (Twitter)" | "Facebook" | "YouTube" | "Telegram" | "LinkedIn";
+export type CampaignPlatform = "TikTok" | "Instagram" | "X (Twitter)" | "Facebook" | "YouTube" | "Telegram" | "LinkedIn" | "Threads";
 export type CampaignStatus = "Draft" | "Aktif" | "Review" | "Selesai" | "Dibatalkan";
 export type CampaignJobStatus = "Tersedia" | "Diambil" | "Review" | "Revisi" | "Selesai" | "Ditolak";
 

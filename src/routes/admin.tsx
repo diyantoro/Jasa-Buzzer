@@ -20,6 +20,9 @@ import {
   Facebook,
   Twitter,
   Music2,
+  Linkedin,
+  AtSign,
+  Send,
   MapPin,
   CheckCircle2,
   XCircle,
@@ -175,6 +178,7 @@ import {
 import { deleteAdminBuzzerRating, updateAdminBuzzerRating, useBuzzerRatings, type BuzzerRating } from "@/lib/rating-store";
 import { uploadCatalogThumbnail } from "@/lib/catalog-thumbnail-upload";
 import { CAMPAIGN_TYPES, notifyCustomerPaymentApproved, notifyCustomerPaymentRejected } from "@/lib/customer-store";
+import { PLATFORM_LIST } from "@/lib/service-catalog";
 import { useAssignedLevels, useBuzzerLevels, getBuzzerPercentageForLevel, percentageForLevel, assignLevelFromVerification, BUZZER_TIERS, type BuzzerTier } from "@/lib/buzzer-level";
 import { ProofLink } from "@/components/proof-link";
 import { adminApproveSocialAccount, useAllSocialAccounts } from "@/lib/social-store";
@@ -2384,15 +2388,7 @@ function CatalogManagementSection({ createSignal = 0 }: { createSignal?: number 
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {[
-                        "Instagram",
-                        "TikTok",
-                        "X (Twitter)",
-                        "Facebook",
-                        "YouTube",
-                        "Telegram",
-                        "LinkedIn",
-                      ].map((item) => (
+                      {PLATFORM_LIST.map((item) => (
                         <SelectItem key={item} value={item}>
                           {item}
                         </SelectItem>
@@ -2676,7 +2672,7 @@ function ServicePricingManagementSection() {
   const [saving, setSaving] = useState(false);
   const [deletingPricing, setDeletingPricing] = useState<any | null>(null);
   const [deletingPricingLoading, setDeletingPricingLoading] = useState(false);
-  const platforms = ["Instagram", "TikTok", "X (Twitter)", "Facebook", "YouTube", "Telegram"];
+  const platforms = [...PLATFORM_LIST];
 
   const PAGE_SIZE = 8;
   const [page, setPage] = useState(1);
@@ -3040,6 +3036,9 @@ const platformIcon = (p: string) => {
   if (p === "X (Twitter)") return <Twitter className="h-4 w-4" />;
   if (p === "YouTube") return <Youtube className="h-4 w-4" />;
   if (p === "Offline") return <MapPin className="h-4 w-4" />;
+  if (p === "Telegram") return <Send className="h-4 w-4" />;
+  if (p === "LinkedIn") return <Linkedin className="h-4 w-4" />;
+  if (p === "Threads") return <AtSign className="h-4 w-4" />;
   return <Facebook className="h-4 w-4" />;
 };
 
@@ -4130,7 +4129,7 @@ function BuzzerSection() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {["Semua", "Instagram", "TikTok", "X (Twitter)", "YouTube", "Facebook"].map((p) => (
+            {["Semua", ...PLATFORM_LIST].map((p) => (
               <SelectItem key={p} value={p}>
                 {p}
               </SelectItem>
@@ -4545,7 +4544,7 @@ function BuzzerSection() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {["Instagram", "TikTok", "X (Twitter)", "YouTube", "Facebook", "Offline"].map((p) => (
+                    {[...PLATFORM_LIST, "Offline"].map((p) => (
                       <SelectItem key={p} value={p}>
                         {p}
                       </SelectItem>

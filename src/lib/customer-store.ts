@@ -8,7 +8,8 @@ import proofTiktok from "@/assets/proof-tiktok.jpg";
 import proofX from "@/assets/proof-x.jpg";
 
 export type Platform =
-  | "Instagram" | "TikTok" | "X (Twitter)" | "Facebook" | "YouTube" | "Telegram";
+  | "Instagram" | "TikTok" | "X (Twitter)" | "Facebook" | "YouTube"
+  | "LinkedIn" | "Threads" | "Telegram";
 
 export type OrderStatus =
   | "Menunggu" | "Menunggu Verifikasi Admin" | "Diproses" | "Berjalan" | "Selesai" | "Dibatalkan";
@@ -165,7 +166,9 @@ function daysAgo(n: number) {
 }
 function daysAhead(n: number) { return daysAgo(-n); }
 
-const PLATFORMS: Platform[] = ["Instagram", "TikTok", "X (Twitter)", "Facebook", "YouTube", "Telegram"];
+const PLATFORMS: Platform[] = [
+  "Instagram", "TikTok", "X (Twitter)", "Facebook", "YouTube", "LinkedIn", "Threads", "Telegram",
+];
 
 const IMG_GRADIENTS = [
   "from-fuchsia-500 to-pink-500",
@@ -215,7 +218,10 @@ function makeServices(): Service[] {
         id: `svc-${idx + 1}`,
         category,
         name: s.name,
-        platforms: [PLATFORMS[i % 6], PLATFORMS[(i + 2) % 6]],
+        platforms: [
+          PLATFORMS[i % PLATFORMS.length],
+          PLATFORMS[(i + 2) % PLATFORMS.length],
+        ],
         desc: s.desc,
         longDesc: `${s.desc} Kami menggabungkan jaringan buzzer terverifikasi dengan strategi konten yang teruji. Cocok untuk brand yang ingin dampak nyata & terukur.`,
         rating: +(4.5 + Math.random() * 0.5).toFixed(1),

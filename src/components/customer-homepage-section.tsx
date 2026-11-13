@@ -14,10 +14,11 @@ import {
   Flame,
   Inbox,
   Instagram,
+  Linkedin,
   Loader2,
   MapPin,
-  Megaphone,
   Music2,
+  AtSign,
   Plus,
   Send,
   Sparkles,
@@ -79,7 +80,8 @@ const PLATFORM_ICON: Record<CampaignPlatform, React.ReactNode> = {
   Facebook: <Facebook className="h-4 w-4" />,
   YouTube: <Youtube className="h-4 w-4" />,
   Telegram: <Send className="h-4 w-4" />,
-  LinkedIn: <Megaphone className="h-4 w-4" />,
+  LinkedIn: <Linkedin className="h-4 w-4" />,
+  Threads: <AtSign className="h-4 w-4" />,
 };
 
 const PLATFORM_TONE: Record<CampaignPlatform, string> = {
@@ -90,6 +92,7 @@ const PLATFORM_TONE: Record<CampaignPlatform, string> = {
   YouTube: "from-red-500 to-rose-600",
   Telegram: "from-sky-400 to-cyan-500",
   LinkedIn: "from-blue-600 to-sky-700",
+  Threads: "from-slate-800 to-slate-500",
 };
 
 const SERVICE_PLATFORM_ICON: Record<Platform, React.ReactNode> = {
@@ -98,6 +101,8 @@ const SERVICE_PLATFORM_ICON: Record<Platform, React.ReactNode> = {
   "X (Twitter)": <Twitter className="h-5 w-5" />,
   Facebook: <Facebook className="h-5 w-5" />,
   YouTube: <Youtube className="h-5 w-5" />,
+  LinkedIn: <Linkedin className="h-5 w-5" />,
+  Threads: <AtSign className="h-5 w-5" />,
   Telegram: <Send className="h-5 w-5" />,
 };
 

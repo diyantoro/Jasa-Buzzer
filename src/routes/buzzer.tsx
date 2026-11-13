@@ -32,6 +32,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Link2,
+  AtSign,
   FileSpreadsheet,
   FileDown,
   Send,
@@ -178,6 +179,7 @@ import {
   type Withdrawal,
 } from "@/lib/buzzer-store";
 import { supabase } from "@/integrations/supabase/client";
+import { PLATFORM_LIST } from "@/lib/service-catalog";
 import {
   useBuzzerCampaignJobs,
   takeCampaignJob,
@@ -502,6 +504,7 @@ const PLATFORM_ICON: Record<string, ReactNode> = {
   YouTube: <Youtube className="h-3.5 w-3.5" />,
   Telegram: <Send className="h-3.5 w-3.5" />,
   LinkedIn: <Link2 className="h-3.5 w-3.5" />,
+  Threads: <AtSign className="h-3.5 w-3.5" />,
   Offline: <MapPin className="h-3.5 w-3.5" />,
 };
 
@@ -513,6 +516,7 @@ const PLATFORM_TONE: Record<string, string> = {
   YouTube: "from-red-600 to-rose-500",
   Telegram: "from-sky-500 to-cyan-500",
   LinkedIn: "from-blue-700 to-blue-500",
+  Threads: "from-slate-800 to-slate-500",
   Offline: "from-emerald-500 to-teal-500",
 };
 
@@ -2169,7 +2173,7 @@ function MarketplaceSection({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="Semua">Semua platform</SelectItem>
-                {["Instagram", "TikTok", "YouTube", "Facebook", "X (Twitter)"].map((p) => (
+                {PLATFORM_LIST.map((p) => (
                   <SelectItem key={p} value={p}>
                     {p}
                   </SelectItem>
@@ -2454,7 +2458,7 @@ function MyJobsSection({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {["Semua", "Instagram", "TikTok", "YouTube", "Facebook", "X (Twitter)"].map((p) => (
+              {["Semua", ...PLATFORM_LIST].map((p) => (
                 <SelectItem key={p} value={p}>
                   {p === "Semua" ? "Semua platform" : p}
                 </SelectItem>
@@ -2717,7 +2721,7 @@ function parseBuzzerJobBrief(briefText: string, jobTitle: string = "", platform:
   const urlMatch =
     briefText.match(/https?:\/\/[^\s"'<>\)]+/i) ||
     briefText.match(
-      /(?:(?:www\.)?(?:instagram\.com|tiktok\.com|youtube\.com|youtu\.be|twitter\.com|x\.com|facebook\.com|fb\.watch|t\.me)[^\s"'<>\)]*)/i,
+      /(?:(?:www\.)?(?:instagram\.com|tiktok\.com|youtube\.com|youtu\.be|twitter\.com|x\.com|facebook\.com|fb\.watch|t\.me|linkedin\.com|threads\.net)[^\s"'<>\)]*)/i,
     );
   if (urlMatch) {
     let raw = urlMatch[0];
@@ -6313,7 +6317,7 @@ function ProfilSection({
         <div>
           <h3 className="mb-3 font-display text-base font-bold">Akun Sosial Media</h3>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {["Instagram", "TikTok", "YouTube", "Facebook", "X (Twitter)"].map((platformName) => {
+            {PLATFORM_LIST.map((platformName) => {
               const account = socialMap.get(platformName.toLowerCase());
               return (
                 <div key={platformName} className="rounded-xl border border-border p-3">
@@ -6480,7 +6484,7 @@ function ProfilSection({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {["Instagram", "TikTok", "X (Twitter)", "YouTube", "Facebook", "Offline"].map(
+                    {[...PLATFORM_LIST, "Offline"].map(
                       (p) => (
                         <SelectItem key={p} value={p}>
                           {p}
