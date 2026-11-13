@@ -424,15 +424,18 @@ export function useBuzzerStore(
 
       const earnings = (buzzerJobs ?? []).filter((job: any) => Number(job.buzzer_amount ?? job.payout ?? 0) > 0).map((job: any) => {
         // Status penghasilan harus mengikuti status job, bukan selalu "Berhasil".
-        // Job yang masih Diambil/Revisi/Review belum masuk saldo.
+        // Job yang sudah diverifikasi admin sudah masuk saldo walau statusnya masih
+        // "Review" (menunggu ulasan customer), jadi jangan ditandai "Pending".
         const earningStatus: Earning["status"] =
           job.status === "Selesai"
             ? "Berhasil"
             : job.status === "Ditolak"
               ? "Ditolak"
-              : job.status === "Review"
-                ? "Pending"
-                : "Diproses";
+              : job.admin_verified_at
+                ? "Berhasil"
+                : job.status === "Review"
+                  ? "Pending"
+                  : "Diproses";
         return {
           id: job.id,
           date: (job.updated_at || job.submitted_at || job.created_at || new Date().toISOString()).slice(0, 10),
