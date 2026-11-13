@@ -79,6 +79,8 @@ export type Order = {
   packageSnapshotBuzzerCount?: number;
   /** Kelas buzzer pilihan customer (Biasa / Pro / Premium). */
   buzzerTier?: "Biasa" | "Pro" | "Premium";
+  /** Customer mengizinkan job diturunkan satu kelas setelah 12 jam. */
+  allowTierDowngrade?: boolean;
   platform: Platform;
   campaignName: string;
   description: string;
@@ -1400,6 +1402,7 @@ export function useCustomerStore(
       pricePerBuzzer?: number;
       serviceType?: string;
       buzzerTier?: "Biasa" | "Pro" | "Premium";
+      allowTierDowngrade?: boolean;
       catalogPackageId?: string;
       catalogPackageName?: string;
       catalogPackagePrice?: number;
@@ -1432,6 +1435,7 @@ export function useCustomerStore(
         packageSnapshotPrice: Number(input.catalogPackagePrice ?? pkg.price ?? 0),
         packageSnapshotBuzzerCount: Number(input.catalogPackageBuzzerCount ?? pkg.buzzers ?? 0),
         buzzerTier: input.buzzerTier ?? "Biasa",
+        allowTierDowngrade: input.allowTierDowngrade ?? false,
         platform: input.platform,
         campaignName: input.campaignName,
         description: input.description,
@@ -1591,6 +1595,7 @@ export function useCustomerStore(
           package_buzzer_count: order.packageSnapshotBuzzerCount ?? order.buzzers,
           thumbnail_url: order.thumbnailUrl,
           buzzer_tier: order.buzzerTier ?? "Biasa",
+          allow_tier_downgrade: order.allowTierDowngrade ?? false,
         });
         campaignId = result.campaignId;
         payment.id = result.paymentId;

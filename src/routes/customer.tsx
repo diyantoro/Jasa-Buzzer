@@ -3290,6 +3290,8 @@ function WizardDialog({
   const [buzzerCount, setBuzzerCount] = useState(1);
   /** Kelas buzzer yang dipilih customer (Biasa / Pro / Premium). */
   const [tier, setTier] = useState<BuzzerTier>("Biasa");
+  /** Customer mengizinkan job diturunkan satu kelas bila 12 jam belum terisi. */
+  const [allowDowngrade, setAllowDowngrade] = useState(false);
   const [form, setForm] = useState({
     campaignName: "",
     description: "",
@@ -3319,6 +3321,7 @@ function WizardDialog({
     setService(normalizedInitialService);
     setBuzzerCount(1);
     setTier("Biasa");
+    setAllowDowngrade(false);
     setTypeStepUnlocked(false);
     setPlatform(normalizedInitialService?.platforms[0] ?? "Instagram");
     setForm({ campaignName: "", description: "", linkOrLocation: "", startDate: "", endDate: "" });
@@ -3503,6 +3506,7 @@ function WizardDialog({
       catalogPackagePrice: isCatalog ? selectedPackagePrice : undefined,
       catalogPackageBuzzerCount: isCatalog ? selectedBuzzerCount : undefined,
       buzzerTier: isCatalog || isOffline ? "Biasa" : tier,
+      allowTierDowngrade: isCatalog || isOffline || tier === "Biasa" ? false : allowDowngrade,
     });
     toast.success("Detail pesanan siap dibayar.");
     onOpenChange(false);
@@ -3877,9 +3881,24 @@ function WizardDialog({
                     </div>
                     <p className="text-[11px] leading-relaxed text-muted-foreground">
                       Buzzer kelas lebih tinggi boleh mengambil job ini setelah {TIER_RISE_HOURS} jam
-                      per tingkat. Bila kelas yang dipilih belum terisi, job dibuka untuk satu kelas
-                      di bawahnya setelah {TIER_FALL_HOURS} jam.
+                      per tingkat.
                     </p>
+                    {tier !== "Biasa" && (
+                      <label className="flex cursor-pointer items-start gap-2 rounded-xl border border-border bg-muted/30 p-3 text-xs">
+                        <input
+                          type="checkbox"
+                          className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
+                          checked={allowDowngrade}
+                          onChange={(event) => setAllowDowngrade(event.target.checked)}
+                        />
+                        <span className="min-w-0 leading-relaxed">
+                          <b>Izinkan turun satu kelas setelah {TIER_FALL_HOURS} jam.</b>{" "}
+                          Bila belum ada buzzer kelas {tier}, job boleh dikerjakan kelas di
+                          bawahnya (maksimal satu tingkat) dengan harga tetap. Tanpa izin ini,
+                          job hanya menunggu buzzer kelas {tier}.
+                        </span>
+                      </label>
+                    )}
                   </div>
                   <Row label="Jenis layanan" value={selectedServiceType || "-"} />
                   <Row label="Kelas buzzer" value={tier} />
@@ -4024,6 +4043,16 @@ function WizardDialog({
                     value={formatIDR(Number(customPricing?.price_per_buzzer ?? 0))}
                   />
                   <Row label="Jumlah buzzer" value={`${selectedPkg.buzzers} buzzer`} />
+                  <Row
+                    label="Izin turun kelas"
+                    value={
+                      tier === "Biasa"
+                        ? "Tidak berlaku"
+                        : allowDowngrade
+                          ? `Ya, setelah ${TIER_FALL_HOURS} jam`
+                          : "Tidak"
+                    }
+                  />
                 </>
               )}
               <Row label="Campaign" value={form.campaignName || "-"} />

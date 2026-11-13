@@ -37,6 +37,8 @@ export type Campaign = {
   payment_rejection_reason?: string | null;
   /** Kelas buzzer yang dipilih customer (Biasa / Pro / Premium). */
   buzzer_tier?: "Biasa" | "Pro" | "Premium" | null;
+  /** Customer mengizinkan job diturunkan satu kelas setelah 12 jam. */
+  allow_tier_downgrade?: boolean | null;
   target_reached_at?: string | null;
   created_at: string;
   updated_at: string;
@@ -88,6 +90,8 @@ export type CampaignJob = {
   platform: CampaignPlatform;
   /** Kelas minimal untuk mengambil job ini. */
   required_tier?: "Biasa" | "Pro" | "Premium" | null;
+  /** Customer mengizinkan job diturunkan satu kelas setelah 12 jam. */
+  allow_tier_downgrade?: boolean | null;
   buzzer_email: string | null;
   buzzer_name: string | null;
   gross_price: number;
@@ -1025,6 +1029,8 @@ export async function createCustomerPaymentCampaign(input: {
   thumbnail_url?: string;
   /** Kelas buzzer pilihan customer untuk pesanan sendiri. */
   buzzer_tier?: "Biasa" | "Pro" | "Premium";
+  /** Customer mengizinkan job diturunkan satu kelas setelah 12 jam. */
+  allow_tier_downgrade?: boolean;
 }) {
   const formatDatabaseError = (value: unknown) => {
     if (value instanceof Error) return value.message;
@@ -1081,6 +1087,7 @@ export async function createCustomerPaymentCampaign(input: {
     p_start_date: input.start_date,
     p_deadline: input.deadline,
     p_buzzer_tier: input.buzzer_tier ?? "Biasa",
+    p_allow_tier_downgrade: input.allow_tier_downgrade ?? false,
   });
   if (customError) throw new Error(formatDatabaseError(customError));
   const customRow = Array.isArray(customData) ? customData[0] : customData;

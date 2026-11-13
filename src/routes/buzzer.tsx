@@ -199,6 +199,8 @@ export type MergedJob = BuzzerJob & {
   grossPrice?: number;
   /** Kelas minimal untuk mengambil job ini (Biasa / Pro / Premium). */
   requiredTier?: BuzzerTier;
+  /** Customer mengizinkan job diturunkan satu kelas setelah 12 jam. */
+  allowDowngrade?: boolean;
   createdAt?: string;
   buzzerLevel?: string;
   buzzerPercentage?: number;
@@ -247,6 +249,7 @@ function useMergedJobs(store: Store, canAccessJobs: boolean) {
         payout: Number(r.buzzer_amount ?? r.payout ?? 0),
         grossPrice: Number(r.gross_price),
         requiredTier: normalizeBuzzerTier(r.required_tier) ?? "Biasa",
+        allowDowngrade: r.allow_tier_downgrade ?? false,
         createdAt: r.created_at,
         buzzerAmount: Number(r.buzzer_amount ?? 0),
         adminAmount: Number(r.admin_amount ?? 0),
@@ -2987,6 +2990,7 @@ function JobCard({
         requiredTier,
         buzzerTier: myTier,
         publishedAt: job.createdAt,
+        allowDowngrade: job.allowDowngrade ?? false,
       });
   const buzzerPct = usesLevelPayout ? percentageForLevel(job.buzzerLevel ?? platformLevel, lv.levels) : 0;
   const grossPrice = Math.max(0, job.grossPrice ?? 0);

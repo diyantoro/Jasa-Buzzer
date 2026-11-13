@@ -167,6 +167,8 @@ export function jobTierAccess(params: {
   buzzerTier: BuzzerTier | null;
   /** Saat job mulai terlihat buzzer (tanggal mulai campaign / dibuatnya job). */
   publishedAt?: string | Date | null;
+  /** Customer mengizinkan job diturunkan ke satu kelas di bawahnya. */
+  allowDowngrade?: boolean;
   now?: Date;
 }): {
   eligible: boolean;
@@ -174,7 +176,7 @@ export function jobTierAccess(params: {
   opensAt: Date | null;
   reason: string;
 } {
-  const { requiredTier, buzzerTier, publishedAt, now = new Date() } = params;
+  const { requiredTier, buzzerTier, publishedAt, allowDowngrade = false, now = new Date() } = params;
   if (!buzzerTier) {
     return { eligible: false, opensAt: null, reason: "Akun platform ini belum terverifikasi" };
   }
@@ -199,6 +201,13 @@ export function jobTierAccess(params: {
   }
 
   if (buzzerRank === requiredRank - 1) {
+    if (!allowDowngrade) {
+      return {
+        eligible: false,
+        opensAt: null,
+        reason: `Job ini hanya untuk buzzer kelas ${requiredTier}`,
+      };
+    }
     if (hours >= TIER_FALL_HOURS) {
       return { eligible: true, opensAt: null, reason: "Job dibuka untuk kelas di bawahnya" };
     }
