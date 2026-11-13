@@ -97,7 +97,13 @@ import {
   levelForPlatform,
   percentageForLevel,
   payoutForJob,
+  jobTierAccess,
+  normalizeBuzzerTier,
+  tierForPlatform,
+  BUZZER_TIERS,
+  BUZZER_TIER_INFO,
   type BuzzerLevel,
+  type BuzzerTier,
 } from "@/lib/buzzer-level";
 import { BuzzerAnalyticsCards } from "@/components/buzzer-dashboard-analytics";
 import { BuzzerNotifBell, BuzzerNotifSheet } from "@/components/buzzer-notif-sheet";
@@ -191,6 +197,9 @@ export type MergedJob = BuzzerJob & {
   slotsLeft?: number;
   campaignId?: string;
   grossPrice?: number;
+  /** Kelas minimal untuk mengambil job ini (Biasa / Pro / Premium). */
+  requiredTier?: BuzzerTier;
+  createdAt?: string;
   buzzerLevel?: string;
   buzzerPercentage?: number;
   adminPercentage?: number;
@@ -237,6 +246,8 @@ function useMergedJobs(store: Store, canAccessJobs: boolean) {
         // Legacy jobs continue using their stored payout.
         payout: Number(r.buzzer_amount ?? r.payout ?? 0),
         grossPrice: Number(r.gross_price),
+        requiredTier: normalizeBuzzerTier(r.required_tier) ?? "Biasa",
+        createdAt: r.created_at,
         buzzerAmount: Number(r.buzzer_amount ?? 0),
         adminAmount: Number(r.admin_amount ?? 0),
         buzzerLevel: r.buzzer_level ?? undefined,
@@ -2064,6 +2075,7 @@ function MarketplaceSection({
   const [category, setCategory] = useState<string>("Semua");
   const [reward, setReward] = useState<string>("Semua");
   const [difficulty, setDifficulty] = useState<string>("Semua");
+  const [tierFilter, setTierFilter] = useState<string>("Semua");
   const [sort, setSort] = useState<"terbaru" | "reward">("terbaru");
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
@@ -2079,6 +2091,7 @@ function MarketplaceSection({
       if (platform !== "Semua" && job.platform !== platform) return false;
       if (category !== "Semua" && taskCategoryOf(job) !== category) return false;
       if (difficulty !== "Semua" && difficultyOf(job) !== difficulty) return false;
+      if (tierFilter !== "Semua" && (job.requiredTier ?? "Biasa") !== tierFilter) return false;
       if (reward !== "Semua") {
         const value = effectiveReward(job);
         if (reward === "<25rb" && value >= 25000) return false;
@@ -2093,7 +2106,7 @@ function MarketplaceSection({
       if (sort === "reward") return effectiveReward(b) - effectiveReward(a);
       return a.updatedAt < b.updatedAt ? 1 : -1;
     });
-  }, [availableJobs, platform, category, reward, difficulty, q, sort]);
+  }, [availableJobs, platform, category, reward, difficulty, tierFilter, q, sort]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
@@ -2103,6 +2116,7 @@ function MarketplaceSection({
     category !== "Semua" ||
     reward !== "Semua" ||
     difficulty !== "Semua" ||
+    tierFilter !== "Semua" ||
     !!q.trim();
 
   const resetFilters = () => {
@@ -2110,6 +2124,7 @@ function MarketplaceSection({
     setCategory("Semua");
     setReward("Semua");
     setDifficulty("Semua");
+    setTierFilter("Semua");
     setQ("");
     setPage(1);
   };
@@ -2208,6 +2223,25 @@ function MarketplaceSection({
                 {DIFFICULTIES.map((d) => (
                   <SelectItem key={d} value={d}>
                     {d === "Semua" ? "Semua level" : d}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={tierFilter}
+              onValueChange={(v) => {
+                setTierFilter(v);
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="lg:w-[130px]">
+                <SelectValue placeholder="Kelas" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Semua">Semua kelas</SelectItem>
+                {BUZZER_TIERS.map((t) => (
+                  <SelectItem key={t} value={t}>
+                    Kelas {t}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -2848,6 +2882,10 @@ function JobCard({
       setNoAccountWarningOpen(true);
       return;
     }
+    if (currentStatus === "Tersedia" && !tierAccess.eligible) {
+      toast.error(tierAccess.reason || "Kelas buzzer kamu belum memenuhi syarat job ini.");
+      return;
+    }
     setConfirmTakeOpen(true);
   };
 
@@ -2935,6 +2973,21 @@ function JobCard({
     ? levelForPlatform(mySocialAccounts, String(job.platform), lv.levels)
     : null;
   const jobLevel = usesLevelPayout ? (job.buzzerLevel ?? platformLevel?.name ?? "Belum ditetapkan") : null;
+
+  // Kelas buzzer pada platform job. Job offline memakai level dompet
+  // (dihitung dari total followers akun) dan tidak membatasi kelas.
+  const isOfflineJob = String(job.platform) === "Offline";
+  const myTier: BuzzerTier | null = isOfflineJob
+    ? (lv.level?.tier ?? null)
+    : tierForPlatform(mySocialAccounts, String(job.platform), lv.levels);
+  const requiredTier = job.requiredTier ?? "Biasa";
+  const tierAccess = isOfflineJob
+    ? { eligible: true, opensAt: null as Date | null, reason: "" }
+    : jobTierAccess({
+        requiredTier,
+        buzzerTier: myTier,
+        publishedAt: job.createdAt,
+      });
   const buzzerPct = usesLevelPayout ? percentageForLevel(job.buzzerLevel ?? platformLevel, lv.levels) : 0;
   const grossPrice = Math.max(0, job.grossPrice ?? 0);
   const payout = (() => {
@@ -2996,8 +3049,9 @@ function JobCard({
       }
       await onTaken?.();
       toast.success(`Job "${job.title}" berhasil diambil`);
-    } catch {
-      toast.error("Gagal mengambil job, coba lagi");
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "";
+      toast.error(detail || "Gagal mengambil job, coba lagi");
     } finally {
       setLoading(false);
     }
@@ -3087,11 +3141,12 @@ function JobCard({
         return (
           <Button
             size="sm"
-            disabled={loading}
+            disabled={loading || !tierAccess.eligible}
             onClick={handleTakeJob}
+            title={tierAccess.eligible ? undefined : tierAccess.reason}
             className="gradient-brand text-brand-foreground shadow-glow"
           >
-            {loading ? "Memproses..." : "Ambil Job"}
+            {loading ? "Memproses..." : tierAccess.eligible ? "Ambil Job" : "Belum Memenuhi"}
           </Button>
         );
       case "Diambil":
@@ -3150,6 +3205,16 @@ function JobCard({
               <span className="inline-flex items-center gap-1 rounded-md bg-accent px-2 py-0.5 text-xs font-semibold text-accent-foreground">
                 {PLATFORM_ICON[job.platform]} {job.platform}
               </span>
+              {!isOfflineJob && (
+                <span
+                  className={cn(
+                    "inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-semibold",
+                    BUZZER_TIER_INFO[requiredTier].accent,
+                  )}
+                >
+                  Kelas {requiredTier}
+                </span>
+              )}
               <span
                 className={cn(
                   "inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold",
@@ -3164,6 +3229,11 @@ function JobCard({
                 </span>
               )}
             </div>
+            {currentStatus === "Tersedia" && !tierAccess.eligible && (
+              <p className="mt-1 text-[11px] font-medium text-amber-600 dark:text-amber-400">
+                {tierAccess.reason}
+              </p>
+            )}
 
             <h4 className="mt-2 truncate font-display text-base font-bold">{job.title}</h4>
             <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{displayBrief}</p>

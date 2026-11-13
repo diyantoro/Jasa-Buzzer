@@ -28,8 +28,8 @@ import {
 } from "@/lib/social-store";
 import {
   useBuzzerLevel, useBuzzerLevels, levelFromFollowers, countedFollowers,
-  nextLevel as nextLevelOf, levelProgress as progressOf, isOnlineBuzzerCategory,
-  percentageForLevel,
+  nextLevel as nextLevelOf, levelProgress as progressOf, hasBuzzerLevel,
+  percentageForLevel, tierForFollowers,
   type BuzzerLevel,
 } from "@/lib/buzzer-level";
 import { cn } from "@/lib/utils";
@@ -74,7 +74,7 @@ export function SosmedSection({ email, name, category }: { email: string; name: 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [deactivateAccount, setDeactivateAccount] = useState<SocialAccount | null>(null);
 
-  const hasLevel = isOnlineBuzzerCategory(category);
+  const hasLevel = hasBuzzerLevel(category);
 
   const filtered = useMemo(() => {
     let arr = store.accounts.slice();
@@ -432,7 +432,7 @@ export function SosmedSection({ email, name, category }: { email: string; name: 
 /* ---------------- Level card ---------------- */
 
 export function LevelCard({ email, name, simple = false, category, onAjukan }: { email: string; name: string; simple?: boolean; category?: string | null; onAjukan?: () => void }) {
-  const isOnline = isOnlineBuzzerCategory(category);
+  const isOnline = hasBuzzerLevel(category);
   const lv = useBuzzerLevel(email);
   const levels = useBuzzerLevels();
   // Konsisten dengan kartu akun sosial media: jika level belum ditetapkan admin,
@@ -491,6 +491,11 @@ export function LevelCard({ email, name, simple = false, category, onAjukan }: {
           <div className="min-w-0 flex-1">
             <p className="text-xs uppercase tracking-wide text-muted-foreground">Status Buzzer</p>
             <p className="truncate font-display text-lg font-bold">{level?.name ?? "Belum ditetapkan"}</p>
+            {level && (
+              <p className="mt-0.5 inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                Kelas {tierForFollowers(followers, levels)}
+              </p>
+            )}
           </div>
           <div className="hidden shrink-0 text-right sm:block">
             <p className="text-xs text-muted-foreground">Akun terverifikasi</p>
@@ -610,7 +615,7 @@ export function LevelCard({ email, name, simple = false, category, onAjukan }: {
 
 
 export function LevelBadge({ followers, className, category }: { followers: number; className?: string; category?: string | null }) {
-  const isOnline = isOnlineBuzzerCategory(category);
+  const isOnline = hasBuzzerLevel(category);
   const levels = useBuzzerLevels();
   const l = levelFromFollowers(followers, levels);
   if (!isOnline) return null;
@@ -639,7 +644,7 @@ export function AccountLevelChip({
   officialLevelName?: string | null;
   className?: string;
 }) {
-  if (!isOnlineBuzzerCategory(category)) return null;
+  if (!hasBuzzerLevel(category)) return null;
   const l = levelFromFollowers(followers, levels);
   const pct = Number.isFinite(l.percentage) ? l.percentage : percentageForLevel(l, levels);
   const title = officialLevelName
@@ -684,7 +689,7 @@ function AccountCard({
 }) {
   // Level adalah milik buzzer (agregat). Badge di kartu akun hanya
   // menunjukkan kontribusi akun ini terhadap total followers terverifikasi.
-  const hasLevel = isOnlineBuzzerCategory(category);
+  const hasLevel = hasBuzzerLevel(category);
   const counted = acc.verification === "Terverifikasi" && acc.isActive !== false;
   const contributionPct =
     hasLevel && counted && totalVerifiedFollowers > 0
@@ -979,7 +984,7 @@ function BuzzerPembaruanDialog({
 }) {
   // Level hanya relevan untuk buzzer dengan komponen online (Online & Offline-Online).
   const levels = useBuzzerLevels();
-  const hasLevel = isOnlineBuzzerCategory(category);
+  const hasLevel = hasBuzzerLevel(category);
   const totalVerified = countedFollowers(existing);
   const levelCurrent = levelFromFollowers(totalVerified, levels);
   const isLevelIntent = intent === "level" && hasLevel;

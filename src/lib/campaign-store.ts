@@ -35,6 +35,8 @@ export type Campaign = {
   total_amount?: number | null;
   payment_status?: string | null;
   payment_rejection_reason?: string | null;
+  /** Kelas buzzer yang dipilih customer (Biasa / Pro / Premium). */
+  buzzer_tier?: "Biasa" | "Pro" | "Premium" | null;
   target_reached_at?: string | null;
   created_at: string;
   updated_at: string;
@@ -45,6 +47,8 @@ export type ServicePricing = {
   platform: CampaignPlatform;
   service_type: string;
   price_per_buzzer: number;
+  /** Kelas buzzer yang memakai harga ini. */
+  buzzer_tier: "Biasa" | "Pro" | "Premium";
   status: "Aktif" | "Nonaktif";
   created_at: string;
   updated_at: string;
@@ -82,6 +86,8 @@ export type CampaignJob = {
   campaign_id: string;
   campaign_title: string;
   platform: CampaignPlatform;
+  /** Kelas minimal untuk mengambil job ini. */
+  required_tier?: "Biasa" | "Pro" | "Premium" | null;
   buzzer_email: string | null;
   buzzer_name: string | null;
   gross_price: number;
@@ -1017,6 +1023,8 @@ export async function createCustomerPaymentCampaign(input: {
   package_price?: number;
   package_buzzer_count?: number;
   thumbnail_url?: string;
+  /** Kelas buzzer pilihan customer untuk pesanan sendiri. */
+  buzzer_tier?: "Biasa" | "Pro" | "Premium";
 }) {
   const formatDatabaseError = (value: unknown) => {
     if (value instanceof Error) return value.message;
@@ -1072,6 +1080,7 @@ export async function createCustomerPaymentCampaign(input: {
     p_slots: input.slots,
     p_start_date: input.start_date,
     p_deadline: input.deadline,
+    p_buzzer_tier: input.buzzer_tier ?? "Biasa",
   });
   if (customError) throw new Error(formatDatabaseError(customError));
   const customRow = Array.isArray(customData) ? customData[0] : customData;

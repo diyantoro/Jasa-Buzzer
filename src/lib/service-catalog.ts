@@ -6,6 +6,7 @@
 // - `src/components/customer-homepage-section.tsx` (kartu rekomendasi homepage)
 import { CAMPAIGN_TYPES, type CampaignTypeKey, type Platform, type Service } from "@/lib/customer-store";
 import type { ServicePricing } from "@/lib/campaign-store";
+import { normalizeBuzzerTier, type BuzzerTier } from "@/lib/buzzer-level";
 
 const SUPPORTED_PLATFORMS = [
   "Instagram",
@@ -124,6 +125,55 @@ export function normalizeCatalogService(catalog: CatalogServiceInput): Service {
 /** Kunci harga: `platform::jenis layanan` (huruf kecil, dirapikan). */
 function pricingKey(platform: string, serviceType: string) {
   return `${platform}::${serviceType.trim().toLowerCase()}`;
+}
+
+/** Kunci harga per kelas: `platform::jenis layanan::kelas`. */
+function pricingTierKey(platform: string, serviceType: string, tier: BuzzerTier) {
+  return `${pricingKey(platform, serviceType)}::${tier.toLowerCase()}`;
+}
+
+export type TierPriceMap = Map<string, Partial<Record<BuzzerTier, number>>>;
+
+/**
+ * Indeks harga per kelas dari konfigurasi admin (`service_pricing`).
+ * Satu kombinasi platform + jenis layanan bisa punya harga berbeda untuk
+ * Biasa / Pro / Premium.
+ */
+export function buildServicePricingTierIndex(pricings: ServicePricing[]): TierPriceMap {
+  const index: TierPriceMap = new Map();
+  for (const pricing of pricings) {
+    if (pricing.status !== "Aktif") continue;
+    const price = Number(pricing.price_per_buzzer);
+    if (!Number.isFinite(price) || price <= 0) continue;
+    const tier = normalizeBuzzerTier(pricing.buzzer_tier) ?? "Biasa";
+    const key = pricingKey(pricing.platform, pricing.service_type);
+    const entry = index.get(key) ?? {};
+    const current = entry[tier];
+    if (current === undefined || price < current) entry[tier] = price;
+    index.set(key, entry);
+  }
+  return index;
+}
+
+/** Harga per kelas untuk satu platform + jenis layanan. */
+export function tierPricesFor(
+  index: TierPriceMap,
+  platform: string,
+  serviceType: string,
+): Partial<Record<BuzzerTier, number>> {
+  return index.get(pricingKey(platform, serviceType)) ?? {};
+}
+
+/** Harga satu kelas; `undefined` bila admin belum mengisi. */
+export function priceForTier(
+  index: TierPriceMap,
+  platform: string,
+  serviceType: string,
+  tier: BuzzerTier,
+): number | undefined {
+  const prices = tierPricesFor(index, platform, serviceType);
+  const value = prices[tier];
+  return typeof value === "number" ? value : undefined;
 }
 
 /**

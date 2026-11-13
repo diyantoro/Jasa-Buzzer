@@ -175,7 +175,7 @@ import {
 import { deleteAdminBuzzerRating, updateAdminBuzzerRating, useBuzzerRatings, type BuzzerRating } from "@/lib/rating-store";
 import { uploadCatalogThumbnail } from "@/lib/catalog-thumbnail-upload";
 import { CAMPAIGN_TYPES, notifyCustomerPaymentApproved, notifyCustomerPaymentRejected } from "@/lib/customer-store";
-import { useAssignedLevels, useBuzzerLevels, getBuzzerPercentageForLevel, percentageForLevel, assignLevelFromVerification } from "@/lib/buzzer-level";
+import { useAssignedLevels, useBuzzerLevels, getBuzzerPercentageForLevel, percentageForLevel, assignLevelFromVerification, BUZZER_TIERS, type BuzzerTier } from "@/lib/buzzer-level";
 import { ProofLink } from "@/components/proof-link";
 import { adminApproveSocialAccount, useAllSocialAccounts } from "@/lib/social-store";
 import { useAdminWallet } from "@/lib/admin-wallet-store";
@@ -2687,15 +2687,15 @@ function ServicePricingManagementSection() {
     return pricings.slice(start, start + PAGE_SIZE);
   }, [pricings, safePage]);
 
-  const openCreate = () => setEditor({ platform: "Instagram", service_type: CAMPAIGN_TYPES[0]?.name ?? "Like", price_per_buzzer: "", status: "Aktif" });
+  const openCreate = () => setEditor({ platform: "Instagram", service_type: CAMPAIGN_TYPES[0]?.name ?? "Like", buzzer_tier: "Biasa", price_per_buzzer: "", status: "Aktif" });
   const save = async () => {
     if (!editor?.platform || !editor.service_type?.trim() || Number(editor.price_per_buzzer) <= 0) {
-      toast.error("Platform, jenis layanan, dan harga per buzzer wajib diisi.");
+      toast.error("Platform, jenis layanan, kelas buzzer, dan harga per buzzer wajib diisi.");
       return;
     }
     setSaving(true);
     try {
-      const payload = { platform: editor.platform, service_type: editor.service_type.trim(), price_per_buzzer: Number(editor.price_per_buzzer), status: editor.status };
+      const payload = { platform: editor.platform, service_type: editor.service_type.trim(), buzzer_tier: editor.buzzer_tier ?? "Biasa", price_per_buzzer: Number(editor.price_per_buzzer), status: editor.status };
       if (editor.id) await updateServicePricing(editor.id, payload);
       else await createServicePricing(payload);
       toast.success(editor.id ? "Harga per buzzer diperbarui." : "Harga per buzzer ditambahkan.");
@@ -2727,7 +2727,7 @@ function ServicePricingManagementSection() {
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-5">
         <div>
           <h2 className="font-display text-lg font-bold">Harga Pesanan Sendiri</h2>
-          <p className="text-sm text-muted-foreground">Tetapkan harga per buzzer untuk setiap platform dan jenis layanan.</p>
+          <p className="text-sm text-muted-foreground">Tetapkan harga per buzzer untuk setiap platform, jenis layanan, dan kelas buzzer (Biasa / Pro / Premium).</p>
         </div>
         <Button size="sm" className="gradient-brand text-brand-foreground" onClick={openCreate}>
           <Plus className="mr-1 h-4 w-4" /> Tambah Harga
@@ -2739,6 +2739,7 @@ function ServicePricingManagementSection() {
             <TableRow>
               <TableHead>Platform</TableHead>
               <TableHead>Jenis Layanan</TableHead>
+              <TableHead>Kelas Buzzer</TableHead>
               <TableHead>Harga / Buzzer</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Aksi</TableHead>
@@ -2747,14 +2748,14 @@ function ServicePricingManagementSection() {
           <TableBody>
             {loading && (
               <TableRow>
-                <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
                   Memuat harga…
                 </TableCell>
               </TableRow>
             )}
             {!loading && pricings.length === 0 && (
               <TableRow>
-                <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
                   Belum ada konfigurasi harga.
                 </TableCell>
               </TableRow>
@@ -2763,6 +2764,11 @@ function ServicePricingManagementSection() {
               <TableRow key={pricing.id}>
                 <TableCell>{pricing.platform}</TableCell>
                 <TableCell>{pricing.service_type}</TableCell>
+                <TableCell>
+                  <span className="inline-flex rounded-full bg-muted px-2 py-0.5 text-xs font-semibold">
+                    {pricing.buzzer_tier ?? "Biasa"}
+                  </span>
+                </TableCell>
                 <TableCell className="font-semibold">{formatIDR(Number(pricing.price_per_buzzer))}</TableCell>
                 <TableCell>
                   <StatusBadge status={pricing.status === "Aktif" ? "Aktif" : "Dibatalkan"} />
@@ -2824,6 +2830,24 @@ function ServicePricingManagementSection() {
                     {CAMPAIGN_TYPES.map((item) => (
                       <SelectItem key={item.name} value={item.name}>
                         {item.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Kelas Buzzer</Label>
+                <Select
+                  value={editor.buzzer_tier ?? "Biasa"}
+                  onValueChange={(value) => setEditor({ ...editor, buzzer_tier: value as BuzzerTier })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {BUZZER_TIERS.map((tier) => (
+                      <SelectItem key={tier} value={tier}>
+                        {tier}
                       </SelectItem>
                     ))}
                   </SelectContent>

@@ -77,6 +77,8 @@ export type Order = {
   packageSnapshotName?: string;
   packageSnapshotPrice?: number;
   packageSnapshotBuzzerCount?: number;
+  /** Kelas buzzer pilihan customer (Biasa / Pro / Premium). */
+  buzzerTier?: "Biasa" | "Pro" | "Premium";
   platform: Platform;
   campaignName: string;
   description: string;
@@ -1397,6 +1399,7 @@ export function useCustomerStore(
       buzzers?: number;
       pricePerBuzzer?: number;
       serviceType?: string;
+      buzzerTier?: "Biasa" | "Pro" | "Premium";
       catalogPackageId?: string;
       catalogPackageName?: string;
       catalogPackagePrice?: number;
@@ -1428,6 +1431,7 @@ export function useCustomerStore(
         packageSnapshotName: input.catalogPackageName ?? pkg.tier,
         packageSnapshotPrice: Number(input.catalogPackagePrice ?? pkg.price ?? 0),
         packageSnapshotBuzzerCount: Number(input.catalogPackageBuzzerCount ?? pkg.buzzers ?? 0),
+        buzzerTier: input.buzzerTier ?? "Biasa",
         platform: input.platform,
         campaignName: input.campaignName,
         description: input.description,
@@ -1586,6 +1590,7 @@ export function useCustomerStore(
           package_price: order.packageSnapshotPrice ?? order.total,
           package_buzzer_count: order.packageSnapshotBuzzerCount ?? order.buzzers,
           thumbnail_url: order.thumbnailUrl,
+          buzzer_tier: order.buzzerTier ?? "Biasa",
         });
         campaignId = result.campaignId;
         payment.id = result.paymentId;

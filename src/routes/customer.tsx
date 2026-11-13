@@ -137,7 +137,20 @@ import {
   inferCatalogCampaignType,
   normalizeCatalogPlatform,
   normalizeCatalogService,
+  buildServicePricingTierIndex,
+  tierPricesFor,
 } from "@/lib/service-catalog";
+import {
+  BUZZER_TIERS,
+  BUZZER_TIER_INFO,
+  TIER_FALL_HOURS,
+  TIER_RISE_HOURS,
+  compactFollowers,
+  platformAvailability,
+  tierFollowerLabel,
+  type BuzzerTier,
+} from "@/lib/buzzer-level";
+import { useAllSocialAccounts } from "@/lib/social-store";
 import { serviceImage } from "@/lib/service-images";
 import { cn } from "@/lib/utils";
 import {
@@ -3275,6 +3288,8 @@ function WizardDialog({
   );
   const [service, setService] = useState<Service | null>(normalizedInitialService);
   const [buzzerCount, setBuzzerCount] = useState(1);
+  /** Kelas buzzer yang dipilih customer (Biasa / Pro / Premium). */
+  const [tier, setTier] = useState<BuzzerTier>("Biasa");
   const [form, setForm] = useState({
     campaignName: "",
     description: "",
@@ -3283,6 +3298,12 @@ function WizardDialog({
     endDate: "",
   });
   const { data: servicePricings, loading: pricingLoading } = useServicePricings();
+  const allSocialAccounts = useAllSocialAccounts();
+  const availability = useMemo(() => platformAvailability(allSocialAccounts), [allSocialAccounts]);
+  const tierPricingIndex = useMemo(
+    () => buildServicePricingTierIndex(servicePricings),
+    [servicePricings],
+  );
 
   const [openedFor, setOpenedFor] = useState<string | null>(null);
   const key = (open ? "1" : "0") + (normalizedInitialService?.id ?? "");
@@ -3297,6 +3318,7 @@ function WizardDialog({
     );
     setService(normalizedInitialService);
     setBuzzerCount(1);
+    setTier("Biasa");
     setTypeStepUnlocked(false);
     setPlatform(normalizedInitialService?.platforms[0] ?? "Instagram");
     setForm({ campaignName: "", description: "", linkOrLocation: "", startDate: "", endDate: "" });
@@ -3335,9 +3357,31 @@ function WizardDialog({
           (item) =>
             item.status === "Aktif" &&
             item.platform === platform &&
-            normalizeServiceType(item.service_type) === normalizeServiceType(selectedServiceType),
+            normalizeServiceType(item.service_type) === normalizeServiceType(selectedServiceType) &&
+            (item.buzzer_tier ?? "Biasa") === tier,
         )
       : null;
+  // Harga semua kelas untuk kombinasi platform + jenis layanan yang dipilih.
+  const tierPrices = useMemo(
+    () =>
+      !isCatalog && !isOffline && selectedServiceType
+        ? tierPricesFor(tierPricingIndex, platform, selectedServiceType)
+        : {},
+    [isCatalog, isOffline, selectedServiceType, tierPricingIndex, platform],
+  );
+  // Ringkasan buzzer terverifikasi pada platform yang sedang dipilih.
+  const platformAvailabilityInfo = useMemo(() => {
+    const key = platform.trim().toLowerCase();
+    return availability.find((item) => item.platform.trim().toLowerCase() === key) ?? null;
+  }, [availability, platform]);
+
+  // Kalau harga kelas yang sedang dipilih tidak tersedia (mis. setelah ganti
+  // platform), kembali ke kelas Biasa supaya customer tidak tertahan.
+  useEffect(() => {
+    if (isCatalog || isOffline) return;
+    if (!tierPrices.Biasa) return;
+    if (!tierPrices[tier]) setTier("Biasa");
+  }, [isCatalog, isOffline, tierPrices, tier]);
 
   const selectedPkg =
     isCatalog && service
@@ -3407,7 +3451,7 @@ function WizardDialog({
       toast.error(
         pricingLoading
           ? "Harga layanan sedang dimuat."
-          : "Harga per buzzer untuk layanan ini belum dikonfigurasi admin.",
+          : `Harga per buzzer kelas ${tier} untuk layanan ini belum dikonfigurasi admin.`,
       );
       return;
     }
@@ -3458,6 +3502,7 @@ function WizardDialog({
         isCatalog || isOffline ? service.desc || taskName : selectedServiceType || taskName,
       catalogPackagePrice: isCatalog ? selectedPackagePrice : undefined,
       catalogPackageBuzzerCount: isCatalog ? selectedBuzzerCount : undefined,
+      buzzerTier: isCatalog || isOffline ? "Biasa" : tier,
     });
     toast.success("Detail pesanan siap dibayar.");
     onOpenChange(false);
@@ -3500,24 +3545,39 @@ function WizardDialog({
 
         {step === 1 && (
           <div className="min-w-0">
-            <h4 className="mb-3 font-semibold">Pilih Platform</h4>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-              {WIZ_PLATFORMS.map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => setPlatform(p)}
-                  className={cn(
-                    "flex min-w-0 items-center gap-2 rounded-xl border p-3 text-sm font-medium transition-colors",
-                    platform === p
-                      ? "border-primary bg-primary/5"
-                      : "border-border hover:bg-muted/50",
-                  )}
-                >
-                  <span className="shrink-0">{PLATFORM_ICON[p]}</span>{" "}
-                  <span className="truncate">{p}</span>
-                </button>
-              ))}
+            <h4 className="mb-1 font-semibold">Pilih Platform</h4>
+            <p className="mb-3 text-sm text-muted-foreground">
+              Angka di bawah adalah jumlah buzzer terverifikasi dan rentang followers akunnya
+              di platform tersebut.
+            </p>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {WIZ_PLATFORMS.map((p) => {
+                const info = availability.find(
+                  (item) => item.platform.trim().toLowerCase() === p.trim().toLowerCase(),
+                );
+                const active = platform === p;
+                return (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setPlatform(p)}
+                    className={cn(
+                      "flex min-w-0 flex-col gap-1 rounded-xl border p-3 text-left text-sm font-medium transition-colors",
+                      active ? "border-primary bg-primary/5" : "border-border hover:bg-muted/50",
+                    )}
+                  >
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className="shrink-0">{PLATFORM_ICON[p]}</span>{" "}
+                      <span className="truncate">{p}</span>
+                    </span>
+                    <span className="text-xs font-normal text-muted-foreground">
+                      {info && info.buzzers > 0
+                        ? `${info.buzzers} buzzer · ${compactFollowers(info.minFollowers)}–${compactFollowers(info.maxFollowers)} followers`
+                        : "Belum ada buzzer terverifikasi"}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}
@@ -3758,7 +3818,71 @@ function WizardDialog({
                 </>
               ) : (
                 <>
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="font-semibold">Kelas buzzer</span>
+                      <span className="text-xs text-muted-foreground">
+                        {platformAvailabilityInfo && platformAvailabilityInfo.buzzers > 0
+                          ? `${platformAvailabilityInfo.buzzers} buzzer terverifikasi di ${platform}`
+                          : `Belum ada buzzer terverifikasi di ${platform}`}
+                      </span>
+                    </div>
+                    <div className="grid gap-2">
+                      {BUZZER_TIERS.map((t) => {
+                        const price = tierPrices[t];
+                        const info = BUZZER_TIER_INFO[t];
+                        const available = platformAvailabilityInfo?.byTier[t];
+                        const disabled = !price;
+                        const active = tier === t;
+                        return (
+                          <button
+                            key={t}
+                            type="button"
+                            disabled={disabled}
+                            onClick={() => setTier(t)}
+                            className={cn(
+                              "w-full min-w-0 rounded-xl border p-3 text-left transition-colors",
+                              active ? "border-primary bg-primary/5" : "border-border",
+                              disabled ? "cursor-not-allowed opacity-50" : "hover:bg-muted/50",
+                            )}
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="text-sm font-semibold">
+                                  {info.label}
+                                  {active && (
+                                    <span className="ml-2 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                                      Dipilih
+                                    </span>
+                                  )}
+                                </p>
+                                <p className="text-xs text-muted-foreground break-words">
+                                  {tierFollowerLabel(t)} followers · {info.description}
+                                </p>
+                              </div>
+                              <div className="shrink-0 text-right">
+                                <p className="text-sm font-semibold">
+                                  {price ? `${formatIDR(price)} / buzzer` : "Harga belum diatur"}
+                                </p>
+                                <p className="text-[11px] text-muted-foreground">
+                                  {available && available.buzzers > 0
+                                    ? `${available.buzzers} buzzer tersedia`
+                                    : "Belum ada buzzer"}
+                                </p>
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="text-[11px] leading-relaxed text-muted-foreground">
+                      Buzzer kelas lebih tinggi boleh mengambil job ini setelah {TIER_RISE_HOURS} jam
+                      per tingkat. Bila kelas yang dipilih belum terisi, job dibuka untuk satu kelas
+                      di bawahnya setelah {TIER_FALL_HOURS} jam.
+                    </p>
+                  </div>
                   <Row label="Jenis layanan" value={selectedServiceType || "-"} />
+                  <Row label="Kelas buzzer" value={tier} />
                   <Row
                     label="Harga per buzzer"
                     value={
@@ -3890,9 +4014,11 @@ function WizardDialog({
                     value={formatIDR(selectedPkg.price)}
                   />
                   <Row label="Jumlah buzzer" value={`${selectedPkg.buzzers} buzzer`} />
+                  {isCatalog && <Row label="Kelas buzzer" value="Biasa" />}
                 </>
               ) : (
                 <>
+                  <Row label="Kelas buzzer" value={tier} />
                   <Row
                     label="Harga per buzzer"
                     value={formatIDR(Number(customPricing?.price_per_buzzer ?? 0))}
@@ -3935,6 +4061,7 @@ function WizardDialog({
               className="w-full gradient-brand text-brand-foreground sm:w-auto"
               disabled={
                 (step === 2 && !service?.campaignType) ||
+                (step === 4 && !isCatalog && !isOffline && !customPricing) ||
                 (step === 3 &&
                   (!form.campaignName.trim() ||
                     !form.description.trim() ||
