@@ -5,7 +5,9 @@ import { getCachedRows, isCacheFresh, loadCachedRows } from "@/lib/query-cache";
 
 export type PaymentStatus = "Pending" | "Menunggu Pembayaran" | "Menunggu Verifikasi" | "Berhasil" | "Lunas" | "Gagal" | "Refund";
 export type WithdrawalStatus = "Menunggu" | "Disetujui" | "Diproses" | "Berhasil" | "Ditolak";
-export type CampaignType = "TikTok" | "Instagram" | "X (Twitter)" | "Facebook" | "YouTube";
+export type CampaignType =
+  | "TikTok" | "Instagram" | "X (Twitter)" | "Facebook" | "YouTube"
+  | "LinkedIn" | "Threads" | "Telegram";
 
 export type Payment = {
   id: string;

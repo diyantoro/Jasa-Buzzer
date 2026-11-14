@@ -2807,6 +2807,12 @@ function OrderDetailDialog({
                   {PLATFORM_ICON[order.platform]} {order.platform}
                 </dd>
               </div>
+              {!order.location && (
+                <div>
+                  <dt className="text-xs text-muted-foreground">Kelas Buzzer</dt>
+                  <dd>{order.buzzerTier ?? "Biasa"}</dd>
+                </div>
+              )}
               <div>
                 <dt className="text-xs text-muted-foreground">Jumlah Buzzer</dt>
                 <dd>{order.buzzers} buzzer</dd>
@@ -4382,6 +4388,13 @@ function InvoiceDialog({
                 }
               />
               <Row label="Platform" value={order.platform} />
+              {!order.location && <Row label="Kelas Buzzer" value={order.buzzerTier ?? "Biasa"} />}
+              {!order.location && (order.buzzerTier ?? "Biasa") !== "Biasa" && (
+                <Row
+                  label="Izin Turun Kelas"
+                  value={order.allowTierDowngrade ? `Ya, setelah ${TIER_FALL_HOURS} jam` : "Tidak"}
+                />
+              )}
               <Row label="Periode" value={`${order.startDate} — ${order.endDate}`} />
               {order.location && (
                 <Row

@@ -1599,6 +1599,7 @@ function CustomerOrdersSection() {
                         <span>{c.platform}</span>
                         <span>· {c.slots} slot</span>
                         {c.service_type && <span>· {c.service_type}</span>}
+                        <span>· Kelas {c.buzzer_tier ?? "Biasa"}</span>
                       </div>
                     </TableCell>
                     <TableCell className="text-sm">
@@ -1657,6 +1658,7 @@ function CustomerOrdersSection() {
                       <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
                         {c.platform} · {c.slots} slot
                         {c.service_type ? ` · ${c.service_type}` : ""}
+                        {` · Kelas ${c.buzzer_tier ?? "Biasa"}`}
                       </p>
                     </div>
                     <StatusBadge status={c.status === "Draft" ? "Menunggu" : c.status} />
@@ -1725,12 +1727,20 @@ function CustomerOrdersSection() {
               <div className="grid gap-3 sm:grid-cols-2">
                 {[
                   { l: "Platform", v: detailLive.platform },
+                  { l: "Kelas Buzzer", v: detailLive.buzzer_tier ?? "Biasa" },
                   { l: "Jenis Kegiatan", v: detailLive.service_type || "-" },
                   { l: "Jumlah Slot Buzzer", v: `${detailLive.slots} buzzer` },
                   { l: "Budget", v: formatIDR(Number(detailLive.budget)) },
                   {
                     l: "Pembagian / Buzzer",
                     v: "Mengikuti level buzzer saat job diambil",
+                  },
+                  {
+                    l: "Izin Turun Kelas",
+                    v:
+                      detailLive.buzzer_tier && detailLive.buzzer_tier !== "Biasa" && detailLive.allow_tier_downgrade
+                        ? "Ya, setelah 12 jam"
+                        : "Tidak",
                   },
                   { l: "Deadline", v: detailLive.deadline || "-" },
                   {
