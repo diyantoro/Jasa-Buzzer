@@ -411,69 +411,100 @@ function getInitialBuzzerSection(): SectionKey {
   return "dashboard";
 }
 
-const navItems: { key: SectionKey; label: string; shortLabel?: string; icon: ReactNode }[] = [
-  { key: "dashboard", label: "Dashboard", icon: <LayoutDashboard className="h-4 w-4" /> },
+const navItems: {
+  key: SectionKey;
+  label: string;
+  shortLabel?: string;
+  icon: ReactNode;
+  group?: string;
+}[] = [
+  {
+    key: "dashboard",
+    label: "Dashboard",
+    icon: <LayoutDashboard className="h-4 w-4" />,
+    group: "Utama",
+  },
   {
     key: "cari",
     label: "Cari Pekerjaan",
     shortLabel: "Cari",
     icon: <Search className="h-4 w-4" />,
+    group: "Utama",
   },
   {
     key: "pekerjaan",
     label: "Pekerjaan Saya",
     shortLabel: "Pekerjaan",
     icon: <BriefcaseBusiness className="h-4 w-4" />,
+    group: "Utama",
   },
   {
     key: "bukti",
     label: "Bukti Pekerjaan",
     shortLabel: "Bukti",
     icon: <PackageCheck className="h-4 w-4" />,
+    group: "Utama",
   },
   {
     key: "dompet",
     label: "Dompet Saya",
     shortLabel: "Dompet",
     icon: <Wallet className="h-4 w-4" />,
+    group: "Penghasilan",
   },
   {
     key: "transaksi",
     label: "Riwayat Transaksi",
     shortLabel: "Transaksi",
     icon: <Receipt className="h-4 w-4" />,
+    group: "Penghasilan",
   },
   {
     key: "peringkat",
     label: "Peringkat Buzzer",
     shortLabel: "Peringkat",
     icon: <Trophy className="h-4 w-4" />,
+    group: "Penghasilan",
   },
-  { key: "notifikasi", label: "Notifikasi", icon: <Bell className="h-4 w-4" /> },
   {
-    key: "bantuan",
-    label: "Pusat Bantuan",
-    shortLabel: "Bantuan",
-    icon: <LifeBuoy className="h-4 w-4" />,
+    key: "notifikasi",
+    label: "Notifikasi",
+    icon: <Bell className="h-4 w-4" />,
+    group: "Akun",
+  },
+  {
+    key: "sosmed",
+    label: "Akun Sosial Media",
+    shortLabel: "Sosmed",
+    icon: <Link2 className="h-4 w-4" />,
+    group: "Akun",
   },
   {
     key: "profil",
     label: "Profil Saya",
     shortLabel: "Profil",
     icon: <UserRound className="h-4 w-4" />,
+    group: "Akun",
   },
-  { key: "pengaturan", label: "Pengaturan", icon: <Settings className="h-4 w-4" /> },
   {
-    key: "sosmed",
-    label: "Akun Sosial Media",
-    shortLabel: "Sosmed",
-    icon: <Link2 className="h-4 w-4" />,
+    key: "bantuan",
+    label: "Pusat Bantuan",
+    shortLabel: "Bantuan",
+    icon: <LifeBuoy className="h-4 w-4" />,
+    group: "Akun",
+  },
+  {
+    key: "pengaturan",
+    label: "Pengaturan",
+    icon: <Settings className="h-4 w-4" />,
+    group: "Akun",
   },
   {
     key: "ulasan",
     label: "Rating & Ulasan",
     shortLabel: "Ulasan",
     icon: <Star className="h-4 w-4" />,
+    group: "Akun",
   },
 ];
 
@@ -706,12 +737,12 @@ function BuzzerPage() {
         <aside
           className={cn(
             "sticky top-0 hidden h-screen shrink-0 transition-[width] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none md:block",
-            collapsed ? "w-[100px]" : "w-64",
+            collapsed ? "w-[104px]" : "w-64",
           )}
         >
           <div
             className={cn(
-              "sidebar-surface h-full overflow-x-hidden overflow-y-auto overscroll-contain scrollbar-slim border-r border-white/15 shadow-md transition-[padding] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
+              "sidebar-surface h-full overflow-hidden overscroll-contain border-r border-white/10 shadow-[0_24px_60px_-45px_rgba(2,6,23,0.95)] transition-[padding] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
               collapsed ? "p-2" : "p-4",
             )}
           >
@@ -744,7 +775,7 @@ function BuzzerPage() {
                       </button>
                     </SheetTrigger>
                     <SheetContent side="left" className="w-72 border-r-white/10 p-0 text-white">
-                      <div className="sidebar-surface h-full overflow-x-hidden overflow-y-auto overscroll-contain scrollbar-slim p-4">
+                      <div className="sidebar-surface h-full overflow-hidden overscroll-contain p-4">
                         {renderSidebar()}
                       </div>
                     </SheetContent>

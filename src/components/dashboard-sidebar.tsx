@@ -21,6 +21,11 @@ export type SidebarNavItem<K extends string = string> = {
   icon: ReactNode;
   /** Jumlah pesan/badge yang belum dibaca. */
   badge?: number;
+  /**
+   * Judul kelompok menu. Item yang berurutan dengan grup sama akan digabung
+   * di bawah satu judul kecil, sehingga sidebar lebih mudah dipindai.
+   */
+  group?: string;
 };
 
 export type SidebarUser = {
@@ -31,6 +36,13 @@ export type SidebarUser = {
 };
 
 const STORAGE_PREFIX = "buzzhub.sidebar_collapsed.";
+
+/** Judul ruang kerja yang tampil di bawah logo sesuai role. */
+const ROLE_TITLES: Record<string, string> = {
+  admin: "Admin Console",
+  buzzer: "Buzzer Workspace",
+  customer: "Customer Portal",
+};
 
 /** Status ciut/buka sidebar untuk desktop, diingat di browser. */
 export function useSidebarCollapsed(storageKey: string) {
@@ -117,29 +129,31 @@ function NavButton<K extends string>({
           : undefined
       }
       className={cn(
-        "relative flex w-full items-center rounded-lg text-sm transition-[padding,gap,background-color,color] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70",
-        collapsed ? "justify-center gap-0 px-0 py-2.5" : "gap-3 px-3 py-2",
+        "group/nav relative flex w-full items-center rounded-xl text-[13px] outline-none transition-[background-color,color,padding,gap] duration-200 ease-[cubic-bezier(0.32,0.72,0,1)] focus-visible:ring-2 focus-visible:ring-white/70 motion-reduce:transition-none",
+        collapsed ? "justify-center gap-0 px-0 py-1.5" : "gap-2.5 px-2 py-1.5",
         active
-          ? "bg-white/15 font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]"
-          : "font-medium text-white/70 hover:bg-white/10 hover:text-white",
+          ? "bg-white/20 font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.22),0_8px_20px_-16px_rgba(0,0,0,0.9)]"
+          : "font-medium text-white/85 hover:bg-white/10 hover:text-white",
       )}
     >
       <span
         aria-hidden="true"
         className={cn(
-          "absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-white transition-opacity",
+          "absolute left-0 top-1/2 h-6 w-[3px] -translate-y-1/2 rounded-r-full bg-gradient-to-b from-white via-white/80 to-white/25 transition-opacity duration-300",
           active ? "opacity-100" : "opacity-0",
         )}
       />
       <span
         className={cn(
-          "relative shrink-0 [&>svg]:h-[18px] [&>svg]:w-[18px]",
-          active && "text-white",
+          "relative grid h-8 w-8 shrink-0 place-items-center rounded-lg transition-colors duration-200 [&>svg]:h-[17px] [&>svg]:w-[17px]",
+          active
+            ? "bg-white/25 text-white"
+            : "bg-white/10 text-white/80 group-hover/nav:bg-white/20 group-hover/nav:text-white",
         )}
       >
         {item.icon}
         {collapsed && item.badge ? (
-          <span className="absolute -right-1.5 -top-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-rose-500 px-1 text-[9px] font-bold leading-none text-white ring-2 ring-[#0b1220]">
+          <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-rose-500 px-1 text-[9px] font-bold leading-none text-white ring-2 ring-[#0b1220]">
             {item.badge > 99 ? "99+" : item.badge}
           </span>
         ) : null}
@@ -153,7 +167,7 @@ function NavButton<K extends string>({
       >
         <span className="truncate">{item.label}</span>
         {!collapsed && item.badge ? (
-          <span className="ml-auto shrink-0 rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
+          <span className="ml-auto shrink-0 rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white shadow-sm">
             {item.badge > 99 ? "99+" : item.badge}
           </span>
         ) : null}
@@ -166,7 +180,7 @@ function NavButton<K extends string>({
   return (
     <Tooltip>
       <TooltipTrigger asChild>{button}</TooltipTrigger>
-      <TooltipContent side="right">
+      <TooltipContent side="right" sideOffset={10}>
         {item.label}
         {item.badge ? ` · ${item.badge} belum dibaca` : ""}
       </TooltipContent>
@@ -195,31 +209,117 @@ export function SidebarNav<K extends string>({
   /** Bila diisi, tombol buka/ciutkan sidebar tampil di dalam header sidebar. */
   onToggleCollapse?: () => void;
 }) {
-  return (
-    <div className="flex min-h-full flex-col text-white">
-      <div
+  const navRef = useRef<HTMLElement | null>(null);
+
+  // Kelompokkan item berdasarkan properti `group` (urutan tetap dipertahankan).
+  const groups = useMemo(() => {
+    const out: { group?: string; items: SidebarNavItem<K>[] }[] = [];
+    for (const item of nav) {
+      const last = out[out.length - 1];
+      if (last && (last.group ?? "") === (item.group ?? "")) last.items.push(item);
+      else out.push({ group: item.group, items: [item] });
+    }
+    return out;
+  }, [nav]);
+
+  // Pastikan menu aktif selalu terlihat saat sidebar di-scroll.
+  useEffect(() => {
+    const container = navRef.current;
+    if (!container) return;
+    const active = container.querySelector<HTMLElement>('[aria-current="page"]');
+    active?.scrollIntoView({ block: "nearest" });
+  }, [activeKey]);
+
+  const roleTitle = user?.roleLabel ? (ROLE_TITLES[user.roleLabel] ?? "Workspace") : "Workspace";
+
+  const userBlock = (
+    <div
+      className={cn(
+        "flex min-w-0 items-center rounded-xl border border-white/15 bg-white/10 transition-[padding,gap] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
+        collapsed ? "justify-center gap-0 p-1.5" : "gap-2.5 p-2",
+      )}
+    >
+      <Avatar
         className={cn(
-          "mb-6 flex items-center gap-2 transition-[padding,gap] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
-          collapsed ? "px-0" : "px-1",
-          onToggleCollapse ? "justify-between" : collapsed ? "justify-center" : "",
+          "shrink-0 ring-2 ring-white/20 transition-[width,height] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
+          collapsed ? "h-9 w-9" : "h-9 w-9",
         )}
       >
+        {user?.avatarUrl ? (
+          <AvatarImage src={user.avatarUrl} alt={user?.name ?? "Pengguna"} />
+        ) : null}
+        <AvatarFallback className="bg-white/20 text-[11px] font-bold text-white">
+          {initials(user?.name ?? "")}
+        </AvatarFallback>
+      </Avatar>
+      <div
+        aria-hidden={collapsed}
+        className={cn(
+          "min-w-0 overflow-hidden transition-[max-width,opacity] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
+          collapsed ? "max-w-0 opacity-0" : "max-w-[190px] flex-1 opacity-100",
+        )}
+      >
+        <p className="truncate text-[13px] font-semibold leading-tight text-white">
+          {user?.name ?? "Tamu"}
+        </p>
+        <p className="truncate text-[11px] leading-tight text-white/70">{user?.email ?? ""}</p>
+      </div>
+    </div>
+  );
+
+  const logoutButton = (
+    <div className="mt-2 flex justify-center">
+      <button
+        type="button"
+        onClick={onLogout}
+        aria-label="Keluar"
+        className={cn(
+          "flex h-9 items-center justify-center gap-2 overflow-hidden rounded-xl border border-white/20 bg-white/10 text-[12.5px] font-semibold text-white/85 transition-[width,padding,background-color,border-color,color] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] hover:border-white/35 hover:bg-white/20 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 motion-reduce:transition-none",
+          collapsed ? "w-9 shrink-0 px-0" : "w-full px-3",
+        )}
+      >
+        <LogOut className="h-4 w-4 shrink-0" />
+        <span
+          className={cn(
+            "overflow-hidden whitespace-nowrap transition-[max-width,opacity] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
+            collapsed ? "max-w-0 opacity-0" : "max-w-[80px] opacity-100",
+          )}
+        >
+          Keluar
+        </span>
+      </button>
+    </div>
+  );
+
+  return (
+    <div className="flex h-full min-h-0 flex-col text-white">
+      {/* Brand — layout tetap satu baris di kedua state supaya tombol tidak berpindah */}
+      <div className="mb-4 flex shrink-0 items-center justify-between gap-1.5 px-1">
         <Link
           to="/"
-          className={cn("flex min-w-0 items-center", collapsed ? "justify-center gap-0" : "gap-2")}
-          title="BuzzHub"
+          className={cn(
+            "group flex min-w-0 items-center transition-[gap] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
+            collapsed ? "gap-0" : "gap-2.5",
+          )}
+          title={roleTitle}
+          aria-label={`BuzzHub · ${roleTitle}`}
         >
-          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white text-brand shadow-sm">
+          <span className="relative grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-white text-brand shadow-[0_8px_20px_-10px_rgba(0,0,0,0.8)] ring-1 ring-white/70 transition-transform duration-300 group-hover:scale-[1.04] motion-reduce:transition-none">
             <Megaphone className="h-[18px] w-[18px]" />
           </span>
           <span
             aria-hidden={collapsed}
             className={cn(
-              "overflow-hidden whitespace-nowrap font-display text-lg font-bold tracking-tight text-white transition-[max-width,opacity] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
+              "min-w-0 overflow-hidden transition-[max-width,opacity] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
               collapsed ? "max-w-0 opacity-0" : "max-w-[160px] opacity-100",
             )}
           >
-            BuzzHub
+            <span className="block truncate font-display text-[17px] font-bold leading-tight tracking-tight text-white">
+              BuzzHub
+            </span>
+            <span className="mt-0.5 block truncate text-[10px] font-semibold uppercase tracking-[0.16em] text-white/60">
+              {roleTitle}
+            </span>
           </span>
         </Link>
         {onToggleCollapse && (
@@ -227,80 +327,73 @@ export function SidebarNav<K extends string>({
         )}
       </div>
 
-      <nav className="flex flex-col gap-1" aria-label="Navigasi utama">
+      {/* Navigasi */}
+      <nav
+        ref={navRef}
+        aria-label="Navigasi utama"
+        className="scrollbar-slim flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overscroll-contain pr-0.5"
+      >
         <TooltipProvider delayDuration={200}>
-          {nav.map((item) => (
-            <NavButton
-              key={item.key}
-              item={item}
-              active={activeKey === item.key}
-              collapsed={collapsed}
-              onNavigate={onNavigate}
-              onPrefetch={onPrefetch}
-            />
+          {groups.map((group, index) => (
+            <div
+              key={group.group ?? `g-${index}`}
+              className={cn("flex flex-col gap-0.5", index > 0 && "mt-2")}
+            >
+              {group.group ? (
+                <div
+                  aria-hidden={collapsed}
+                  className={cn(
+                    "overflow-hidden transition-[max-height,opacity] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
+                    collapsed ? "max-h-0 opacity-0" : "max-h-8 opacity-100",
+                  )}
+                >
+                  <p className="px-2.5 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/60">
+                    {group.group}
+                  </p>
+                </div>
+              ) : null}
+              {group.items.map((item) => (
+                <NavButton
+                  key={item.key}
+                  item={item}
+                  active={activeKey === item.key}
+                  collapsed={collapsed}
+                  onNavigate={onNavigate}
+                  onPrefetch={onPrefetch}
+                />
+              ))}
+            </div>
           ))}
         </TooltipProvider>
       </nav>
 
-      <div className="mt-6 border-t border-white/15 pt-4">
-        <div
-          className={cn(
-            "flex items-center transition-[padding,gap] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
-            collapsed ? "justify-center gap-0" : "gap-3 px-1",
-          )}
-        >
-          <Avatar
-            className={cn(
-              "shrink-0 border border-white/25 transition-[width,height] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
-              collapsed ? "h-9 w-9" : "h-10 w-10",
-            )}
-          >
-            {user?.avatarUrl ? (
-              <AvatarImage src={user.avatarUrl} alt={user?.name ?? "Pengguna"} />
-            ) : null}
-            <AvatarFallback
-              className={cn(
-                "text-[11px] font-bold",
-                collapsed ? "bg-white/20 text-white" : "bg-white/20 text-white",
-              )}
-            >
-              {initials(user?.name ?? "")}
-            </AvatarFallback>
-          </Avatar>
-          <div
-            aria-hidden={collapsed}
-            className={cn(
-              "min-w-0 overflow-hidden transition-[max-width,opacity] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
-              collapsed ? "max-w-0 opacity-0" : "max-w-[190px] flex-1 opacity-100",
-            )}
-          >
-            <p className="whitespace-nowrap text-[11px] uppercase tracking-wide text-white/60">
-              {user?.roleLabel ? `Masuk sebagai ${user.roleLabel}` : "Masuk sebagai"}
-            </p>
-            <p className="truncate text-sm font-semibold text-white">{user?.name ?? "Tamu"}</p>
-            <p className="truncate text-xs text-white/60">{user?.email ?? ""}</p>
-          </div>
-        </div>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={onLogout}
-          aria-label="Keluar"
-          className={cn(
-            "mt-3 border-white/25 bg-white/10 text-white transition-[width,padding] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] hover:bg-white/20 hover:text-white motion-reduce:transition-none",
-            collapsed ? "mx-auto flex h-8 w-8 items-center justify-center px-0" : "w-full",
-          )}
-        >
-          <LogOut className="h-4 w-4 shrink-0" />
-          <span
-            className={cn(
-              "overflow-hidden whitespace-nowrap transition-[max-width,opacity,margin] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
-              collapsed ? "ml-0 max-w-0 opacity-0" : "ml-2 max-w-[80px] opacity-100",
-            )}
-          >
-            Keluar
-          </span>
-        </Button>
+      {/* Akun */}
+      <div className="mt-3 shrink-0 border-t border-white/15 pt-3">
+        {collapsed ? (
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>{userBlock}</TooltipTrigger>
+              <TooltipContent side="right" sideOffset={10}>
+                <span className="font-semibold">{user?.name ?? "Tamu"}</span>
+                <span className="block text-[11px] opacity-80">{roleTitle}</span>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        ) : (
+          userBlock
+        )}
+        {collapsed ? (
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>{logoutButton}</TooltipTrigger>
+              <TooltipContent side="right" sideOffset={10}>
+                Keluar
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        ) : (
+          logoutButton
+        )}
       </div>
     </div>
   );
@@ -323,7 +416,7 @@ export function SidebarCollapseButton({
             variant="outline"
             size="icon"
             onClick={onToggle}
-            className="hidden h-9 w-9 shrink-0 border-white/25 bg-white/10 text-white hover:bg-white/20 hover:text-white md:inline-flex"
+            className="hidden h-8 w-8 shrink-0 rounded-lg border-white/25 bg-white/15 text-white transition-colors hover:border-white/40 hover:bg-white/25 hover:text-white md:inline-flex"
             aria-label={label}
             aria-expanded={!collapsed}
             title={label}
@@ -412,28 +505,22 @@ export function MobileBottomNav<K extends string>({
         onPointerDown={() => onPrefetch?.(item.key)}
         aria-current={active ? "page" : undefined}
         className={cn(
-          "relative flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1.5 text-[10px] font-medium transition-colors min-[380px]:text-[11px]",
+          "relative flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-1 py-1 text-[10px] font-medium transition-colors duration-200 min-[380px]:text-[11px]",
           active ? "text-brand" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
         )}
       >
         <span
-          aria-hidden="true"
           className={cn(
-            "absolute top-0 h-[2px] w-6 rounded-full bg-brand transition-opacity",
-            active && !featured ? "opacity-100" : "opacity-0",
-          )}
-        />
-        <span
-          className={cn(
-            "relative [&>svg]:h-[19px] [&>svg]:w-[19px]",
-            featured &&
-              "grid h-10 w-10 -translate-y-2 place-items-center rounded-full bg-brand text-white shadow-lg ring-4 ring-background transition-transform [&>svg]:h-5 [&>svg]:w-5",
+            "relative grid place-items-center transition-colors duration-200 [&>svg]:h-[19px] [&>svg]:w-[19px]",
+            featured
+              ? "h-11 w-11 -translate-y-2.5 rounded-full bg-brand text-white shadow-lg ring-4 ring-background [&>svg]:h-5 [&>svg]:w-5"
+              : cn("h-8 w-8 rounded-xl", active ? "bg-brand/12 text-brand" : "text-muted-foreground"),
             featured && active && "bg-brand-glow",
           )}
         >
           {item.icon}
           {item.badge ? (
-            <span className="absolute -right-2 -top-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-rose-500 px-1 text-[9px] font-bold leading-none text-white ring-2 ring-background">
+            <span className="absolute -right-1.5 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-rose-500 px-1 text-[9px] font-bold leading-none text-white ring-2 ring-background">
               {item.badge > 99 ? "99+" : item.badge}
             </span>
           ) : null}
@@ -448,10 +535,10 @@ export function MobileBottomNav<K extends string>({
   return (
     <>
       <nav
-        className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 backdrop-blur-xl md:hidden"
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-border/70 bg-background/90 shadow-[0_-12px_32px_-24px_rgba(2,6,23,0.55)] backdrop-blur-xl md:hidden"
         aria-label="Navigasi bawah"
       >
-        <div className="flex items-stretch gap-0.5 px-2 py-1.5 pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
+        <div className="flex items-stretch gap-1 px-2 pt-1.5 pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
           {primary.map((item) => renderButton(item, activeKey === item.key))}
           {showMore && overflow.length > 0 && (
             <button
@@ -460,23 +547,21 @@ export function MobileBottomNav<K extends string>({
               aria-haspopup="dialog"
               aria-expanded={moreOpen}
               className={cn(
-                "relative flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1.5 text-[10px] font-medium transition-colors min-[380px]:text-[11px]",
+                "relative flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-1 py-1 text-[10px] font-medium transition-colors duration-200 min-[380px]:text-[11px]",
                 activeInOverflow
                   ? "text-brand"
                   : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
               )}
             >
               <span
-                aria-hidden="true"
                 className={cn(
-                  "absolute top-0 h-[2px] w-6 rounded-full bg-brand transition-opacity",
-                  activeInOverflow ? "opacity-100" : "opacity-0",
+                  "relative grid h-8 w-8 place-items-center rounded-xl transition-colors duration-200",
+                  activeInOverflow ? "bg-brand/12 text-brand" : "text-muted-foreground",
                 )}
-              />
-              <span className="relative">
+              >
                 <Menu className="h-[19px] w-[19px]" aria-hidden="true" />
                 {overflowUnread > 0 && (
-                  <span className="absolute -right-2 -top-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-rose-500 px-1 text-[9px] font-bold leading-none text-white ring-2 ring-background">
+                  <span className="absolute -right-1.5 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-rose-500 px-1 text-[9px] font-bold leading-none text-white ring-2 ring-background">
                     {overflowUnread > 99 ? "99+" : overflowUnread}
                   </span>
                 )}
@@ -508,7 +593,7 @@ export function MobileBottomNav<K extends string>({
                     onPointerDown={() => onPrefetch?.(item.key)}
                     aria-current={active ? "page" : undefined}
                     className={cn(
-                      "flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left text-sm font-medium transition-colors",
+                      "flex items-center gap-2.5 rounded-2xl border px-3 py-2.5 text-left text-sm font-medium transition-colors duration-200",
                       active
                         ? "border-brand/40 bg-brand/10 text-brand"
                         : "border-border bg-card text-foreground hover:bg-muted/60",
@@ -517,7 +602,7 @@ export function MobileBottomNav<K extends string>({
                     <span
                       aria-hidden="true"
                       className={cn(
-                        "grid h-8 w-8 shrink-0 place-items-center rounded-lg [&>svg]:h-[18px] [&>svg]:w-[18px]",
+                        "grid h-8 w-8 shrink-0 place-items-center rounded-xl [&>svg]:h-[18px] [&>svg]:w-[18px]",
                         active ? "bg-brand/15" : "bg-muted",
                       )}
                     >

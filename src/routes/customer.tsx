@@ -221,14 +221,14 @@ function getInitialCustomerSection(): SectionKey {
   return "homepage";
 }
 
-const navItems: { key: SectionKey; label: string; icon: ReactNode }[] = [
-  { key: "homepage", label: "Homepage", icon: <LayoutDashboard className="h-4 w-4" /> },
-  { key: "pesanan", label: "Pesanan", icon: <ShoppingBag className="h-4 w-4" /> },
-  { key: "katalog", label: "Katalog", icon: <Package className="h-4 w-4" /> },
-  { key: "pembayaran", label: "Pembayaran", icon: <CreditCard className="h-4 w-4" /> },
-  { key: "ulasan", label: "Ulasan", icon: <Star className="h-4 w-4" /> },
-  { key: "bantuan", label: "Bantuan", icon: <LifeBuoy className="h-4 w-4" /> },
-  { key: "pengaturan", label: "Pengaturan", icon: <Settings className="h-4 w-4" /> },
+const navItems: { key: SectionKey; label: string; icon: ReactNode; group?: string }[] = [
+  { key: "homepage", label: "Homepage", icon: <LayoutDashboard className="h-4 w-4" />, group: "Belanja" },
+  { key: "pesanan", label: "Pesanan", icon: <ShoppingBag className="h-4 w-4" />, group: "Belanja" },
+  { key: "katalog", label: "Katalog", icon: <Package className="h-4 w-4" />, group: "Belanja" },
+  { key: "pembayaran", label: "Pembayaran", icon: <CreditCard className="h-4 w-4" />, group: "Belanja" },
+  { key: "ulasan", label: "Ulasan", icon: <Star className="h-4 w-4" />, group: "Akun" },
+  { key: "bantuan", label: "Bantuan", icon: <LifeBuoy className="h-4 w-4" />, group: "Akun" },
+  { key: "pengaturan", label: "Pengaturan", icon: <Settings className="h-4 w-4" />, group: "Akun" },
 ];
 
 const sectionMeta: Record<SectionKey, { title: string; subtitle: string }> = {
@@ -478,12 +478,12 @@ function CustomerPage() {
         <aside
           className={cn(
             "sticky top-0 hidden h-screen shrink-0 transition-[width] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none md:block",
-            collapsed ? "w-[100px]" : "w-64",
+            collapsed ? "w-[104px]" : "w-64",
           )}
         >
           <div
             className={cn(
-              "sidebar-surface h-full overflow-x-hidden overflow-y-auto overscroll-contain scrollbar-slim border-r border-white/15 shadow-md transition-[padding] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
+              "sidebar-surface h-full overflow-hidden overscroll-contain border-r border-white/10 shadow-[0_24px_60px_-45px_rgba(2,6,23,0.95)] transition-[padding] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
               collapsed ? "p-2" : "p-4",
             )}
           >

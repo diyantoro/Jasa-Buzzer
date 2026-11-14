@@ -206,20 +206,58 @@ type SectionKey =
   | "ulasan"
   | "pengaturan";
 
-const navItems: { key: SectionKey; label: string; shortLabel?: string; icon: ReactNode }[] = [
-  { key: "ringkasan", label: "Dashboard", icon: <LayoutDashboard className="h-4 w-4" /> },
-  { key: "kampanye", label: "Kampanye", icon: <Megaphone className="h-4 w-4" /> },
-  { key: "manajemen", label: "Manajemen User", shortLabel: "Manajemen", icon: <Users className="h-4 w-4" /> },
-  { key: "pesan", label: "Pesan", icon: <MessageCircle className="h-4 w-4" /> },
-  { key: "verifikasi", label: "Verifikasi Buzzer", icon: <Shield className="h-4 w-4" /> },
-  { key: "verifikasi-pengerjaan", label: "Verifikasi Pengerjaan", icon: <CheckCircle2 className="h-4 w-4" /> },
-  { key: "pembayaran", label: "Verifikasi Pembayaran", icon: <CheckCircle2 className="h-4 w-4" /> },
-  { key: "verifikasi-pencairan", label: "Verifikasi Pencairan", icon: <Wallet className="h-4 w-4" /> },
-  { key: "metode-pembayaran", label: "Metode Pembayaran", icon: <Building2 className="h-4 w-4" /> },
-  { key: "pencairan", label: "Aktivitas", icon: <Activity className="h-4 w-4" /> },
-  { key: "sosmed", label: "Verifikasi Sosmed", shortLabel: "Sosmed", icon: <Link2 className="h-4 w-4" /> },
-  { key: "ulasan", label: "Ulasan & Rating", icon: <Star className="h-4 w-4" /> },
-  { key: "pengaturan", label: "Pengaturan", icon: <Settings className="h-4 w-4" /> },
+const navItems: {
+  key: SectionKey;
+  label: string;
+  shortLabel?: string;
+  icon: ReactNode;
+  group?: string;
+}[] = [
+  { key: "ringkasan", label: "Dashboard", icon: <LayoutDashboard className="h-4 w-4" />, group: "Utama" },
+  { key: "kampanye", label: "Kampanye", icon: <Megaphone className="h-4 w-4" />, group: "Utama" },
+  {
+    key: "manajemen",
+    label: "Manajemen User",
+    shortLabel: "Manajemen",
+    icon: <Users className="h-4 w-4" />,
+    group: "Utama",
+  },
+  { key: "pesan", label: "Pesan", icon: <MessageCircle className="h-4 w-4" />, group: "Utama" },
+  { key: "verifikasi", label: "Verifikasi Buzzer", icon: <Shield className="h-4 w-4" />, group: "Verifikasi" },
+  {
+    key: "verifikasi-pengerjaan",
+    label: "Verifikasi Pengerjaan",
+    icon: <CheckCircle2 className="h-4 w-4" />,
+    group: "Verifikasi",
+  },
+  {
+    key: "sosmed",
+    label: "Verifikasi Sosmed",
+    shortLabel: "Sosmed",
+    icon: <Link2 className="h-4 w-4" />,
+    group: "Verifikasi",
+  },
+  {
+    key: "pembayaran",
+    label: "Verifikasi Pembayaran",
+    icon: <CheckCircle2 className="h-4 w-4" />,
+    group: "Keuangan",
+  },
+  {
+    key: "verifikasi-pencairan",
+    label: "Verifikasi Pencairan",
+    icon: <Wallet className="h-4 w-4" />,
+    group: "Keuangan",
+  },
+  {
+    key: "metode-pembayaran",
+    label: "Metode Pembayaran",
+    icon: <Building2 className="h-4 w-4" />,
+    group: "Keuangan",
+  },
+  { key: "pencairan", label: "Aktivitas", icon: <Activity className="h-4 w-4" />, group: "Laporan" },
+  { key: "ulasan", label: "Ulasan & Rating", icon: <Star className="h-4 w-4" />, group: "Laporan" },
+  { key: "pengaturan", label: "Pengaturan", icon: <Settings className="h-4 w-4" />, group: "Akun" },
 ];
 
 const sectionMeta: Record<SectionKey, { title: string; subtitle: string }> = {
@@ -416,12 +454,12 @@ function AdminPage() {
         <aside
           className={cn(
             "sticky top-0 hidden h-screen shrink-0 transition-[width] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none md:block",
-            collapsed ? "w-[100px]" : "w-64",
+            collapsed ? "w-[104px]" : "w-64",
           )}
         >
           <div
             className={cn(
-              "sidebar-surface h-full overflow-x-hidden overflow-y-auto overscroll-contain scrollbar-slim border-r border-white/15 shadow-md transition-[padding] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
+              "sidebar-surface h-full overflow-hidden overscroll-contain border-r border-white/10 shadow-[0_24px_60px_-45px_rgba(2,6,23,0.95)] transition-[padding] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
               collapsed ? "p-2" : "p-4",
             )}
           >
@@ -442,7 +480,7 @@ function AdminPage() {
                   </Button>
                 </SheetTrigger>
                 <SheetContent side="left" className="w-72 border-r-white/10 p-0 text-white">
-                  <div className="sidebar-surface h-full overflow-x-hidden overflow-y-auto overscroll-contain scrollbar-slim p-4">
+                  <div className="sidebar-surface h-full overflow-hidden overscroll-contain p-4">
                     {renderSidebar()}
                   </div>
                 </SheetContent>
