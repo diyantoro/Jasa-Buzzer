@@ -998,7 +998,7 @@ function useLeaderboard(store: Store) {
             .select("buzzer_email, balance, level, verified_followers")
             .limit(5000),
           (supabase as any)
-            .from("app_accounts")
+            .from("app_accounts_public")
             .select("email, name, avatar_url, role")
             .eq("role", "buzzer")
             .limit(5000),

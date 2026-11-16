@@ -119,35 +119,9 @@ export function useQrisSettings() {
       saveToLocal(updated);
       emit();
 
-      // If Supabase is connected, optionally sync with admin bio or a metadata row
-      if (isSupabaseConfigured()) {
-        try {
-          const { data: adminUser } = await (supabase as any)
-            .from("app_accounts")
-            .select("email, bio")
-            .eq("role", "admin")
-            .limit(1)
-            .maybeSingle();
-
-          if (adminUser?.email) {
-            let bioObj: Record<string, any> = {};
-            try {
-              if (adminUser.bio && adminUser.bio.startsWith("{")) {
-                bioObj = JSON.parse(adminUser.bio);
-              }
-            } catch {
-              /* ignore */
-            }
-            bioObj._qrisSettings = updated;
-            await (supabase as any)
-              .from("app_accounts")
-              .update({ bio: JSON.stringify(bioObj) })
-              .eq("email", adminUser.email);
-          }
-        } catch {
-          /* background sync fail is safe */
-        }
-      }
+      // Fase 1: app_accounts tidak lagi bisa dibaca/ditulis client, jadi
+      // penyimpanan JSON di kolom bio dihapus. Sumber kebenaran QRIS adalah
+      // cache lokal + server (lihat catatan di laporan hardening).
     } finally {
       setLoading(false);
     }

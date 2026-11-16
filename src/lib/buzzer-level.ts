@@ -277,19 +277,30 @@ export async function refreshLevels() {
 }
 
 export async function updateLevelPayout(name: string, payout: number) {
-  const { error } = await supabase.from("buzzer_levels").update({ payout_per_job: payout }).eq("name", name);
-  await refreshLevels();
-  return !error;
+  try {
+    const { adminUpdateLevelFn } = await import("./admin.functions");
+    await adminUpdateLevelFn({ data: { name, payoutPerJob: payout } });
+    return true;
+  } catch (error) {
+    console.warn("[Level] Gagal menyimpan nominal payout:", error);
+    return false;
+  } finally {
+    await refreshLevels();
+  }
 }
 
 /** Ubah persentase bagian buzzer untuk sebuah level (diatur admin). */
 export async function updateLevelPercentage(name: string, percentage: number) {
-  const { error } = await supabase
-    .from("buzzer_levels")
-    .update({ payout_percentage: percentage } as any)
-    .eq("name", name);
-  await refreshLevels();
-  return !error;
+  try {
+    const { adminUpdateLevelFn } = await import("./admin.functions");
+    await adminUpdateLevelFn({ data: { name, payoutPercentage: percentage } });
+    return true;
+  } catch (error) {
+    console.warn("[Level] Gagal menyimpan persentase payout:", error);
+    return false;
+  } finally {
+    await refreshLevels();
+  }
 }
 
 /* ---------------- Sinkronisasi realtime (tanpa reload) ---------------- */
@@ -552,6 +563,9 @@ export async function refreshAssignedLevels() {
  *
  * Semua kategori buzzer punya level. Untuk buzzer offline level hanya
  * badge — nominal bayaran tetap `payout_per_buzzer` dari admin.
+ *
+ * Fase 1: penulisan level dipindahkan ke server function admin karena
+ * level menentukan persentase payout.
  */
 export async function assignLevelFromVerification(
   email: string,
@@ -560,21 +574,25 @@ export async function assignLevelFromVerification(
   _category?: string | null,
 ) {
   const lc = email.trim().toLowerCase();
+  if (!lc) return null;
   if (LEVELS === DEFAULT_LEVELS) await refreshLevels();
   const lv = levelFromFollowers(verifiedFollowers);
   const oldRec = ASSIGNED[lc];
   const oldLevel = oldRec?.level;
 
-  const { error } = await supabase.from("buzzer_wallets").upsert({
-    buzzer_email: lc,
-    buzzer_name: name || lc.split("@")[0],
-    level: lv.name,
-    verified_followers: verifiedFollowers,
-    level_assigned_at: new Date().toISOString(),
-  }, { onConflict: "buzzer_email" });
+  try {
+    const { adminAssignLevelFn } = await import("./admin.functions");
+    await adminAssignLevelFn({
+      data: { email: lc, name, verifiedFollowers },
+    });
+  } catch (error) {
+    console.warn("[Level] Gagal menetapkan level (butuh sesi admin):", error);
+    await refreshAssignedLevels();
+    return null;
+  }
 
   // Hanya kirim notifikasi jika BENAR-BENAR NAIK LEVEL dari tier sebelumnya yang lebih rendah
-  if (!error && oldLevel && oldLevel !== lv.name) {
+  if (oldLevel && oldLevel !== lv.name) {
     const ORDER: Record<string, number> = { Bronze: 1, Silver: 2, Gold: 3, Platinum: 4, Diamond: 5 };
     const oldOrder = ORDER[oldLevel] ?? 0;
     const newOrder = ORDER[lv.name] ?? 0;
@@ -587,7 +605,7 @@ export async function assignLevelFromVerification(
     }
   }
   await refreshAssignedLevels();
-  return error ? null : lv;
+  return lv;
 }
 
 export function useAssignedLevels(): Record<string, AssignedLevel> {

@@ -217,18 +217,35 @@ export const useServiceCatalogs = () => useRealtime<ServiceCatalog>("service_cat
 export const useServicePricings = () => useRealtime<ServicePricing>("service_pricing", { column: "platform", ascending: true });
 
 export async function createServicePricing(input: Omit<ServicePricing, "id" | "created_at" | "updated_at">) {
-  const { error } = await (supabase as any).from("service_pricing").insert(input);
-  if (error) throw error;
+  const { adminSavePricingFn } = await import("./admin.functions");
+  await adminSavePricingFn({
+    data: {
+      platform: input.platform,
+      serviceType: input.service_type,
+      buzzerTier: (input as { buzzer_tier?: string }).buzzer_tier ?? "Biasa",
+      pricePerBuzzer: Number(input.price_per_buzzer),
+      status: input.status ?? "Aktif",
+    },
+  });
 }
 
 export async function updateServicePricing(id: string, input: Partial<ServicePricing>) {
-  const { error } = await (supabase as any).from("service_pricing").update(input).eq("id", id);
-  if (error) throw error;
+  const { adminSavePricingFn } = await import("./admin.functions");
+  await adminSavePricingFn({
+    data: {
+      id,
+      platform: input.platform ?? "",
+      serviceType: input.service_type ?? "",
+      buzzerTier: (input as { buzzer_tier?: string }).buzzer_tier ?? "Biasa",
+      pricePerBuzzer: Number(input.price_per_buzzer ?? 0),
+      status: input.status ?? "Aktif",
+    },
+  });
 }
 
 export async function deleteServicePricing(id: string) {
-  const { error } = await (supabase as any).from("service_pricing").delete().eq("id", id);
-  if (error) throw error;
+  const { adminDeletePricingFn } = await import("./admin.functions");
+  await adminDeletePricingFn({ data: { id } });
 }
 export const useCatalogPackages = (catalogId?: string | null) => {
   const channelId = useId().replace(/[^a-zA-Z0-9_-]/g, "");
@@ -436,8 +453,7 @@ export async function takeCampaignJob(id: string, buzzerEmail: string, buzzerNam
     .maybeSingle();
   if (accountError) throw accountError;
   if (!matchingAccount) {
-    const { data: acc } = await supabase
-      .from("app_accounts")
+    const { data: acc } = await (supabase as any).from("app_accounts_public")
       .select("platform")
       .eq("email", email)
       .ilike("platform", job.platform)
@@ -507,134 +523,42 @@ export type SyncableBuzzerJob = {
 };
 
 /**
- * Menyambungkan job demo/lokal ke Supabase sebelum bukti dikirim.
+ * Job demo/lokal tidak lagi bisa "dipromosikan" menjadi campaign di database.
  *
- * Job demo tetap bisa tampil dari localStorage ketika database kosong, tetapi
- * saat buzzer mengirim bukti baris campaign + job dibuat di Supabase dengan ID
- * deterministik. Dengan begitu bukti, status, dan riwayat tidak tertinggal di
- * browser saja dan admin/customer bisa melihatnya.
+ * Sebelum Fase 1 fungsi ini membuat baris `campaigns` dengan
+ * payment_status = 'Pembayaran Disetujui' lalu langsung menyisipkan
+ * `campaign_jobs`. Itu jalan pintas yang melewati verifikasi pembayaran admin,
+ * sehingga dihapus pada Fase 1. Job demo harus dibuat ulang lewat alur
+ * campaign normal (customer checkout -> admin verifikasi pembayaran).
  */
 export async function ensureCampaignJobInSupabase(
   job: SyncableBuzzerJob,
   buzzerEmail: string,
-  buzzerName: string,
+  _buzzerName?: string,
 ): Promise<string> {
   const email = buzzerEmail.trim().toLowerCase();
   if (!email) throw new Error("Email buzzer tidak ditemukan.");
 
   const localId = job.id.replace(/^db:/, "");
   const jobId = UUID_PATTERN.test(localId) ? localId : stableUuid(`buzzhub:job:${localId}`);
-  const campaignId = campaignIdForLocalJob(jobId);
 
-  const { data: existing, error: existingError } = await supabase
+  const { data: existing, error } = await supabase
     .from("campaign_jobs")
     .select("id, buzzer_email")
     .eq("id", jobId)
     .maybeSingle();
-  if (existingError) throw existingError;
-  if (existing?.id) {
-    if (existing.buzzer_email && existing.buzzer_email.toLowerCase() !== email) {
-      throw new Error("Job ini sudah terhubung ke akun buzzer lain.");
-    }
-    return existing.id;
+  if (error) throw error;
+
+  if (!existing?.id) {
+    throw new Error(
+      "Job ini masih berupa data demo di browser dan belum ada di database. " +
+        "Minta admin membuat campaign agar bukti bisa diverifikasi.",
+    );
   }
-
-  const payout = Math.max(0, Number(job.payout) || 0);
-  // Database caps the buzzer share at 40% of gross_price. Use a 2.5x gross
-  // snapshot so the demo payout shown in the UI stays exactly the same.
-  const grossPrice = Math.max(payout, Math.round(payout * 2.5));
-  const adminAmount = Math.max(0, grossPrice - payout);
-  const buzzerPercentage = grossPrice > 0 ? Math.round((payout / grossPrice) * 100) : 100;
-  const adminPercentage = 100 - buzzerPercentage;
-  const normalizedStatus: CampaignJobStatus =
-    job.status === "Ditolak" ? "Revisi" : job.status === "Upload" ? "Review" : job.status;
-  const campaignStatus = normalizedStatus === "Review" ? "Review" : "Aktif";
-  const deadline = /^\d{4}-\d{2}-\d{2}$/.test(job.deadline)
-    ? job.deadline
-    : new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
-  const startDate = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
-  const timestamp = job.updatedAt && !Number.isNaN(Date.parse(job.updatedAt))
-    ? job.updatedAt
-    : new Date().toISOString();
-  const proofUrl = job.proofUrl ?? null;
-  const submittedAt = proofUrl ? timestamp : null;
-
-  const campaignPayload = {
-    id: campaignId,
-    title: job.title,
-    customer_email: "customer@buzzhub.id",
-    customer_name: "Customer Utama",
-    platform: job.platform,
-    brief: job.brief,
-    budget: grossPrice,
-    payout_per_buzzer: payout,
-    slots: 1,
-    deadline,
-    status: campaignStatus,
-    payment_status: "Pembayaran Disetujui",
-    start_date: startDate,
-    price_per_buzzer: grossPrice,
-    buzzer_count: 1,
-    total_amount: grossPrice,
-    created_at: timestamp,
-    updated_at: timestamp,
-  };
-
-  const { error: campaignError } = await (supabase as any)
-    .from("campaigns")
-    .upsert(campaignPayload, { onConflict: "id" });
-  if (campaignError) throw campaignError;
-
-  const jobPayload = {
-    id: jobId,
-    campaign_id: campaignId,
-    campaign_title: job.title,
-    platform: job.platform,
-    buzzer_email: email,
-    buzzer_name: buzzerName.trim() || email,
-    payout,
-    deadline,
-    brief: job.brief,
-    status: normalizedStatus,
-    proof_url: proofUrl,
-    note: job.note ?? null,
-    rejection_reason: job.rejection_reason ?? null,
-    rejected_at: job.rejected_at ?? null,
-    rejected_by: job.rejection_reason || normalizedStatus === "Revisi" ? "admin@buzzhub.id" : null,
-    resubmission_count: normalizedStatus === "Revisi" ? 1 : 0,
-    submitted_at: submittedAt,
-    admin_verified_at: job.admin_verified_at ?? null,
-    customer_rated_at: job.customer_rated_at ?? null,
-    gross_price: grossPrice,
-    buzzer_level: null,
-    buzzer_percentage: buzzerPercentage,
-    buzzer_amount: payout,
-    admin_percentage: adminPercentage,
-    admin_amount: adminAmount,
-    created_at: timestamp,
-    updated_at: timestamp,
-  };
-
-  const { error: jobError } = await (supabase as any)
-    .from("campaign_jobs")
-    .insert(jobPayload);
-  if (jobError) {
-    // Tab lain mungkin sudah lebih dulu membuat baris dengan ID deterministik ini.
-    const { data: raced } = await supabase
-      .from("campaign_jobs")
-      .select("id, buzzer_email")
-      .eq("id", jobId)
-      .maybeSingle();
-    if (raced?.id) {
-      if (raced.buzzer_email && raced.buzzer_email.toLowerCase() !== email) {
-        throw new Error("Job ini sudah terhubung ke akun buzzer lain.");
-      }
-      return raced.id;
-    }
-    throw jobError;
+  if (existing.buzzer_email && existing.buzzer_email.toLowerCase() !== email) {
+    throw new Error("Job ini sudah terhubung ke akun buzzer lain.");
   }
-
-  return jobId;
+  return existing.id;
 }
 
 export async function submitCampaignJobProof(id: string, url: string, buzzerEmail = "") {
@@ -650,169 +574,71 @@ export async function submitCampaignJobProof(id: string, url: string, buzzerEmai
   if (job.buzzer_email.toLowerCase() !== email) {
     throw new Error("Job ini bukan milik akun buzzer yang sedang masuk.");
   }
-  if (!["Diambil", "Revisi", "Ditolak"].includes(job.status)) {
+  if (!["Diambil", "Revisi", "Upload", "Ditolak"].includes(job.status)) {
     throw new Error(`Job berstatus ${job.status} tidak dapat menerima bukti baru.`);
   }
 
-  const { data: previous, error: previousError } = await supabase
-    .from("campaign_job_submissions")
-    .select("submission_number")
-    .eq("job_id", id)
-    .order("submission_number", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (previousError) throw previousError;
-  const submissionNumber = (previous?.submission_number ?? 0) + 1;
-  const { data: submission, error: submissionError } = await supabase
-    .from("campaign_job_submissions")
-    .insert({
-      job_id: id,
-      buzzer_email: email,
-      proof_url: url,
-      submission_number: submissionNumber,
-      status: "Review",
-    })
-    .select("id")
-    .single();
-  if (submissionError) throw submissionError;
-
-  const { data, error } = await supabase
-    .from("campaign_jobs")
-    .update({ status: "Review", proof_url: url, note: null, rejection_reason: null, rejected_at: null, rejected_by: null, admin_verified_at: null, customer_rated_at: null, resubmission_count: Math.max(0, submissionNumber - 1), submitted_at: new Date().toISOString(), updated_at: new Date().toISOString() } as any)
-    .eq("id", id)
-    .select("id, proof_url, status")
-    .maybeSingle();
-  if (error || !data?.proof_url) {
-    if (submission?.id) {
-      await supabase.from("campaign_job_submissions").delete().eq("id", submission.id);
-    }
-    console.error("[Proof Upload] Supabase campaign_jobs update error:", error);
-    throw error ?? new Error("Bukti berhasil diunggah tetapi belum tersimpan ke job.");
+  // Fase 1: submit_job_proof hanya dipanggil server (sesi buzzer diverifikasi).
+  const { submitJobProofFn } = await import("./buzzer.functions");
+  try {
+    await submitJobProofFn({ data: { jobId: id, proofUrl: url } });
+  } catch (error) {
+    console.error("[Proof Upload] submit_job_proof error:", error);
+    throw new Error(
+      error instanceof Error ? error.message : "Bukti gagal disimpan ke job.",
+    );
   }
 }
 
+/**
+ * Verifikasi pengerjaan. Sejak Fase 1 seluruh mutasi dijalankan di server;
+ * trigger `credit_buzzer_after_job_approval` yang mengkredit saldo, jadi
+ * tidak ada lagi fallback kredit manual di client.
+ */
 export async function reviewCampaignJob(id: string, status: CampaignJobStatus, note?: string) {
-  const { error } = await supabase.from("campaign_jobs").update({
-    status,
-    note: note ?? null,
-    ...(status === "Review" || status === "Selesai" ? { admin_verified_at: new Date().toISOString() } : {}),
-  } as any).eq("id", id);
-  if (error) throw error;
-  const { error: submissionError } = await supabase.from("campaign_job_submissions").update({ status, reviewed_at: new Date().toISOString() }).eq("job_id", id).eq("status", "Review");
-  if (submissionError) throw submissionError;
+  if (status !== "Review" && status !== "Selesai") {
+    throw new Error("Status verifikasi harus 'Review' atau 'Selesai'.");
+  }
 
-  if (status === "Review" || status === "Selesai") {
-    const { data: job } = await supabase.from("campaign_jobs").select("*").eq("id", id).maybeSingle();
+  const { adminReviewJobFn } = await import("./admin.functions");
+  await adminReviewJobFn({ data: { jobId: id, status, note } });
+
+  try {
+    const { data: job } = await supabase
+      .from("campaign_jobs")
+      .select("buzzer_email, campaign_title, buzzer_amount, payout")
+      .eq("id", id)
+      .maybeSingle();
     if (job?.buzzer_email) {
-      const fee = Number(job.buzzer_amount || job.payout || 0);
-
-      // Safe wallet crediting fallback:
-      // Pastikan saldo wallet ter-update dan transaksi dicatat dengan benar
-      if (fee > 0) {
-        const buzzerEmail = job.buzzer_email.trim().toLowerCase();
-        const { data: existingAct } = await supabase
-          .from("finance_activity")
-          .select("id")
-          .eq("ref_table", "campaign_jobs")
-          .eq("ref_id", String(id))
-          .eq("type", "buzzer")
-          .maybeSingle();
-
-        if (!existingAct) {
-          const { data: curWallet } = await supabase
-            .from("buzzer_wallets")
-            .select("balance")
-            .eq("buzzer_email", buzzerEmail)
-            .maybeSingle();
-
-          const prevBal = Number(curWallet?.balance ?? 0);
-          await supabase.from("buzzer_wallets").upsert({
-            buzzer_email: buzzerEmail,
-            buzzer_name: job.buzzer_name || buzzerEmail,
-            balance: prevBal + fee,
-            updated_at: new Date().toISOString(),
-          });
-
-          await supabase.from("finance_activity").insert({
-            type: "buzzer",
-            title: "Payout Buzzer",
-            description: `${job.campaign_title} - payout buzzer disetujui admin`,
-            amount: fee,
-            ref_table: "campaign_jobs",
-            ref_id: String(id),
-          });
-
-          const adminFee = Math.max(0, Number(job.gross_price || 0) - fee);
-          if (adminFee > 0) {
-            await supabase.from("finance_activity").insert({
-              type: "admin",
-              title: "Komisi Admin",
-              description: `${job.campaign_title} - komisi admin dari pengerjaan yang diverifikasi`,
-              amount: adminFee,
-              ref_table: "campaign_jobs",
-              ref_id: String(id),
-            });
-          }
-        }
-      }
-
-      if (status === "Review" || status === "Selesai") {
-        void notifyTaskApproved({
-          buzzerEmail: job.buzzer_email,
-          campaignTitle: job.campaign_title || "Kampanye",
-          fee,
-          jobId: id,
-        });
-      }
+      void notifyTaskApproved({
+        buzzerEmail: job.buzzer_email,
+        campaignTitle: job.campaign_title || "Kampanye",
+        fee: Number(job.buzzer_amount || job.payout || 0),
+        jobId: id,
+      });
     }
-    if (job?.campaign_id) {
-      const { data: campaignJobs } = await (supabase as any).from("campaign_jobs").select("buzzer_email, admin_verified_at").eq("campaign_id", job.campaign_id);
-      if (campaignJobs?.length && campaignJobs.every((item: any) => item.buzzer_email && item.admin_verified_at)) {
-        await supabase.from("campaigns").update({ status: "Selesai" }).eq("id", job.campaign_id);
-      }
-    }
+  } catch (error) {
+    console.warn("Gagal mengirim notifikasi persetujuan tugas:", error);
   }
 }
+
 
 export async function rejectCampaignJob(id: string, reason: string, rejectedBy = "admin") {
   const cleanReason = reason.trim();
   if (!cleanReason) throw new Error("Alasan penolakan wajib diisi.");
-  const rejectedAt = new Date().toISOString();
-  const { data: latest, error: latestError } = await supabase
-    .from("campaign_job_submissions")
-    .select("id")
-    .eq("job_id", id)
-    .order("submission_number", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (latestError) throw latestError;
-  if (latest?.id) {
-    const { error } = await supabase.from("campaign_job_submissions").update({ status: "Ditolak", rejection_reason: cleanReason, rejected_at: rejectedAt, rejected_by: rejectedBy, reviewed_at: rejectedAt }).eq("id", latest.id);
-    if (error) throw error;
-  } else {
-    const { data: job, error: jobError } = await supabase.from("campaign_jobs").select("proof_url, buzzer_email").eq("id", id).maybeSingle();
-    if (jobError) throw jobError;
-    if (job?.proof_url) {
-      const { error } = await supabase.from("campaign_job_submissions").insert({
-        job_id: id,
-        buzzer_email: job.buzzer_email ?? "",
-        proof_url: job.proof_url,
-        submission_number: 1,
-        status: "Ditolak",
-        rejection_reason: cleanReason,
-        rejected_at: rejectedAt,
-        rejected_by: rejectedBy,
-        reviewed_at: rejectedAt,
-      });
-      if (error) throw error;
-    }
-  }
-  const { error } = await supabase.from("campaign_jobs").update({ status: "Revisi", note: cleanReason, rejection_reason: cleanReason, rejected_at: rejectedAt, rejected_by: rejectedBy, admin_verified_at: null, customer_rated_at: null } as any).eq("id", id);
-  if (error) throw error;
+
+  const { adminRejectJobProofFn } = await import("./admin.functions");
+  await adminRejectJobProofFn({
+    data: { jobId: id, reason: cleanReason, rejectedBy },
+  });
 
   // Notifikasi penolakan / permintaan revisi ke akun buzzer
   try {
-    const { data: job } = await supabase.from("campaign_jobs").select("buzzer_email, campaign_title").eq("id", id).maybeSingle();
+    const { data: job } = await supabase
+      .from("campaign_jobs")
+      .select("buzzer_email, campaign_title")
+      .eq("id", id)
+      .maybeSingle();
     if (job?.buzzer_email) {
       void notifyTaskRejected({
         buzzerEmail: job.buzzer_email,
@@ -827,23 +653,21 @@ export async function rejectCampaignJob(id: string, reason: string, rejectedBy =
 }
 
 export async function updateCampaignJob(id: string, updates: Partial<CampaignJob>) {
-  const { error } = await supabase.from("campaign_jobs").update(updates as any).eq("id", id);
-  if (error) throw error;
+  const { adminUpdateJobFn } = await import("./admin.functions");
+  await adminUpdateJobFn({
+    data: {
+      jobId: id,
+      status: updates.status,
+      note: updates.note ?? null,
+      rejection_reason: updates.rejection_reason ?? null,
+      admin_verified_at: updates.admin_verified_at ?? null,
+    },
+  });
 }
 
 export async function deleteCampaignJob(id: string) {
-  try {
-    await supabase.from("campaign_job_submissions").delete().eq("job_id", id);
-  } catch (e) {
-    console.warn("Gagal menghapus submissions terkait:", e);
-  }
-  try {
-    await (supabase as any).from("buzzer_ratings").delete().eq("job_id", id);
-  } catch (e) {
-    console.warn("Gagal menghapus rating terkait:", e);
-  }
-  const { error } = await supabase.from("campaign_jobs").delete().eq("id", id);
-  if (error) throw error;
+  const { adminDeleteJobFn } = await import("./admin.functions");
+  await adminDeleteJobFn({ data: { jobId: id } });
 }
 
 export function calculatePayoutSplit(total: number, buzzerAmount = 0) {
@@ -872,8 +696,33 @@ export function allocateJobPrices(total: number, slots: number) {
 }
 
 export async function createCampaign(input: Omit<Campaign, "id" | "created_at" | "updated_at" | "status"> & { status?: CampaignStatus }) {
-  const { error } = await supabase.from("campaigns").insert({ ...input, status: input.status ?? "Aktif" } as any);
-  if (error) throw error;
+  const { adminCreateCampaignFn } = await import("./admin.functions");
+  const row = input as unknown as {
+    title: string;
+    platform: string;
+    service_type?: string;
+    price_per_buzzer?: number;
+    slots: number;
+    deadline: string;
+    brief?: string;
+    thumbnail_url?: string;
+    customer_email?: string;
+    customer_name?: string;
+  };
+  await adminCreateCampaignFn({
+    data: {
+      title: row.title,
+      platform: row.platform,
+      serviceType: row.service_type ?? "",
+      pricePerSlot: Number(row.price_per_buzzer ?? 0),
+      slots: Number(row.slots ?? 0),
+      deadline: row.deadline,
+      brief: row.brief ?? "",
+      thumbnailUrl: row.thumbnail_url ?? "",
+      customerEmail: row.customer_email ?? "",
+      customerName: row.customer_name ?? "",
+    },
+  });
 }
 
 /** Menghitung split pendapatan buzzer dan komisi admin berdasarkan persentase level (Bronze 40%, Silver 45%, Gold 50%, Platinum 55%, Diamond 60%). */
@@ -915,65 +764,47 @@ export function calculateCampaignJobSplit(
 }
 /** Admin creates a product listing only; this never creates a campaign, job, or payment. */
 export async function createServiceCatalog(input: Omit<ServiceCatalog, "id" | "created_at" | "updated_at" | "status"> & { status?: ServiceCatalog["status"] }) {
-  const payload = { ...input, status: input.status ?? "Aktif" };
-  const { error } = await (supabase as any).from("service_catalogs").insert(payload);
-  if (error) {
-    if (error.message?.includes("payout_per_buzzer")) {
-      const { payout_per_buzzer, ...safePayload } = payload as any;
-      const { error: retryErr } = await (supabase as any).from("service_catalogs").insert(safePayload);
-      if (retryErr) throw retryErr;
-      return;
-    }
-    throw error;
-  }
+  const { adminSaveCatalogFn } = await import("./admin.functions");
+  await adminSaveCatalogFn({
+    data: { values: { ...input, status: input.status ?? "Aktif" } },
+  });
 }
 
 export async function updateServiceCatalogStatus(id: string, status: ServiceCatalog["status"]) {
-  const { error } = await (supabase as any).from("service_catalogs").update({ status }).eq("id", id);
-  if (error) throw error;
+  const { adminSaveCatalogFn } = await import("./admin.functions");
+  await adminSaveCatalogFn({ data: { id, values: { status } } });
 }
+
 export async function updateServiceCatalog(id: string, input: Partial<Omit<ServiceCatalog, "id" | "created_at" | "updated_at">>) {
-  const { error } = await (supabase as any).from("service_catalogs").update(input).eq("id", id);
-  if (error) {
-    if (error.message?.includes("payout_per_buzzer")) {
-      const { payout_per_buzzer, ...safeInput } = input as any;
-      const { error: retryErr } = await (supabase as any).from("service_catalogs").update(safeInput).eq("id", id);
-      if (retryErr) throw retryErr;
-      return;
-    }
-    throw error;
-  }
+  const { adminSaveCatalogFn } = await import("./admin.functions");
+  await adminSaveCatalogFn({ data: { id, values: input } });
 }
 
 export async function deleteServiceCatalog(id: string) {
-  try {
-    await (supabase as any).from("catalog_packages").delete().eq("catalog_id", id);
-    await (supabase as any).from("campaigns").update({ catalog_id: null }).eq("catalog_id", id);
-  } catch (err) {
-    console.warn("Error cleaning up catalog references:", err);
-  }
-  const { error } = await (supabase as any).from("service_catalogs").delete().eq("id", id);
-  if (error) throw error;
+  const { adminDeleteCatalogFn } = await import("./admin.functions");
+  await adminDeleteCatalogFn({ data: { id } });
 }
 
 export async function createCatalogPackage(input: Omit<CatalogPackage, "id" | "created_at" | "updated_at"> & { status?: CatalogPackage["status"] }) {
-  const { error } = await (supabase as any).from("catalog_packages").insert({ ...input, status: input.status ?? "Aktif" });
-  if (error) throw error;
+  const { adminSaveCatalogPackageFn } = await import("./admin.functions");
+  await adminSaveCatalogPackageFn({
+    data: { values: { ...input, status: input.status ?? "Aktif" } },
+  });
 }
 
 export async function updateCatalogPackage(id: string, input: Partial<Omit<CatalogPackage, "id" | "created_at" | "updated_at" | "catalog_id">>) {
-  const { error } = await (supabase as any).from("catalog_packages").update(input).eq("id", id);
-  if (error) throw error;
+  const { adminSaveCatalogPackageFn } = await import("./admin.functions");
+  await adminSaveCatalogPackageFn({ data: { id, values: input } });
 }
 
 export async function updateCatalogPackageStatus(id: string, status: CatalogPackage["status"]) {
-  const { error } = await (supabase as any).from("catalog_packages").update({ status }).eq("id", id);
-  if (error) throw error;
+  const { adminSaveCatalogPackageFn } = await import("./admin.functions");
+  await adminSaveCatalogPackageFn({ data: { id, values: { status } } });
 }
 
 export async function deleteCatalogPackage(id: string) {
-  const { error } = await (supabase as any).from("catalog_packages").delete().eq("id", id);
-  if (error) throw error;
+  const { adminDeleteCatalogPackageFn } = await import("./admin.functions");
+  await adminDeleteCatalogPackageFn({ data: { id } });
 }
 
 export async function sendCampaignMessage(msg: Omit<CampaignMessage, "id" | "created_at" | "read_at">) {
@@ -995,12 +826,11 @@ export async function submitCampaignRequest(input: {
   deadline: string;
   payment_id: string;
 }) {
-  const { payment_id, ...campaignInput } = input;
-  const { data, error } = await supabase.from("campaigns").insert({ ...campaignInput, payment_id, payment_status: "Menunggu Verifikasi", status: "Draft" } as any).select("id").single();
-  if (error) throw error;
-  const { error: paymentError } = await supabase.from("payments").update({ campaign_id: data.id } as any).eq("id", payment_id);
-  if (paymentError) throw paymentError;
-  return data.id as string;
+  void input;
+  throw new Error(
+    "Pembuatan campaign manual sudah dihapus. Gunakan RPC checkout customer " +
+      "(create_customer_custom_scheduled_payment_campaign / create_customer_catalog_*).",
+  );
 }
 
 export async function createCustomerPaymentCampaign(input: {
@@ -1099,108 +929,40 @@ export async function createCustomerPaymentCampaign(input: {
 export async function approveCampaign(c: Campaign) {
   const paymentId = c.payment_id;
   if (!paymentId) throw new Error("Campaign belum memiliki pembayaran untuk diverifikasi.");
-  const { error } = await (supabase as any).rpc("approve_campaign_payment", {
-    p_payment_id: paymentId,
-    p_admin_email: "admin",
-  });
-  if (error) throw error;
+  // Fase 1: approve_campaign_payment hanya bisa dipanggil service_role.
+  const { adminApprovePaymentFn } = await import("./admin.functions");
+  await adminApprovePaymentFn({ data: { paymentId } });
 }
 
 /** Admin menolak kampanye. */
 export async function rejectCampaign(id: string, note?: string) {
-  const { error } = await supabase
-    .from("campaigns")
-    .update({ status: "Dibatalkan", brief: note ? `[Ditolak] ${note}` : undefined })
-    .eq("id", id);
-  if (error) throw error;
+  const { adminRejectCampaignFn } = await import("./admin.functions");
+  await adminRejectCampaignFn({ data: { campaignId: id, note } });
 }
 
 /** Admin menandai kampanye selesai. */
 export async function completeCampaign(id: string) {
-  const { data: campaign, error: campaignError } = await supabase.from("campaigns").select("status, payment_status, target_reached_at").eq("id", id).single();
-  if (campaignError) throw campaignError;
-  if (campaign.payment_status !== "Pembayaran Disetujui") throw new Error("Pembayaran campaign belum disetujui.");
-  if (campaign.status === "Selesai") return;
-
-  const { error: updateError } = await (supabase as any)
-    .from("campaigns")
-    .update({ status: "Selesai", target_reached_at: campaign.target_reached_at ?? new Date().toISOString() })
-    .eq("id", id)
-    .neq("status", "Dibatalkan");
-  if (updateError) throw updateError;
+  const { adminCompleteCampaignFn } = await import("./admin.functions");
+  await adminCompleteCampaignFn({ data: { campaignId: id } });
 }
 
 /**
  * Admin memperbarui detail kampanye (judul, brief, deadline).
- * Snapshot pada campaign_jobs ikut disinkronkan: judul & deadline untuk semua job,
- * brief hanya untuk job yang brief-nya masih sama dengan brief kampanye lama.
+ * Snapshot pada campaign_jobs ikut disinkronkan di server.
  */
 export async function updateCampaignDetails(
   id: string,
   patch: { title: string; brief: string; deadline: string },
 ) {
-  const title = patch.title.trim();
-  if (!title) throw new Error("Judul kampanye wajib diisi.");
-
-  const { data: current, error: fetchError } = await supabase
-    .from("campaigns")
-    .select("brief")
-    .eq("id", id)
-    .single();
-  if (fetchError || !current) throw new Error("Kampanye tidak ditemukan.");
-
-  const { error } = await supabase
-    .from("campaigns")
-    .update({ title, brief: patch.brief, deadline: patch.deadline, updated_at: new Date().toISOString() })
-    .eq("id", id);
-  if (error) throw error;
-
-  const { error: jobsError } = await supabase
-    .from("campaign_jobs")
-    .update({ campaign_title: title, deadline: patch.deadline })
-    .eq("campaign_id", id);
-  if (jobsError) console.error("Gagal sinkron judul/deadline job:", jobsError);
-
-  const oldBrief = (current as { brief?: string | null }).brief ?? "";
-  if (oldBrief !== patch.brief) {
-    const { error: briefError } = await supabase
-      .from("campaign_jobs")
-      .update({ brief: patch.brief })
-      .eq("campaign_id", id)
-      .eq("brief", oldBrief);
-    if (briefError) console.error("Gagal sinkron brief job:", briefError);
-  }
+  const { adminUpdateCampaignFn } = await import("./admin.functions");
+  await adminUpdateCampaignFn({
+    data: { campaignId: id, title: patch.title, brief: patch.brief, deadline: patch.deadline },
+  });
 }
 
 /** Admin menghapus kampanye secara permanen beserta data relasinya. */
 export async function deleteCampaign(id: string) {
-  // 1. Ambil daftar job IDs yang terhubung ke kampanye ini
-  const { data: jobs } = await supabase
-    .from("campaign_jobs")
-    .select("id")
-    .eq("campaign_id", id);
-  const jobIds = (jobs || []).map((j: { id: string }) => j.id);
-
-  // 2. Hapus submissions dan rating per job jika ada
-  if (jobIds.length > 0) {
-    await supabase.from("campaign_job_submissions").delete().in("job_id", jobIds);
-    await supabase.from("buzzer_ratings").delete().in("job_id", jobIds);
-  }
-
-  // 3. Hapus buzzer ratings yang terhubung langsung ke campaign_id
-  await (supabase as any).from("buzzer_ratings").delete().eq("campaign_id", id);
-
-  // 4. Hapus pesan percakapan kampanye
-  await supabase.from("campaign_messages").delete().eq("campaign_id", id);
-
-  // 5. Hapus seluruh jobs kampanye
-  await supabase.from("campaign_jobs").delete().eq("campaign_id", id);
-
-  // 6. Lepaskan referensi payment bila terikat
-  await (supabase as any).from("payments").update({ campaign_id: null }).eq("campaign_id", id);
-
-  // 7. Hapus record kampanye itu sendiri
-  const { error } = await supabase.from("campaigns").delete().eq("id", id);
-  if (error) throw error;
+  const { adminDeleteCampaignFn } = await import("./admin.functions");
+  await adminDeleteCampaignFn({ data: { campaignId: id } });
 }
 

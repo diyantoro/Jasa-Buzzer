@@ -160,7 +160,7 @@ function useRealtimeList<T>(
 }
 
 export const usePayments = () =>
-  useRealtimeList<Payment>("payments", { column: "created_at", ascending: false }, "list_admin_payments");
+  useRealtimeList<Payment>("payments", { column: "created_at", ascending: false });
 export const useWithdrawals = () =>
   useRealtimeList<Withdrawal>("withdrawals", { column: "requested_at", ascending: false });
 export const useBuzzerWallets = () =>
@@ -197,55 +197,13 @@ const LEGACY_RPC_WARNING =
   "[pencairan] RPC atomik belum tersedia di database — memakai jalur lama. " +
   "Jalankan migration 20261112010000_atomic_withdrawal_rpc.sql.";
 
-/** Jalur lama (bukan atomik) — hanya dipakai saat RPC belum dimigrasikan. */
-async function updateWithdrawalStatusLegacy(
-  id: string,
-  status: WithdrawalStatus,
-  adminNote?: string,
-  proofUrl?: string,
-) {
-  const now = new Date().toISOString();
-  const patch: Record<string, any> = { status, updated_at: now };
-  if (adminNote !== undefined) patch.admin_note = adminNote;
-  if (proofUrl !== undefined) patch.proof_url = proofUrl;
-  if (status === "Berhasil" || status === "Disetujui") {
-    patch.approved_at = now;
-    patch.completed_at = now;
-  }
-
-  const { error } = await supabase.from("withdrawals").update(patch as any).eq("id", id);
-  if (error) throw new Error(error.message || "Gagal memperbarui status pencairan");
-
-  if (status !== "Berhasil" && status !== "Disetujui") return;
-
-  const { data: w } = await supabase
-    .from("withdrawals")
-    .select("buzzer_email, amount")
-    .eq("id", id)
-    .maybeSingle();
-
-  const emailNorm = w?.buzzer_email ? w.buzzer_email.trim().toLowerCase() : "";
-  const amount = Number(w?.amount || 0);
-  if (!emailNorm || amount <= 0) return;
-
-  const { data: wallet } = await supabase
-    .from("buzzer_wallets")
-    .select("balance")
-    .eq("buzzer_email", emailNorm)
-    .maybeSingle();
-
-  if (wallet) {
-    await supabase
-      .from("buzzer_wallets")
-      .update({ balance: Math.max(0, Number(wallet.balance || 0) - amount), updated_at: now })
-      .eq("buzzer_email", emailNorm);
-  }
-}
-
 /**
  * Ubah status pencairan. Persetujuan & penolakan diproses lewat RPC atomik
  * (`approve_withdrawal` / `reject_withdrawal`) agar saldo tidak pernah
  * terpotong ganda maupun menjadi negatif.
+ *
+ * Sejak Fase 1, seluruh jalur ini melewati server function admin — client
+ * tidak lagi menulis langsung ke tabel `withdrawals` / `buzzer_wallets`.
  */
 export async function updateWithdrawalStatus(
   id: string,
@@ -254,42 +212,22 @@ export async function updateWithdrawalStatus(
   proofUrl?: string,
 ) {
   const approved = status === "Berhasil" || status === "Disetujui";
-  let usedLegacy = false;
 
   if (approved) {
-    const { error } = await (supabase as any).rpc("approve_withdrawal", {
-      p_withdrawal_id: id,
-      p_admin_note: adminNote ?? null,
-      p_proof_url: proofUrl ?? null,
+    const { adminApproveWithdrawalFn } = await import("./admin.functions");
+    await adminApproveWithdrawalFn({
+      data: { withdrawalId: id, note: adminNote, proofUrl },
     });
-    if (error) {
-      if (!isMissingRpc(error)) {
-        throw new Error(error.message || "Gagal menyetujui pencairan");
-      }
-      usedLegacy = true;
-    }
   } else if (status === "Ditolak") {
-    const { error } = await (supabase as any).rpc("reject_withdrawal", {
-      p_withdrawal_id: id,
-      p_reason: adminNote ?? "",
+    const { adminRejectWithdrawalFn } = await import("./admin.functions");
+    await adminRejectWithdrawalFn({
+      data: { withdrawalId: id, reason: adminNote ?? "" },
     });
-    if (error) {
-      if (!isMissingRpc(error)) {
-        throw new Error(error.message || "Gagal menolak pencairan");
-      }
-      usedLegacy = true;
-    }
   } else {
-    const { error } = await supabase
-      .from("withdrawals")
-      .update({ status, updated_at: new Date().toISOString() } as any)
-      .eq("id", id);
-    if (error) throw new Error(error.message || "Gagal memperbarui status pencairan");
-  }
-
-  if (usedLegacy) {
-    console.warn(LEGACY_RPC_WARNING);
-    await updateWithdrawalStatusLegacy(id, status, adminNote, proofUrl);
+    const { adminEditWithdrawalFn } = await import("./admin.functions");
+    await adminEditWithdrawalFn({
+      data: { withdrawalId: id, status },
+    });
   }
 
   try {
@@ -334,37 +272,8 @@ export async function deleteWithdrawalRecord(id: string, buzzerEmail?: string) {
 
   const emailNorm = (w?.buzzer_email || buzzerEmail || "").trim().toLowerCase();
 
-  const { error } = await (supabase as any).rpc("delete_withdrawal", {
-    p_withdrawal_id: id,
-  });
-
-  if (error) {
-    if (!isMissingRpc(error)) {
-      throw new Error(error.message || "Gagal menghapus riwayat pencairan");
-    }
-
-    console.warn(LEGACY_RPC_WARNING);
-    const wasApproved = w?.status === "Berhasil" || w?.status === "Disetujui";
-    const amount = Number(w?.amount || 0);
-
-    // Jika sebelumnya disetujui (saldo sudah dipotong), kembalikan saldo.
-    if (wasApproved && emailNorm && amount > 0) {
-      const { data: wallet } = await supabase
-        .from("buzzer_wallets")
-        .select("balance")
-        .eq("buzzer_email", emailNorm)
-        .maybeSingle();
-      if (wallet) {
-        await supabase
-          .from("buzzer_wallets")
-          .update({ balance: Number(wallet.balance || 0) + amount, updated_at: new Date().toISOString() })
-          .eq("buzzer_email", emailNorm);
-      }
-    }
-
-    const { error: deleteError } = await supabase.from("withdrawals").delete().eq("id", id);
-    if (deleteError) throw new Error(deleteError.message || "Gagal menghapus riwayat pencairan");
-  }
+  const { adminDeleteWithdrawalFn } = await import("./admin.functions");
+  await adminDeleteWithdrawalFn({ data: { withdrawalId: id } });
 
   if (emailNorm) {
     try {
@@ -383,63 +292,7 @@ type WithdrawalEditPatch = {
   admin_note?: string;
 };
 
-/** Jalur lama edit pencairan — hanya dipakai saat RPC belum dimigrasikan. */
-async function editWithdrawalRecordLegacy(
-  id: string,
-  patch: WithdrawalEditPatch,
-  current: { buzzer_email?: string | null; amount?: number | null; status?: string | null } | null,
-) {
-  const now = new Date().toISOString();
-  const prevStatus = current?.status ?? "Menunggu";
-  const newStatus = patch.status ?? prevStatus;
-  const prevAmount = Number(current?.amount || 0);
-  const newAmount = patch.amount !== undefined ? Number(patch.amount) : prevAmount;
-
-  const wasApproved = prevStatus === "Berhasil" || prevStatus === "Disetujui";
-  const isApproved = newStatus === "Berhasil" || newStatus === "Disetujui";
-
-  let delta = 0;
-  if (wasApproved && isApproved) delta = prevAmount - newAmount;
-  else if (!wasApproved && isApproved) delta = -newAmount;
-  else if (wasApproved && !isApproved) delta = prevAmount;
-
-  const updatePayload: Record<string, any> = { updated_at: now };
-  if (patch.status !== undefined) updatePayload.status = patch.status;
-  if (patch.amount !== undefined) updatePayload.amount = patch.amount;
-  if (patch.method !== undefined) updatePayload.method = patch.method;
-  if (patch.account_no !== undefined) updatePayload.account_no = patch.account_no;
-  if (patch.admin_note !== undefined) updatePayload.admin_note = patch.admin_note;
-  if (isApproved) {
-    updatePayload.approved_at = now;
-    updatePayload.completed_at = now;
-  }
-
-  const { error } = await supabase.from("withdrawals").update(updatePayload as any).eq("id", id);
-  if (error) throw new Error(error.message || "Gagal memperbarui data pencairan");
-
-  if (delta === 0) return;
-
-  const emailNorm = (current?.buzzer_email || "").trim().toLowerCase();
-  if (!emailNorm) return;
-
-  const { data: wallet } = await supabase
-    .from("buzzer_wallets")
-    .select("balance")
-    .eq("buzzer_email", emailNorm)
-    .maybeSingle();
-  if (!wallet) return;
-
-  const balance = Number(wallet.balance || 0);
-  if (balance + delta < 0) {
-    throw new Error("Saldo buzzer tidak mencukupi untuk perubahan ini");
-  }
-
-  await supabase
-    .from("buzzer_wallets")
-    .update({ balance: balance + delta, updated_at: now })
-    .eq("buzzer_email", emailNorm);
-}
-
+/** Jalur lama edit pencairan sudah dihapus pada Fase 1. */
 export async function editWithdrawalRecord(
   id: string,
   patch: WithdrawalEditPatch,
@@ -453,22 +306,18 @@ export async function editWithdrawalRecord(
 
   const emailNorm = (current?.buzzer_email || buzzerEmail || "").trim().toLowerCase();
 
-  const { error } = await (supabase as any).rpc("edit_withdrawal", {
-    p_withdrawal_id: id,
-    p_status: patch.status ?? null,
-    p_amount: patch.amount ?? null,
-    p_method: patch.method ?? null,
-    p_account_no: patch.account_no ?? null,
-    p_admin_note: patch.admin_note ?? null,
+  const { adminEditWithdrawalFn } = await import("./admin.functions");
+  await adminEditWithdrawalFn({
+    data: {
+      withdrawalId: id,
+      status: patch.status,
+      amount: patch.amount,
+      method: patch.method,
+      accountNo: patch.account_no,
+      adminNote: patch.admin_note,
+    },
   });
 
-  if (error) {
-    if (!isMissingRpc(error)) {
-      throw new Error(error.message || "Gagal memperbarui data pencairan");
-    }
-    console.warn(LEGACY_RPC_WARNING);
-    await editWithdrawalRecordLegacy(id, patch, current);
-  }
 
   if (emailNorm) {
     try {
@@ -490,48 +339,53 @@ export async function uploadWithdrawalProof(id: string, url: string, adminNote?:
 }
 
 export async function updatePaymentStatus(id: string, status: PaymentStatus) {
-  const { error } = await supabase.from("payments").update({ status }).eq("id", id);
-  if (error) throw error;
+  if (status === "Berhasil" || status === "Lunas") {
+    await approvePayment(id);
+    return;
+  }
+  if (status === "Gagal") {
+    throw new Error("Gunakan rejectPayment(id, alasan) untuk menolak pembayaran.");
+  }
+  const { adminUpdatePaymentFn } = await import("./admin.functions");
+  await adminUpdatePaymentFn({ data: { paymentId: id, status } });
 }
 
 export async function updatePayment(id: string, updates: Partial<Payment>) {
-  const { error } = await supabase.from("payments").update(updates as any).eq("id", id);
-  if (error) throw error;
+  const { adminUpdatePaymentFn } = await import("./admin.functions");
+  await adminUpdatePaymentFn({
+    data: {
+      paymentId: id,
+      amount: updates.amount,
+      method: updates.method,
+      note: updates.note,
+      status: updates.status,
+    },
+  });
 }
 
 export async function deletePayment(id: string) {
-  const { error } = await supabase.from("payments").delete().eq("id", id);
-  if (error) throw error;
+  const { adminDeletePaymentFn } = await import("./admin.functions");
+  await adminDeletePaymentFn({ data: { paymentId: id } });
 }
 
-export async function approvePayment(id: string, adminEmail = "admin") {
-  const { error } = await (supabase as any).rpc("approve_campaign_payment", {
-    p_payment_id: id,
-    p_admin_email: adminEmail,
-  });
-  if (error) throw error;
+export async function approvePayment(id: string, _adminEmail = "admin") {
+  const { adminApprovePaymentFn } = await import("./admin.functions");
+  await adminApprovePaymentFn({ data: { paymentId: id } });
 }
 
-export async function rejectPayment(id: string, reason: string, adminEmail = "admin") {
+export async function rejectPayment(id: string, reason: string, _adminEmail = "admin") {
   const cleanReason = reason.trim();
   if (!cleanReason) throw new Error("Alasan penolakan wajib diisi.");
-  const { error } = await (supabase as any).rpc("reject_campaign_payment", {
-    p_payment_id: id,
-    p_reason: cleanReason,
-    p_admin_email: adminEmail,
-  });
-  if (error) throw error;
+  const { adminRejectPaymentFn } = await import("./admin.functions");
+  await adminRejectPaymentFn({ data: { paymentId: id, reason: cleanReason } });
 }
 
 export async function markNotificationRead(id: string) {
-  await supabase.from("finance_notifications").update({ read_at: new Date().toISOString() }).eq("id", id);
+  await (supabase as any).rpc("mark_finance_notification_read", { p_id: id });
 }
 
 export async function markAllNotificationsRead() {
-  await supabase
-    .from("finance_notifications")
-    .update({ read_at: new Date().toISOString() })
-    .is("read_at", null);
+  await (supabase as any).rpc("mark_all_finance_notifications_read");
 }
 
 export const formatIDR = (n: number) =>

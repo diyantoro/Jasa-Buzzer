@@ -228,10 +228,9 @@ export async function getBuzzerVerificationStatus(email: string): Promise<Buzzer
     // fallback below
   }
 
-  // Fallback: akun buzzer yang sudah terdaftar aktif di app_accounts otomatis diakui approved
+  // Fallback: akun buzzer yang sudah terdaftar aktif otomatis diakui approved
   try {
-    const { data: acc } = await supabase
-      .from("app_accounts")
+    const { data: acc } = await (supabase as any).from("app_accounts_public")
       .select("role")
       .eq("email", lc)
       .maybeSingle();
@@ -277,19 +276,14 @@ export async function submitApplication(
 async function syncApprovedBuzzerToAccount(app: BuzzerApplication) {
   const email = app.email.trim().toLowerCase();
 
+  // Fase 1: app_accounts hanya bisa ditulis server. Persetujuan aplikasi
+  // dijalankan dari panel admin, jadi memakai server function admin.
   try {
-    const { data: existing, error: selectError } = await supabase
-      .from("app_accounts")
-      .select("email")
-      .eq("email", email)
-      .maybeSingle();
-
-    if (selectError) return;
-
-    if (existing) {
-      await supabase
-        .from("app_accounts")
-        .update({
+    const { adminPatchAccountFn } = await import("./admin.functions");
+    await adminPatchAccountFn({
+      data: {
+        email,
+        patch: {
           name: app.name,
           role: "buzzer",
           phone: app.phone ?? null,
@@ -301,15 +295,9 @@ async function syncApprovedBuzzerToAccount(app: BuzzerApplication) {
           followers: app.followers ?? 0,
           company: app.buzzerCategory ?? "Buzzer Online",
           buzzer_category: app.buzzerCategory ?? "Buzzer Online",
-          address: app.address ?? null,
-        } as any)
-        .eq("email", email);
-      return;
-    }
-
-    // Fallback: no-op if the account was not created earlier by the register flow.
-    // The actual registration flow already inserts app_accounts during sign-up,
-    // so approval only needs to synchronize and surface the account in admin management.
+        },
+      },
+    });
   } catch {
     // ignore sync failures; admin queue remains functional
   }

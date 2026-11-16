@@ -74,8 +74,7 @@ function BuzzerProfilePage() {
         { data: walletData },
         { data: submissionData },
       ] = await Promise.all([
-        supabase
-          .from("app_accounts")
+        (supabase as any).from("app_accounts_public")
           .select("*")
           .ilike("email", decodedEmail)
           .maybeSingle(),

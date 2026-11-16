@@ -129,7 +129,7 @@ export const registerAccountFn = createServerFn({ method: "POST" })
 
       let insertError: unknown = null;
       try {
-        const { error } = await supabaseAdmin.from("app_accounts").insert(fullProfileRow);
+        const { error } = await supabaseAdmin.from("app_accounts").insert(fullProfileRow as any);
         insertError = error;
       } catch (error) {
         insertError = error;
@@ -266,6 +266,16 @@ export const loginAccountFn = createServerFn({ method: "POST" })
     if (row.password_hash !== (await hashPassword(email, data.password))) {
       return { ok: false as const, message: "Kata sandi salah." };
     }
+
+    // Sesi server-side bertanda tangan. Dipakai server function admin
+    // untuk memastikan pemanggil benar-benar admin yang login.
+    try {
+      const { setSessionCookie } = await import("./session.server");
+      await setSessionCookie(row.email, row.role as "admin" | "buzzer" | "customer");
+    } catch (cookieError) {
+      console.error("[Login] Gagal membuat sesi server:", cookieError);
+    }
+
     return {
       ok: true as const,
       account: {
@@ -440,5 +450,17 @@ export const submitFollowerUpdateFn = createServerFn({ method: "POST" })
       .eq("id", data.id)
       .eq("buzzer_email", email);
     if (error) throw error;
+    return { ok: true as const };
+  });
+
+export const logoutAccountFn = createServerFn({ method: "POST" })
+  .validator((data: unknown) => data as unknown)
+  .handler(async () => {
+    try {
+      const { clearSessionCookie } = await import("./session.server");
+      clearSessionCookie();
+    } catch (cookieError) {
+      console.error("[Logout] Gagal menghapus sesi server:", cookieError);
+    }
     return { ok: true as const };
   });

@@ -910,13 +910,13 @@ export function useCustomerStore(
     if (!email) return;
     let active = true;
     const loadProfile = async () => {
-      const { data, error } = await supabase
-        .from("app_accounts")
-        .select("name, email, phone, city, company")
-        .eq("email", email.trim().toLowerCase())
-        .eq("role", "customer")
-        .maybeSingle();
-      if (!active || error || !data) return;
+      const { profile } = await import("./profile.functions")
+        .then(({ getAccountProfileFn }) =>
+          getAccountProfileFn({ data: { email: email.trim().toLowerCase() } }),
+        )
+        .catch(() => ({ profile: null }));
+      const data = profile && profile.role === "customer" ? profile : null;
+      if (!active || !data) return;
       const current = read(email, nm, profile);
       write(email, {
         ...current,

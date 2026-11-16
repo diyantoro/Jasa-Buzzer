@@ -294,57 +294,43 @@ function toRowPatch(patch: Partial<SocialAccount>) {
 export async function syncBuzzerFollowersToProfile(buzzerEmail: string) {
   if (!buzzerEmail || !isSupabaseConfigured() || !supabase) return;
   const em = buzzerEmail.trim().toLowerCase();
-  const { data: accounts } = await supabase
-    .from("social_accounts")
-    .select("followers, platform, verification")
-    .eq("buzzer_email", em)
-    .ilike("verification", "Terverifikasi")
-    // Akun yang dinonaktifkan admin / disetujui nonaktif tidak dihitung ke level.
-    .or("is_active.is.null,is_active.eq.true");
 
-  const totalFollowers = (accounts ?? []).reduce((sum, a) => sum + (Number(a.followers) || 0), 0);
-  if (totalFollowers >= 0) {
-    const { data: buzzerAccount } = await supabase
-      .from("app_accounts")
-      .select("buzzer_category, company")
-      .eq("email", em)
-      .eq("role", "buzzer")
-      .maybeSingle();
-    const category =
-      (buzzerAccount as any)?.buzzer_category ?? (buzzerAccount as any)?.company ?? null;
+  // Fase 1: perhitungan followers + level dilakukan di server. Client tidak
+  // lagi menulis ke app_accounts / buzzer_wallets / buzzer_levels.
+  let totalFollowers = 0;
+  try {
+    const { syncBuzzerLevelFn } = await import("./buzzer-level.functions");
+    const result = await syncBuzzerLevelFn({ data: { buzzerEmail: em } });
+    totalFollowers = result.followers;
+  } catch (error) {
+    console.warn("[Followers] Gagal sinkronisasi level di server:", error);
+    return;
+  }
 
-    await Promise.all([
-      supabase.from("app_accounts").update({ followers: totalFollowers }).eq("email", em).eq("role", "buzzer"),
-      supabase.from("buzzer_applications").update({ followers: totalFollowers }).eq("email", em),
-      supabase.from("buzzer_wallets").update({ followers: totalFollowers, verified_followers: totalFollowers }).eq("buzzer_email", em),
-      assignLevelFromVerification(em, "", totalFollowers, category),
-    ]);
-
-    if (typeof window !== "undefined") {
-      try {
-        const sessionRaw = localStorage.getItem("buzzhub.session");
-        if (sessionRaw) {
-          const session = JSON.parse(sessionRaw);
-          if (session?.email?.trim().toLowerCase() === em) {
-            session.followers = totalFollowers;
-            localStorage.setItem("buzzhub.session", JSON.stringify(session));
-          }
+  if (typeof window !== "undefined") {
+    try {
+      const sessionRaw = localStorage.getItem("buzzhub.session");
+      if (sessionRaw) {
+        const session = JSON.parse(sessionRaw);
+        if (session?.email?.trim().toLowerCase() === em) {
+          session.followers = totalFollowers;
+          localStorage.setItem("buzzhub.session", JSON.stringify(session));
         }
-        const storeKey = `buzzhub.buzzer.${em}`;
-        const storeRaw = localStorage.getItem(storeKey);
-        if (storeRaw) {
-          const storeData = JSON.parse(storeRaw);
-          if (storeData?.profile) {
-            storeData.profile.followers = totalFollowers;
-            localStorage.setItem(storeKey, JSON.stringify(storeData));
-          }
-        }
-        window.dispatchEvent(new Event("buzzhub:buzzer-store"));
-        window.dispatchEvent(new CustomEvent("buzzhub:social-accounts-updated", { detail: { email: em } }));
-        window.dispatchEvent(new Event("storage"));
-      } catch {
-        /* noop */
       }
+      const storeKey = `buzzhub.buzzer.${em}`;
+      const storeRaw = localStorage.getItem(storeKey);
+      if (storeRaw) {
+        const storeData = JSON.parse(storeRaw);
+        if (storeData?.profile) {
+          storeData.profile.followers = totalFollowers;
+          localStorage.setItem(storeKey, JSON.stringify(storeData));
+        }
+      }
+      window.dispatchEvent(new Event("buzzhub:buzzer-store"));
+      window.dispatchEvent(new CustomEvent("buzzhub:social-accounts-updated", { detail: { email: em } }));
+      window.dispatchEvent(new Event("storage"));
+    } catch {
+      /* noop */
     }
   }
 }

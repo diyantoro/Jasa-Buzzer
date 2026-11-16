@@ -582,8 +582,7 @@ function RingkasanSection() {
     let active = true;
     const loadBuzzerProfiles = async () => {
       const [{ data }, { data: socialAccounts }] = await Promise.all([
-        supabase
-          .from("app_accounts")
+        (supabase as any).from("app_accounts_public")
           .select("email, name, platform, followers, avatar_url")
           .eq("role", "buzzer"),
         supabase
@@ -598,7 +597,7 @@ function RingkasanSection() {
       }
       if (active) {
         setBuzzerProfiles(
-          (data ?? []).map((profile) => ({
+          ((data ?? []) as any[]).map((profile) => ({
             email: String(profile.email).trim().toLowerCase(),
             name: String(profile.name ?? ""),
             platform: profile.platform ?? null,
@@ -3000,7 +2999,7 @@ function ManajemenUserSection() {
   useEffect(() => {
     let active = true;
     Promise.all([
-      supabase.from("app_accounts").select("role"),
+      (supabase as any).from("app_accounts_public").select("role"),
       supabase.from("customer_accounts").select("active"),
     ]).then(([appRes, custRes]) => {
       if (!active) return;
@@ -3730,7 +3729,9 @@ function BuzzerSection() {
         submissionsResult,
       ] = await Promise.all([
         supabase.from("buzzer_applications").select("*").eq("status", "approved"),
-        supabase.from("app_accounts").select("*").order("created_at", { ascending: false }),
+        import("@/lib/admin.functions").then(({ adminListAccountsFn }) =>
+          adminListAccountsFn({ data: { role: "buzzer" } }),
+        ),
         supabase.from("social_accounts").select("*"),
         supabase.from("buzzer_wallets").select("*"),
         (supabase as any).from("campaign_jobs").select("*").not("buzzer_email", "is", null),
@@ -3739,9 +3740,9 @@ function BuzzerSection() {
       ]);
 
       const { data: applications, error: applicationsError } = applicationsResult;
-      const { data, error } = accountsResult;
+      const data = accountsResult.accounts as any[];
 
-      if (applicationsError || error || !data) return;
+      if (applicationsError || !data) return;
 
       const accountsByEmail = new Map(
         data
@@ -4069,16 +4070,19 @@ function BuzzerSection() {
       return;
     }
     const emailLc = editDraft.id.trim().toLowerCase();
+    const { adminPatchAccountFn } = await import("@/lib/admin.functions");
     await Promise.all([
-      supabase
-        .from("app_accounts")
-        .update({
-          name: editDraft.name,
-          username: editDraft.username,
-          platform: editDraft.platform,
-          followers: editDraft.followers,
-        })
-        .eq("email", emailLc),
+      adminPatchAccountFn({
+        data: {
+          email: emailLc,
+          patch: {
+            name: editDraft.name,
+            username: editDraft.username,
+            platform: editDraft.platform,
+            followers: editDraft.followers,
+          },
+        },
+      }),
       supabase
         .from("buzzer_applications")
         .update({
@@ -4144,11 +4148,8 @@ function BuzzerSection() {
       return;
     }
     try {
-      const { error } = await (supabase as any).rpc("delete_management_account", {
-        p_email: deleteId,
-        p_role: "buzzer",
-      });
-      if (error) throw error;
+      const { adminDeleteAccountFn } = await import("@/lib/admin.functions");
+      await adminDeleteAccountFn({ data: { email: deleteId, role: "buzzer" } });
     } catch (error) {
       console.error("Gagal menghapus akun buzzer:", error);
       toast.error(error instanceof Error ? error.message : "Akun buzzer gagal dihapus.");
@@ -4756,14 +4757,17 @@ function CustomerSection() {
     let active = true;
 
     const loadRows = async () => {
-      const [{ data, error }, { data: customerAccounts }] = await Promise.all([
-        supabase.from("app_accounts").select("*").order("created_at", { ascending: false }),
+      const [accountsResult, { data: customerAccounts }] = await Promise.all([
+        import("@/lib/admin.functions").then(({ adminListAccountsFn }) =>
+          adminListAccountsFn({ data: { role: "customer" } }),
+        ),
         supabase.from("customer_accounts").select("email, active"),
       ]);
+      const data = accountsResult.accounts as any[];
 
       if (!active) return;
 
-      if (!error && data) {
+      if (data) {
         const accountRows = data.filter((row) => row.role.trim().toLowerCase() === "customer");
         const accountsByEmail = new Map(
           accountRows.map((row) => [row.email.trim().toLowerCase(), row as AccountManagementRow]),
@@ -4844,17 +4848,20 @@ function CustomerSection() {
       toast.success("Data customer diperbarui.");
       return;
     }
-    await supabase
-      .from("app_accounts")
-      .update({
-        name: editDraft.name,
-        company: editDraft.name,
-        phone,
-        industry: editDraft.industry,
-        city: editDraft.city,
-        bio: editDraft.notes,
-      })
-      .eq("email", editDraft.id);
+    const { adminPatchAccountFn } = await import("@/lib/admin.functions");
+    await adminPatchAccountFn({
+      data: {
+        email: editDraft.id,
+        patch: {
+          name: editDraft.name,
+          company: editDraft.name,
+          phone,
+          industry: editDraft.industry,
+          city: editDraft.city,
+          bio: editDraft.notes,
+        },
+      },
+    });
     const savedDraft = { ...editDraft, phone };
     setRows((prev) => prev.map((r) => (r.id === editDraft.id ? savedDraft : r)));
     setSelected(savedDraft);
@@ -4874,18 +4881,8 @@ function CustomerSection() {
       return;
     }
     try {
-      const { error } = await (supabase as any).rpc("delete_management_account", {
-        p_email: targetEmail,
-        p_role: "customer",
-      });
-      if (error) {
-        console.warn("RPC delete_management_account failed, attempting direct table deletion:", error);
-        const [del1, del2] = await Promise.all([
-          supabase.from("customer_accounts").delete().ilike("email", targetEmail),
-          supabase.from("app_accounts").delete().ilike("email", targetEmail),
-        ]);
-        if (del1.error && del2.error) throw error;
-      }
+      const { adminDeleteAccountFn } = await import("@/lib/admin.functions");
+      await adminDeleteAccountFn({ data: { email: targetEmail, role: "customer" } });
     } catch (error) {
       console.error("Gagal menghapus akun customer:", error);
       toast.error(error instanceof Error ? error.message : "Akun customer gagal dihapus.");
@@ -5783,11 +5780,10 @@ function VerifikasiSection({ mode = "accounts" }: { mode?: "accounts" | "jobs" }
 
   useEffect(() => {
     let active = true;
-    void supabase
-      .from("app_accounts")
+    void (supabase as any).from("app_accounts_public")
       .select("email, avatar_url")
       .eq("role", "buzzer")
-      .then(({ data }) => {
+      .then(({ data }: { data: any[] | null }) => {
         if (active && data) {
           const map = new Map<string, string>();
           for (const item of data) {

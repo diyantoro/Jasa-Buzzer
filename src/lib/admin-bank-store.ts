@@ -149,35 +149,13 @@ export async function fetchAdminBankAccounts(): Promise<AdminBankAccount[]> {
       return mapped;
     }
 
-    // 2. If table not found or empty, check app_accounts admin row (resilient fallback)
-    const { data: adminRow } = await supabase
-      .from("app_accounts")
-      .select("bio")
-      .eq("role", "admin")
-      .maybeSingle();
-
-    if (adminRow?.bio && adminRow.bio.startsWith("[{") && adminRow.bio.includes("bankName")) {
-      const parsed = JSON.parse(adminRow.bio);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        CACHE = parsed;
-        saveToLocal(parsed);
-        emit();
-        return parsed;
-      }
-    }
-
-    // If still empty, seed default accounts to adminRow if possible
-    if (!adminRow?.bio || !adminRow.bio.includes("bankName")) {
-      const defaults = DEFAULT_ADMIN_BANKS;
-      void supabase
-        .from("app_accounts")
-        .update({ bio: JSON.stringify(defaults) })
-        .eq("role", "admin");
-      CACHE = defaults;
-      saveToLocal(defaults);
-      emit();
-      return defaults;
-    }
+    // Tabel admin_bank_accounts kosong: pakai daftar default di memori.
+    // Fallback lama yang menyimpan JSON ke app_accounts.bio dihapus pada
+    // Fase 1 karena app_accounts tidak lagi bisa dibaca/ditulis client.
+    CACHE = DEFAULT_ADMIN_BANKS;
+    saveToLocal(DEFAULT_ADMIN_BANKS);
+    emit();
+    return DEFAULT_ADMIN_BANKS;
   } catch (err) {
     console.warn("fetchAdminBankAccounts fallback:", err);
   }
@@ -196,29 +174,9 @@ async function syncAccountsToDatabase(accounts: AdminBankAccount[]) {
   if (!isSupabaseConfigured() || !supabase) return;
 
   try {
-    // 1. Try upserting to admin_bank_accounts table
-    const dbRows = accounts.map((a) => ({
-      id: a.id,
-      bank_name: a.bankName,
-      account_number: a.accountNumber,
-      account_holder: a.accountHolder,
-      is_active: a.isActive,
-      updated_at: new Date().toISOString(),
-    }));
-
-    const { error } = await supabase
-      .from("admin_bank_accounts" as any)
-      .upsert(dbRows as any, { onConflict: "id" });
-
-    // 2. Also keep resilient fallback in app_accounts admin row
-    await supabase
-      .from("app_accounts")
-      .update({ bio: JSON.stringify(accounts) })
-      .eq("role", "admin");
-
-    if (error) {
-      console.warn("admin_bank_accounts table sync warning (using app_accounts fallback):", error.message);
-    }
+    // Fase 1: penulisan rekening admin lewat server function (service_role).
+    const { adminSaveBankAccountsFn } = await import("./admin.functions");
+    await adminSaveBankAccountsFn({ data: { accounts } });
   } catch (err) {
     console.warn("syncAccountsToDatabase error:", err);
   }
@@ -272,9 +230,10 @@ export async function deleteAdminBankAccount(id: string): Promise<boolean> {
 
   if (isSupabaseConfigured() && supabase) {
     try {
-      await supabase.from("admin_bank_accounts" as any).delete().eq("id", id);
-    } catch {
-      /* noop */
+      const { adminDeleteBankAccountFn } = await import("./admin.functions");
+      await adminDeleteBankAccountFn({ data: { id } });
+    } catch (error) {
+      console.warn("deleteAdminBankAccount error:", error);
     }
   }
 

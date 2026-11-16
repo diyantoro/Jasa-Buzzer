@@ -279,13 +279,10 @@ export function useBuzzerStore(
     const normalizedEmail = email.trim().toLowerCase();
 
     const loadProfile = async () => {
-      const [{ data, error }, { data: verifiedSocials }, { data: wallet }] = await Promise.all([
-        supabase
-          .from("app_accounts")
-          .select("email, name, phone, bio, username, platform, followers, avatar_url, rating, total_reviews")
-          .eq("email", normalizedEmail)
-          .eq("role", "buzzer")
-          .maybeSingle(),
+      const [profileResult, { data: verifiedSocials }, { data: wallet }] = await Promise.all([
+        import("./profile.functions").then(({ getAccountProfileFn }) =>
+          getAccountProfileFn({ data: { email: normalizedEmail } }),
+        ).catch(() => ({ ok: false as const, profile: null })),
         supabase
           .from("social_accounts")
           .select("followers, platform, username")
@@ -298,7 +295,9 @@ export function useBuzzerStore(
           .maybeSingle(),
       ]);
 
-      if (!active || error) return;
+      const data = profileResult.profile;
+
+      if (!active) return;
       const fallback = !data
         ? await supabase
           .from("buzzer_applications")
@@ -321,9 +320,9 @@ export function useBuzzerStore(
         ? walletFollowers
         : (source.followers ?? 0);
 
-      // Keep DB synchronized if app_accounts had outdated followers
+      // app_accounts tidak lagi bisa ditulis langsung dari client. Nilai
+      // followers di app_accounts disinkronkan server lewat syncBuzzerLevelFn.
       if (data && verifiedFollowers > 0 && data.followers !== verifiedFollowers) {
-        void supabase.from("app_accounts").update({ followers: verifiedFollowers }).eq("email", normalizedEmail).eq("role", "buzzer");
         void supabase.from("buzzer_applications").update({ followers: verifiedFollowers }).eq("email", normalizedEmail);
       }
 
@@ -537,27 +536,25 @@ export function useBuzzerStore(
     // PROFILE
     updateProfile: async (patch: Partial<BuzzerProfile>) => {
       if (!email) return false;
-      const updatePayload: Record<string, any> = {
-        name: patch.name,
-        phone: patch.phone,
-        bio: patch.bio,
-        username: patch.username,
-        platform: patch.platform,
-        followers: patch.followers,
-        avatar_url: patch.avatarUrl ?? null,
-      };
-      if (patch.buzzerCategory) {
-        updatePayload.company = patch.buzzerCategory;
-      }
-      const { data: updatedAccount, error } = await (supabase as any)
-        .from("app_accounts")
-        .update(updatePayload)
-        .eq("email", email.trim().toLowerCase())
-        .eq("role", "buzzer")
-        .select("email")
-        .maybeSingle();
-      if (error) return false;
-      if (!updatedAccount) {
+      const normalizedEmail = email.trim().toLowerCase();
+      try {
+        // Fase 1: profil ditulis server (sesi diverifikasi), bukan RPC publik.
+        const { updateOwnProfileFn } = await import("./buzzer.functions");
+        await updateOwnProfileFn({
+          data: {
+            name: patch.name ?? null,
+            phone: patch.phone ?? null,
+            bio: patch.bio ?? null,
+            company: patch.buzzerCategory ?? null,
+            username: patch.username ?? null,
+            platform: patch.platform ?? null,
+            avatarUrl: patch.avatarUrl ?? null,
+            buzzerCategory: patch.buzzerCategory ?? null,
+          },
+        });
+      } catch (error) {
+        // Fallback untuk akun yang masih ada di buzzer_applications.
+        console.warn("[Profile] update_profile gagal, coba buzzer_applications:", error);
         const { error: applicationError } = await supabase
           .from("buzzer_applications")
           .update({
@@ -568,7 +565,7 @@ export function useBuzzerStore(
             platform: patch.platform,
             followers: patch.followers,
           })
-          .eq("email", email.trim().toLowerCase())
+          .eq("email", normalizedEmail)
           .eq("status", "approved");
         if (applicationError) return false;
       }
@@ -629,28 +626,22 @@ export function useBuzzerStore(
         withdrawals: [w, ...currentWithdrawals],
       });
 
-      // 2. Persist to Supabase: catat withdrawal baru (saldo dompet tidak dipotong sebelum approval admin)
+      // 2. Persist ke Supabase lewat RPC request_withdrawal. Server memvalidasi
+      // saldo dan menolak nominal melebihi saldo yang bisa dicairkan.
       const normalizedEmail = email.trim().toLowerCase();
       try {
-        await supabase.from("withdrawals").insert({
-          buzzer_name: current.profile.name || nm,
-          buzzer_email: normalizedEmail,
-          amount,
-          method,
-          account_no: fullAccountNo,
-          status: "Menunggu",
-          requested_at: nowIso,
-        });
-
-        await supabase.from("finance_activity").insert({
-          type: "buzzer",
-          title: "Pengajuan Pencairan Saldo",
-          description: `Pengajuan pencairan saldo sebesar Rp ${amount.toLocaleString("id-ID")} ke ${method} (${fullAccountNo}) menunggu verifikasi admin`,
-          amount,
-          ref_table: "withdrawals",
+        const { requestWithdrawalFn } = await import("./buzzer.functions");
+        await requestWithdrawalFn({
+          data: {
+            buzzerName: current.profile.name || nm,
+            amount,
+            method,
+            accountNo: fullAccountNo,
+          },
         });
       } catch (err) {
-        console.error("Gagal sinkronisasi pencairan saldo ke Supabase:", err);
+        console.error("Gagal menyimpan pengajuan pencairan:", err);
+        return false;
       }
 
       return true;

@@ -57,139 +57,50 @@ export function calculateWeightedRating(
 }
 
 /**
- * Update kolom rating dan total_reviews di database (buzzer_wallets dan app_accounts)
+ * Rating dan total_reviews dikelola trigger `sync_buzzer_rating` setiap kali
+ * `buzzer_ratings` berubah. Sejak Fase 1 client tidak lagi menulis ke
+ * `buzzer_wallets` / `app_accounts`; fungsi ini hanya membaca hasil trigger.
  */
 export async function updateBuzzerRatingAndReviews(
   buzzerEmail: string,
-  newScore: number,
+  _newScore: number,
 ): Promise<{ newRating: number; newTotalReviews: number }> {
   const email = buzzerEmail.trim().toLowerCase();
   if (!email) {
     return { newRating: 0, newTotalReviews: 0 };
   }
 
-  // Dapatkan data rating dan total_reviews saat ini
-  const [{ data: wallet }, { data: account }] = await Promise.all([
-    supabase
-      .from("buzzer_wallets")
-      .select("rating, total_reviews")
-      .eq("buzzer_email", email)
-      .maybeSingle(),
-    supabase
-      .from("app_accounts")
-      .select("rating, total_reviews")
-      .eq("email", email)
-      .eq("role", "buzzer")
-      .maybeSingle(),
-  ]);
+  const { data: wallet } = await supabase
+    .from("buzzer_wallets")
+    .select("rating, total_reviews")
+    .eq("buzzer_email", email)
+    .maybeSingle();
 
-  const currentReviews = Number(
-    wallet?.total_reviews != null && Number(wallet.total_reviews) >= 0
-      ? wallet.total_reviews
-      : account?.total_reviews != null && Number(account.total_reviews) >= 0
-      ? account.total_reviews
-      : 0,
-  );
+  const { data: account } = await (supabase as any).from("app_accounts_public")
+    .select("rating, total_reviews")
+    .eq("email", email)
+    .maybeSingle();
 
-  const currentRating = currentReviews > 0 ? Number(
-    wallet?.rating != null && Number(wallet.rating) >= 0
-      ? wallet.rating
-      : account?.rating != null && Number(account.rating) >= 0
-      ? account.rating
-      : 0,
-  ) : 0;
-
-  const { newRating, newTotalReviews } = calculateWeightedRating(
-    currentRating,
-    currentReviews,
-    newScore,
-  );
-
-  // Update kolom rating dan total_reviews di tabel buzzer terkait
-  await Promise.allSettled([
-    (supabase as any)
-      .from("buzzer_wallets")
-      .update({
-        rating: newRating,
-        total_reviews: newTotalReviews,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("buzzer_email", email),
-    supabase
-      .from("app_accounts")
-      .update({
-        rating: newRating,
-        total_reviews: newTotalReviews,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("email", email)
-      .eq("role", "buzzer"),
-  ]);
-
+  const newTotalReviews = Number(wallet?.total_reviews ?? account?.total_reviews ?? 0);
+  const newRating = Number(wallet?.rating ?? account?.rating ?? 0);
   return { newRating, newTotalReviews };
 }
 
 /**
- * Sinkronisasi menyeluruh rating buzzer dari tabel buzzer_ratings (0 jika belum ada ulasan)
+ * Sinkronisasi menyeluruh rating buzzer. Perhitungan sudah dilakukan trigger
+ * `sync_buzzer_rating`, jadi fungsi ini hanya membaca nilai terbaru.
  */
 export async function syncBuzzerRatingFull(buzzerEmail: string): Promise<number> {
   const email = buzzerEmail.trim().toLowerCase();
   if (!email) return 0;
 
-  const { data: rows } = await (supabase as any)
-    .from("buzzer_ratings")
-    .select("stars")
-    .eq("buzzer_email", email);
+  const { data: wallet } = await supabase
+    .from("buzzer_wallets")
+    .select("rating")
+    .eq("buzzer_email", email)
+    .maybeSingle();
 
-  const ratings = rows ?? [];
-  const totalReviews = ratings.length;
-  if (totalReviews === 0) {
-    await Promise.allSettled([
-      (supabase as any)
-        .from("buzzer_wallets")
-        .update({
-          rating: 0,
-          total_reviews: 0,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("buzzer_email", email),
-      supabase
-        .from("app_accounts")
-        .update({
-          rating: 0,
-          total_reviews: 0,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("email", email)
-        .eq("role", "buzzer"),
-    ]);
-    return 0;
-  }
-
-  const starSum = ratings.reduce((sum: number, r: any) => sum + Number(r.stars || 0), 0);
-  const calculatedRating = Math.round((starSum / totalReviews) * 10) / 10;
-
-  await Promise.allSettled([
-    (supabase as any)
-      .from("buzzer_wallets")
-      .update({
-        rating: calculatedRating,
-        total_reviews: totalReviews,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("buzzer_email", email),
-    supabase
-      .from("app_accounts")
-      .update({
-        rating: calculatedRating,
-        total_reviews: totalReviews,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("email", email)
-      .eq("role", "buzzer"),
-  ]);
-
-  return calculatedRating;
+  return Number(wallet?.rating ?? 0);
 }
 
 const RATINGS_CACHE_KEY = "buzzer_ratings:all";
@@ -346,13 +257,11 @@ export async function updateAdminBuzzerRating(input: {
   comment?: string;
 }) {
   const stars = Math.min(5, Math.max(1, Math.round(input.stars)));
-  const { error } = await (supabase as any).rpc("update_admin_buzzer_rating", {
-    p_rating_id: input.id,
-    p_admin_email: input.admin_email,
-    p_stars: stars,
-    p_comment: input.comment?.trim() || null,
+  // Fase 1: RPC admin hanya bisa dipanggil service_role lewat server function.
+  const { adminUpdateBuzzerRatingFn } = await import("./admin.functions");
+  await adminUpdateBuzzerRatingFn({
+    data: { id: input.id, stars, comment: input.comment?.trim() || null },
   });
-  if (error) throw error;
 
   try {
     const { data: ratingRow } = await supabase
@@ -497,11 +406,9 @@ export async function deleteAdminBuzzerRating(id: string, adminEmail: string) {
     .eq("id", id)
     .maybeSingle();
 
-  const { error } = await (supabase as any).rpc("delete_admin_buzzer_rating", {
-    p_rating_id: id,
-    p_admin_email: adminEmail,
-  });
-  if (error) throw error;
+  // Fase 1: RPC admin hanya bisa dipanggil service_role lewat server function.
+  const { adminDeleteBuzzerRatingFn } = await import("./admin.functions");
+  await adminDeleteBuzzerRatingFn({ data: { id } });
 
   if (ratingRow?.buzzer_email) {
     await syncBuzzerRatingFull(ratingRow.buzzer_email);

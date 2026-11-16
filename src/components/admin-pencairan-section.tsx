@@ -246,13 +246,13 @@ export function PencairanSection() {
   const loadAccounts = useCallback(async () => {
     setAccountsLoading(true);
     setAccountsError(null);
-    const { data, error } = await supabase.from("app_accounts").select("email, role, created_at");
+    const { data, error } = await (supabase as any).from("app_accounts_public").select("email, role, created_at");
     if (error) {
       console.error("[Supabase] Failed to load app_accounts:", error);
       setAccountsError(error.message);
       setAccounts([]);
     } else {
-      setAccounts((data ?? []) as AccountRow[]);
+      setAccounts(((data ?? []) as unknown) as AccountRow[]);
     }
     setAccountsLoading(false);
   }, []);
@@ -662,8 +662,9 @@ export function PencairanSection() {
 
     try {
       const rawId = item.id.replace(/^(payment|job|payout|commission)-/, "");
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any).from("finance_activity").delete().eq("ref_id", rawId);
+      // Fase 1: finance_activity tidak bisa dihapus langsung dari client.
+      const { adminDeleteFinanceActivityFn } = await import("@/lib/admin.functions");
+      await adminDeleteFinanceActivityFn({ data: { refId: rawId } });
     } catch (error) {
       console.warn("Gagal menghapus dari finance_activity:", error);
     }

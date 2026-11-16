@@ -60,7 +60,7 @@ export function BuzzerProfileDialog({ email, open, onOpenChange }: { email: stri
         { data: jobsData },
         { data: submissionsData },
       ] = await Promise.all([
-        supabase.from("app_accounts").select("*").ilike("email", decodedEmail).maybeSingle(),
+        (supabase as any).from("app_accounts_public").select("*").ilike("email", decodedEmail).maybeSingle(),
         supabase.from("buzzer_wallets").select("*").ilike("buzzer_email", decodedEmail).maybeSingle(),
         supabase.from("social_accounts").select("*").ilike("buzzer_email", decodedEmail),
         (supabase as any).from("campaign_jobs").select("id, status, admin_verified_at, proof_url, buzzer_email, buzzer_name").ilike("buzzer_email", decodedEmail),

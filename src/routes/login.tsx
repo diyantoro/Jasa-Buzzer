@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
 import { setSession, findAccount, registerAccount, type Role, type Session } from "@/lib/auth";
-import { assignLevelFromVerification } from "@/lib/buzzer-level";
+
 import { getApplicationByEmail } from "@/lib/buzzer-verification";
 import { toast } from "sonner";
 
@@ -90,7 +90,8 @@ function LoginPage() {
           followers: app.followers,
           industry: app.category,
         });
-        await assignLevelFromVerification(app.email, app.name, app.followers, app.buzzerCategory);
+        // Level buzzer ditetapkan admin saat verifikasi. Registrasi sendiri
+        // tidak boleh menentukan level karena level memengaruhi payout.
 
         const restoredUser = await findAccount(app.email, password);
         setSession(

@@ -197,14 +197,15 @@ export function useAdminWallet() {
         persistedRef.current = true;
         void (async () => {
           try {
-            await (supabase as any).from("admin_wallet").upsert({
-              id: "primary",
-              balance: computedWallet.balance,
-              total_revenue: computedWallet.total_revenue,
-              total_buzzer_payout: computedWallet.total_buzzer_payout,
-              total_incoming: computedWallet.total_incoming,
-              completed_jobs_count: computedWallet.completed_jobs_count,
-              updated_at: new Date().toISOString(),
+            const { adminSaveWalletFn } = await import("./admin.functions");
+            await adminSaveWalletFn({
+              data: {
+                balance: computedWallet.balance,
+                totalRevenue: computedWallet.total_revenue,
+                totalBuzzerPayout: computedWallet.total_buzzer_payout,
+                totalIncoming: computedWallet.total_incoming,
+                completedJobsCount: computedWallet.completed_jobs_count,
+              },
             });
           } catch {
             // Ignore if table not created yet
@@ -316,14 +317,17 @@ export function useAdminWallet() {
     window.dispatchEvent(new CustomEvent(UPDATE_EVENT));
 
     try {
-      await (supabase as any).from("admin_withdrawals").insert({
-        id: newRecord.id,
-        amount: newRecord.amount,
-        method: newRecord.method,
-        provider: newRecord.provider,
-        account_no: newRecord.account_no,
-        status: newRecord.status,
-        created_at: newRecord.created_at,
+      const { adminRequestWalletWithdrawalFn } = await import("./admin.functions");
+      await adminRequestWalletWithdrawalFn({
+        data: {
+          id: newRecord.id,
+          amount: newRecord.amount,
+          method: newRecord.method,
+          provider: newRecord.provider,
+          accountNo: newRecord.account_no,
+          status: newRecord.status,
+          createdAt: newRecord.created_at,
+        },
       });
     } catch {
       // Best-effort remote write; cached locally

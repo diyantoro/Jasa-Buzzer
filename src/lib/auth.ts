@@ -25,8 +25,7 @@ function loadAvatarUrl(email: string): Promise<string | null> {
 
   const promise = (async () => {
     try {
-      const { data } = await supabase
-        .from("app_accounts")
+      const { data } = await (supabase as any).from("app_accounts_public")
         .select("avatar_url")
         .eq("email", key)
         .maybeSingle();
@@ -80,6 +79,11 @@ export function setSession(s: Session) {
 
 export function clearSession() {
   localStorage.removeItem(KEY);
+  // Hapus juga cookie sesi server supaya server function admin menolak
+  // permintaan setelah logout.
+  void import("./accounts.functions")
+    .then(({ logoutAccountFn }) => logoutAccountFn({ data: undefined }))
+    .catch(() => undefined);
   window.dispatchEvent(new Event("buzzhub:session"));
 }
 
