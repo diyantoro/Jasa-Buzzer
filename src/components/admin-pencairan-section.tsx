@@ -246,15 +246,36 @@ export function PencairanSection() {
   const loadAccounts = useCallback(async () => {
     setAccountsLoading(true);
     setAccountsError(null);
-    const { data, error } = await (supabase as any).from("app_accounts_public").select("email, role, created_at");
-    if (error) {
-      console.error("[Supabase] Failed to load app_accounts:", error);
-      setAccountsError(error.message);
-      setAccounts([]);
-    } else {
-      setAccounts(((data ?? []) as unknown) as AccountRow[]);
+    try {
+      // Admin membaca akun melalui server function agar tidak bergantung pada
+      // view app_accounts_public yang mungkin belum diterapkan di Supabase.
+      const { adminListAccountsFn } = await import("@/lib/admin.functions");
+      const result = await adminListAccountsFn({ data: undefined });
+      setAccounts(
+        ((result.accounts ?? []) as Array<{ email: string; role: string; created_at: string }>).map(
+          (account) => ({
+            email: account.email,
+            role: account.role,
+            created_at: account.created_at,
+          }),
+        ),
+      );
+    } catch (error) {
+      // Compatibility sementara untuk database yang belum menjalankan
+      // migration app_accounts_public dan belum memiliki service key.
+      const { data, error: fallbackError } = await supabase
+        .from("app_accounts")
+        .select("email, role, created_at");
+      if (!fallbackError) {
+        setAccounts((data ?? []) as AccountRow[]);
+      } else {
+        console.error("[Supabase] Failed to load app_accounts:", error);
+        setAccountsError(error instanceof Error ? error.message : String(error));
+        setAccounts([]);
+      }
+    } finally {
+      setAccountsLoading(false);
     }
-    setAccountsLoading(false);
   }, []);
 
   useEffect(() => {
