@@ -16,7 +16,7 @@ Menghubungkan customer dengan buzzer terverifikasi untuk campaign Instagram, Tik
 [![Status](https://img.shields.io/badge/status-active-22C55E?style=flat-square)](#)
 [![Built with Lovable](https://img.shields.io/badge/built%20with-Lovable-FF6154?style=flat-square)](https://lovable.dev/projects/754972da-b5d7-4e2a-ae1b-8bf0fff12827)
 
-[Ringkasan](#ringkasan) · [Fitur](#fitur) · [Tech Stack](#tech-stack) · [Mulai Cepat](#mulai-cepat) · [Supabase](#supabase) · [Akun Demo](#akun-demo) · [Model Harga](#model-harga) · [Troubleshooting](#troubleshooting)
+[Ringkasan](#ringkasan) · [Fitur](#fitur) · [Tech Stack](#tech-stack) · [Mulai Cepat](#mulai-cepat) · [Docker](#docker) · [Supabase](#supabase) · [Akun Demo](#akun-demo) · [Model Harga](#model-harga) · [Troubleshooting](#troubleshooting)
 
 <img src="src/assets/buzzer-hero.jpg" alt="BuzzHub — platform jasa buzzer" width="860" />
 
@@ -239,6 +239,51 @@ Hasil build berada di `.output/`.
 | `SUPABASE_SERVICE_ROLE_KEY`     | Server-only  | Tidak | Untuk script/admin. **Jangan expose ke client.**   |
 
 Client Supabase juga mendukung format key baru `sb_publishable_...`. Jika key tidak ada, aplikasi akan menampilkan warning dan fitur database tidak berjalan.
+
+---
+
+## Docker
+
+Docker setup tersedia untuk production dan development.
+
+### Production
+
+Pastikan Docker Desktop aktif, lalu isi environment yang diperlukan di `.env`:
+
+```env
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
+VITE_SUPABASE_PROJECT_ID=your-project-id
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
+SUPABASE_SERVICE_ROLE_KEY=sb_secret_...
+SESSION_SECRET=gunakan-string-acak-minimal-32-karakter
+```
+
+Build dan jalankan:
+
+```bash
+docker compose build
+docker compose up -d
+```
+
+Aplikasi tersedia di `http://localhost:8080`.
+
+`SUPABASE_SERVICE_ROLE_KEY` dan `SESSION_SECRET` hanya diberikan saat runtime melalui Compose. Jangan menambahkan keduanya ke variabel `VITE_*` atau meng-commit `.env`.
+
+### Development
+
+```bash
+docker compose -f docker-compose.dev.yml up
+```
+
+Development container memakai bind mount dan hot reload. Untuk Windows, Docker Desktop harus aktif.
+
+### Stop container
+
+```bash
+docker compose down
+```
 
 ---
 

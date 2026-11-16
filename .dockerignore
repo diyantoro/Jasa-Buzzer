@@ -1,0 +1,13 @@
+node_modules
+.output
+.wrangler
+.git
+.gitignore
+.env
+.env.*
+*.log
+coverage
+dist
+.DS_Store
+.vscode
+.idea
