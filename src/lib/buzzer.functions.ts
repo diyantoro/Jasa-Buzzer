@@ -29,6 +29,13 @@ export const requestWithdrawalFn = createServerFn({ method: "POST" })
       throw new Error("Hanya akun buzzer yang bisa mengajukan pencairan.");
     }
 
+    const { enforceRateLimit, RATE_LIMITS } = await import("./rate-limit.server");
+    enforceRateLimit(
+      `request-withdrawal:${session.email}`,
+      RATE_LIMITS.requestWithdrawal.limit,
+      RATE_LIMITS.requestWithdrawal.windowMs,
+    );
+
     const { supabaseAdmin: adminClient } = await import(
       "@/integrations/supabase/client.server"
     );

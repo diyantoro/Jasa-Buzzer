@@ -76,6 +76,13 @@ export const uploadProofFileFn = createServerFn({ method: "POST" })
       throw new Error("Hanya akun buzzer yang bisa mengunggah bukti.");
     }
 
+    const { enforceRateLimit, RATE_LIMITS } = await import("./rate-limit.server");
+    enforceRateLimit(
+      `upload-proof:${session.email}`,
+      RATE_LIMITS.uploadProof.limit,
+      RATE_LIMITS.uploadProof.windowMs,
+    );
+
     const fileName = String(data?.fileName ?? "file");
     const contentType = String(data?.contentType ?? "").toLowerCase();
     const isPdf = contentType === "application/pdf" || fileName.toLowerCase().endsWith(".pdf");

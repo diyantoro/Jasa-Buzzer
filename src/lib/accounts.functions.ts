@@ -292,6 +292,15 @@ export const loginAccountFn = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const email = data.email.trim().toLowerCase();
 
+    // Batasi percobaan login per email (best-effort, lihat rate-limit.server.ts).
+    const { rateLimitMessage, resetRateLimit, RATE_LIMITS } = await import("./rate-limit.server");
+    const limited = rateLimitMessage(
+      `login:${email}`,
+      RATE_LIMITS.login.limit,
+      RATE_LIMITS.login.windowMs,
+    );
+    if (limited) return { ok: false as const, message: limited };
+
     const selectColumns =
       "email, name, role, password_hash, phone, city, bio, company, industry, username, platform, followers, avatar_url";
 
@@ -349,6 +358,9 @@ export const loginAccountFn = createServerFn({ method: "POST" })
     } catch (cookieError) {
       console.error("[Login] Gagal membuat sesi server:", cookieError);
     }
+
+    // Login berhasil: bersihkan hitungan percobaan untuk email ini.
+    resetRateLimit(`login:${email}`);
 
     return {
       ok: true as const,
@@ -420,7 +432,21 @@ export const changePasswordFn = createServerFn({ method: "POST" })
 
     const data = parsed.data;
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const email = data.email.trim().toLowerCase();
+
+    // Identitas diutamakan dari sesi bertanda tangan; email client hanya
+    // fallback untuk alur lama. Password lama tetap diverifikasi.
+    const { getServerSession } = await import("./session.server");
+    const session = (await getServerSession()) as { email: string } | null;
+    const email = (session?.email ?? data.email).trim().toLowerCase();
+
+    const { rateLimitMessage, RATE_LIMITS } = await import("./rate-limit.server");
+    const limited = rateLimitMessage(
+      `change-password:${email}`,
+      RATE_LIMITS.changePassword.limit,
+      RATE_LIMITS.changePassword.windowMs,
+    );
+    if (limited) return { ok: false as const, message: limited };
+
     const { data: account, error: accountError } = await supabaseAdmin
       .from("app_accounts")
       .select("email, role, password_hash")
