@@ -116,7 +116,7 @@ Postgres atau Redis/Upstash) pada Fase 3.
 - pembayaran: approve, reject, update, delete;
 - pencairan: approve, reject, update, delete;
 - job: review, approve, reject proof, delete;
-- campaign: reject, complete, update, delete, update payout;
+- campaign: reject, complete, update, delete;
 - akun: update role/profil, patch, delete;
 - level: update konfigurasi, assign level buzzer;
 - rating: update, delete;

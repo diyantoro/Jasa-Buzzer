@@ -745,26 +745,6 @@ export const adminAssignLevelFn = createServerFn({ method: "POST" })
     return { ok: true as const, level: levelName };
   });
 
-export const adminUpdateOfflinePayoutFn = createServerFn({ method: "POST" })
-  .validator((data: unknown) => data as { campaignId: string; payoutPerBuzzer: number })
-  .handler(async ({ data }) => {
-    const { db, session } = await buildAdminContext();
-    const { error } = await db.rpc("update_offline_campaign_payout", {
-      p_campaign_id: data.campaignId,
-      p_payout_per_buzzer: data.payoutPerBuzzer,
-    });
-    if (error) fail(error);
-    const { writeAuditLog } = await import("./audit.server");
-    await writeAuditLog({
-      actor: session,
-      action: "campaign.update_payout",
-      targetType: "campaign",
-      targetId: data.campaignId,
-      details: { payoutPerBuzzer: data.payoutPerBuzzer },
-    });
-    return { ok: true as const };
-  });
-
 export const adminRecalculateWalletFn = createServerFn({ method: "POST" })
   .validator((data: unknown) => data as Record<string, never> | undefined)
   .handler(async () => {

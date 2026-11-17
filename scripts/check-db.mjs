@@ -164,10 +164,6 @@ if (publishableOk) {
   await checkRpc("update_profile", { p_email: "" });
   await checkRpc("admin_update_account", { p_email: "" });
   await checkRpc("mark_finance_notification_read", { p_id: zero });
-  await checkRpc("update_offline_campaign_payout", {
-    p_campaign_id: zero,
-    p_payout_per_buzzer: 0,
-  });
   await checkTable("audit_logs");
 }
 
