@@ -180,22 +180,16 @@ export async function sendSupportMessage(input: {
   const body = input.body.trim();
   if (!body) throw new Error("Pesan tidak boleh kosong.");
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any)
-    .from("campaign_messages")
-    .insert({
-      campaign_id: null,
-      from_role: input.fromRole,
-      from_name: input.fromName,
-      from_email: input.fromEmail,
-      to_email: input.toEmail ?? SUPPORT_ADMIN_EMAIL,
+  // Fase 2b: pengirim ditentukan server dari sesi, bukan dari parameter client.
+  const { sendCampaignMessageFn } = await import("./messages.functions");
+  const result = await sendCampaignMessageFn({
+    data: {
+      campaignId: null,
+      toEmail: input.toEmail ?? SUPPORT_ADMIN_EMAIL,
       body,
-      read_at: null,
-    })
-    .select("*")
-    .single();
-
-  if (error) throw error;
+    },
+  });
+  const data = result.message as SupportMessage;
 
   // Balasan admin juga dikirim sebagai notifikasi in-app. Customer/buzzer tidak
   // lagi memiliki menu Pesan, jadi balasan support hanya muncul di lonceng
@@ -223,24 +217,24 @@ export async function sendSupportMessage(input: {
       }
 
       try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { error: notifyError } = await (supabase as any).from("notifications").insert({
-          user_id: recipient,
-          buzzer_id: recipient,
-          title: "Balasan Support",
-          message: body,
-          type: "support",
-          is_read: false,
-          metadata: {
-            support: true,
-            question,
-            reply: body,
-            from_email: input.fromEmail,
-            to_email: recipient,
-            message_id: (data as SupportMessage | null)?.id ?? null,
+        const { createNotificationFn } = await import("./notifications.functions");
+        await createNotificationFn({
+          data: {
+            user_id: recipient,
+            buzzer_id: recipient,
+            title: "Balasan Support",
+            message: body,
+            type: "support",
+            metadata: {
+              support: true,
+              question,
+              reply: body,
+              from_email: input.fromEmail,
+              to_email: recipient,
+              message_id: (data as SupportMessage | null)?.id ?? null,
+            },
           },
         });
-        if (notifyError) throw notifyError;
       } catch (notifyError) {
         // Pesan tetap terkirim walaupun notifikasi gagal dibuat.
         console.warn("[Support] Gagal membuat notifikasi balasan admin:", notifyError);
@@ -292,21 +286,10 @@ export async function markSupportMessagesRead(input: {
   email: string;
   threadEmail?: string | null;
 }) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let query = (supabase as any)
-    .from("campaign_messages")
-    .update({ read_at: new Date().toISOString() })
-    .is("campaign_id", null)
-    .is("read_at", null);
-
-  if (input.role === "admin") {
-    query = query.neq("from_role", "admin");
-    if (input.threadEmail) query = query.eq("from_email", input.threadEmail);
-  } else {
-    query = query.eq("from_role", "admin").eq("to_email", input.email);
-  }
-
-  const { error } = await query;
-  if (error) throw error;
+  // Fase 2b: penandaan dibaca dilakukan server berdasarkan sesi.
+  const { markSupportMessagesReadFn } = await import("./messages.functions");
+  await markSupportMessagesReadFn({
+    data: input.role === "admin" ? { threadEmail: input.threadEmail ?? null } : {},
+  });
   notifySupportChanged();
 }

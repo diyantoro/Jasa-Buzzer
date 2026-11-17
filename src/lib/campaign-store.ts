@@ -808,8 +808,15 @@ export async function deleteCatalogPackage(id: string) {
 }
 
 export async function sendCampaignMessage(msg: Omit<CampaignMessage, "id" | "created_at" | "read_at">) {
-  const { error } = await supabase.from("campaign_messages").insert(msg);
-  if (error) throw error;
+  // Fase 2b: pengirim ditentukan server dari sesi.
+  const { sendCampaignMessageFn } = await import("./messages.functions");
+  await sendCampaignMessageFn({
+    data: {
+      campaignId: msg.campaign_id,
+      toEmail: msg.to_email,
+      body: msg.body,
+    },
+  });
 }
 
 /** Customer submits an order -> campaign menunggu approval admin sebelum job dibuka. */

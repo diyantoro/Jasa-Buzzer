@@ -118,5 +118,37 @@ export const updateOwnProfileFn = createServerFn({ method: "POST" })
     });
     if (error) throw new Error(error.message || "Gagal menyimpan profil.");
 
+    // Akun lama yang belum punya baris app_accounts tetap bisa menyimpan
+    // profil lewat tabel pendaftaran. Ditulis server, bukan dari browser.
+    if (!updated) {
+      const applicationPatch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+      if (data.name !== undefined && data.name !== null) applicationPatch["name"] = data.name;
+      if (data.phone !== undefined) applicationPatch["phone"] = data.phone;
+      if (data.city !== undefined) applicationPatch["city"] = data.city;
+      if (data.username !== undefined) applicationPatch["username"] = data.username;
+      if (data.platform !== undefined) applicationPatch["platform"] = data.platform;
+      if (data.bio !== undefined) applicationPatch["bio"] = data.bio;
+      if (data.buzzerCategory !== undefined && data.buzzerCategory !== null) {
+        applicationPatch["buzzer_category"] = data.buzzerCategory;
+      }
+
+      let fallbackError: any = null;
+      ({ error: fallbackError } = await supabaseAdmin
+        .from("buzzer_applications")
+        .update(applicationPatch as never)
+        .eq("email", session.email)
+        .eq("status", "approved"));
+      if (fallbackError && /buzzer_category/i.test(String(fallbackError.message ?? ""))) {
+        const fallback = { ...applicationPatch };
+        delete fallback["buzzer_category"];
+        ({ error: fallbackError } = await supabaseAdmin
+          .from("buzzer_applications")
+          .update(fallback as never)
+          .eq("email", session.email)
+          .eq("status", "approved"));
+      }
+      if (fallbackError) throw new Error(fallbackError.message || "Gagal menyimpan profil.");
+    }
+
     return { ok: true as const, updated: Boolean(updated) };
   });

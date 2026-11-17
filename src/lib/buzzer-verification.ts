@@ -140,42 +140,6 @@ function fromRow(r: Row): BuzzerApplication {
   };
 }
 
-function toRow(a: BuzzerApplication) {
-  const bCat = a.buzzerCategory || "Buzzer Online";
-  const rawBio = a.bio?.trim() || "";
-  const bioWithCat = rawBio ? `${rawBio}\n\n[Kategori Buzzer: ${bCat}]` : `[Kategori Buzzer: ${bCat}]`;
-  return {
-    id: a.id,
-    name: a.name,
-    email: a.email.toLowerCase(),
-    username: a.username,
-    platform: a.platform,
-    platforms: a.platforms ?? [],
-    followers: a.followers,
-    phone: a.phone ?? null,
-    city: a.city ?? null,
-    address: a.address ?? null,
-    category: a.category ?? null,
-    buzzer_category: bCat,
-    bio: bioWithCat,
-    submitted_at: a.submittedAt,
-    status: a.status,
-    reviewed_at: a.reviewedAt ?? null,
-    review_note: a.reviewNote ?? null,
-  };
-}
-
-async function upsertRemote(a: BuzzerApplication) {
-  try {
-    const row = toRow(a);
-    const { error } = await supabase.from("buzzer_applications").upsert(row as any, { onConflict: "email" });
-    if (error && error.message?.includes("buzzer_category")) {
-      delete (row as any).buzzer_category;
-      await supabase.from("buzzer_applications").upsert(row as any, { onConflict: "email" });
-    }
-  } catch { /* offline: cache lokal tetap dipakai */ }
-}
-
 export async function syncApplications(): Promise<BuzzerApplication[]> {
   if (typeof window === "undefined") return [];
   try {
@@ -252,14 +216,39 @@ export async function submitApplication(
     if (exists.status === "pending") return { ok: false, message: "Pendaftaran dengan email ini sedang menunggu verifikasi admin." };
     if (exists.status === "approved") return { ok: false, message: "Email ini sudah terverifikasi. Silakan login." };
   }
+
+  // Fase 2b: pendaftaran publik ditulis server dengan status "pending" paksa.
+  let id: string;
+  try {
+    const { submitBuzzerApplicationFn } = await import("./applications.functions");
+    const result = await submitBuzzerApplicationFn({
+      data: {
+        name: input.name,
+        email: input.email,
+        username: input.username,
+        platform: input.platform,
+        platforms: input.platforms,
+        followers: input.followers,
+        phone: input.phone,
+        city: input.city,
+        category: input.category,
+        buzzerCategory: input.buzzerCategory,
+        address: input.address,
+        bio: input.bio,
+      },
+    });
+    id = result.id;
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : String(error) };
+  }
+
   const app: BuzzerApplication = {
     ...input,
     email: input.email.trim().toLowerCase(),
-    id: exists?.id ?? "app-" + Date.now(),
+    id,
     submittedAt: new Date().toISOString(),
     status: "pending",
   };
-  await upsertRemote(app);
   write([app, ...read().filter((a) => a.email.toLowerCase() !== app.email)]);
   void notifyBuzzerApplicationStatus({
     buzzerEmail: app.email,
@@ -311,58 +300,65 @@ function reviewLocal(id: string, status: BuzzerAppStatus, note?: string) {
     return updated;
   });
   write(list);
-  if (updated) void upsertRemote(updated);
 }
 
 export async function approveApplication(id: string, note?: string) {
   const item = read().find((a) => a.id === id);
-  reviewLocal(id, "approved", note);
-  if (item) {
-    await syncApprovedBuzzerToAccount({ ...item, status: "approved", reviewedAt: new Date().toISOString(), reviewNote: note });
-    await assignLevelFromVerification(item.email, item.name, item.followers, item.buzzerCategory);
-    void notifyBuzzerApplicationStatus({
-      buzzerEmail: item.email,
-      buzzerName: item.name,
-      status: "approved",
-      note,
-    });
+  if (!item) return;
 
-    // Otomatis verifikasi semua akun media sosial yang didaftarkan saat registrasi.
-    // Hanya akun dengan status "Menunggu" yang disetujui — akun yang ditambahkan
-    // setelah registrasi (oleh buzzer yang sudah aktif) tetap butuh persetujuan admin terpisah.
-    const email = item.email.trim().toLowerCase();
-    try {
-      // Fase 2: verifikasi massal social account lewat server function admin.
-      const { adminBulkVerifySocialAccountsFn } = await import("./social.functions");
-      await adminBulkVerifySocialAccountsFn({ data: { buzzerEmail: email } });
-      await syncBuzzerFollowersToProfile(email);
-    } catch {
-      // Jangan gagalkan approval akun buzzer hanya karena social media sync gagal
-    }
+  // Fase 2b: status review hanya bisa diubah server function admin.
+  const { adminReviewBuzzerApplicationFn } = await import("./applications.functions");
+  await adminReviewBuzzerApplicationFn({ data: { id, status: "approved", note } });
+
+  reviewLocal(id, "approved", note);
+  await syncApprovedBuzzerToAccount({ ...item, status: "approved", reviewedAt: new Date().toISOString(), reviewNote: note });
+  await assignLevelFromVerification(item.email, item.name, item.followers, item.buzzerCategory);
+  void notifyBuzzerApplicationStatus({
+    buzzerEmail: item.email,
+    buzzerName: item.name,
+    status: "approved",
+    note,
+  });
+
+  // Otomatis verifikasi semua akun media sosial yang didaftarkan saat registrasi.
+  // Hanya akun dengan status "Menunggu" yang disetujui — akun yang ditambahkan
+  // setelah registrasi (oleh buzzer yang sudah aktif) tetap butuh persetujuan admin terpisah.
+  const email = item.email.trim().toLowerCase();
+  try {
+    // Fase 2: verifikasi massal social account lewat server function admin.
+    const { adminBulkVerifySocialAccountsFn } = await import("./social.functions");
+    await adminBulkVerifySocialAccountsFn({ data: { buzzerEmail: email } });
+    await syncBuzzerFollowersToProfile(email);
+  } catch {
+    // Jangan gagalkan approval akun buzzer hanya karena social media sync gagal
   }
 }
 
 export async function rejectApplication(id: string, note?: string) {
-  reviewLocal(id, "rejected", note);
   const item = read().find((a) => a.id === id);
-  if (item) {
-    await upsertRemote({ ...item, status: "rejected", reviewNote: note });
-    void notifyBuzzerApplicationStatus({
-      buzzerEmail: item.email,
-      buzzerName: item.name,
-      status: "rejected",
-      note,
-    });
-  }
+  if (!item) return;
+
+  const { adminReviewBuzzerApplicationFn } = await import("./applications.functions");
+  await adminReviewBuzzerApplicationFn({ data: { id, status: "rejected", note } });
+
+  reviewLocal(id, "rejected", note);
+  void notifyBuzzerApplicationStatus({
+    buzzerEmail: item.email,
+    buzzerName: item.name,
+    status: "rejected",
+    note,
+  });
 }
 
 export async function updateApplication(id: string, updates: Partial<BuzzerApplication>) {
   const current = read().find((a) => a.id === id);
   if (!current) return;
+
+  const { adminUpdateBuzzerApplicationFn } = await import("./applications.functions");
+  await adminUpdateBuzzerApplicationFn({ data: { id, patch: updates } });
+
   const merged: BuzzerApplication = { ...current, ...updates };
-  const list = read().map((a) => (a.id === id ? merged : a));
-  write(list);
-  await upsertRemote(merged);
+  write(read().map((a) => (a.id === id ? merged : a)));
   if (merged.status === "approved") {
     await syncApprovedBuzzerToAccount(merged);
     await assignLevelFromVerification(merged.email, merged.name, merged.followers, merged.buzzerCategory);
@@ -371,13 +367,14 @@ export async function updateApplication(id: string, updates: Partial<BuzzerAppli
 
 export async function deleteApplication(id: string) {
   const current = read().find((a) => a.id === id);
-  const list = read().filter((a) => a.id !== id);
-  write(list);
-  if (current?.email) {
-    await supabase.from("buzzer_applications").delete().eq("email", current.email.toLowerCase());
-  } else {
-    await supabase.from("buzzer_applications").delete().eq("id", id);
-  }
+
+  // Fase 2b: penghapusan pendaftaran hanya lewat server function admin.
+  const { adminDeleteBuzzerApplicationFn } = await import("./applications.functions");
+  await adminDeleteBuzzerApplicationFn({
+    data: current?.email ? { id, email: current.email.toLowerCase() } : { id },
+  });
+
+  write(read().filter((a) => a.id !== id));
 }
 
 export function useBuzzerApplications(): BuzzerApplication[] {

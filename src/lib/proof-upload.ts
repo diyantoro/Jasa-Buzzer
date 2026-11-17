@@ -1,12 +1,22 @@
-import { supabase } from "@/integrations/supabase/client";
-
-const BUCKET = "bukti-pengerjaan";
-const ONE_YEAR = 60 * 60 * 24 * 365;
 const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "application/pdf"]);
 
+function fileToBase64(file: File): Promise<string> {
+  return file.arrayBuffer().then((buffer) => {
+    const bytes = new Uint8Array(buffer);
+    let binary = "";
+    const chunkSize = 0x8000;
+    for (let index = 0; index < bytes.length; index += chunkSize) {
+      binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
+    }
+    return btoa(binary);
+  });
+}
+
 /**
- * Unggah screenshot atau file PDF bukti pengerjaan buzzer ke penyimpanan dan
- * kembalikan signed URL yang bisa langsung dipakai customer.
+ * Unggah screenshot atau file PDF bukti pengerjaan buzzer.
+ *
+ * Fase 2c: file dikirim ke server function dan diunggah dengan `service_role`.
+ * Client tidak lagi memegang izin tulis ke bucket `bukti-pengerjaan`.
  */
 export async function uploadProofScreenshot(file: File): Promise<string> {
   if (!(file instanceof File)) {
@@ -20,35 +30,14 @@ export async function uploadProofScreenshot(file: File): Promise<string> {
     throw new Error("File bukti kosong.");
   }
 
-  const extensionByType: Record<string, string> = {
-    "image/jpeg": "jpg",
-    "image/png": "png",
-    "image/webp": "webp",
-    "application/pdf": "pdf",
-  };
-  const ext = isPdf ? "pdf" : (extensionByType[file.type] || "jpg");
-  const contentType = isPdf ? "application/pdf" : (file.type || "image/jpeg");
-  const path = `proofs/${new Date().toISOString().slice(0, 10)}/${crypto.randomUUID()}.${ext}`;
-
-  const { data: uploaded, error } = await supabase.storage.from(BUCKET).upload(path, file, {
-    cacheControl: "3600",
-    upsert: false,
-    contentType,
+  const { uploadProofFileFn } = await import("./uploads.functions");
+  const result = await uploadProofFileFn({
+    data: {
+      fileName: file.name,
+      contentType: isPdf ? "application/pdf" : file.type || "image/jpeg",
+      dataBase64: await fileToBase64(file),
+    },
   });
-  if (error) {
-    console.error("[Proof Upload] Supabase Storage upload error:", error);
-    throw error;
-  }
-  if (!uploaded?.path) {
-    const uploadError = new Error("Supabase tidak mengembalikan path file bukti.");
-    console.error("[Proof Upload] Invalid upload response:", uploaded);
-    throw uploadError;
-  }
 
-  const { data, error: signErr } = await supabase.storage.from(BUCKET).createSignedUrl(uploaded.path, ONE_YEAR);
-  if (signErr || !data?.signedUrl) {
-    console.error("[Proof Upload] Supabase Storage signed URL error:", signErr);
-    throw signErr ?? new Error("Gagal membuat URL bukti");
-  }
-  return data.signedUrl;
+  return result.url;
 }

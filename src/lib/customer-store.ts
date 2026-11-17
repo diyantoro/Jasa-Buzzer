@@ -7,6 +7,54 @@ import proofInstagram from "@/assets/proof-instagram.jpg";
 import proofTiktok from "@/assets/proof-tiktok.jpg";
 import proofX from "@/assets/proof-x.jpg";
 
+/* ------------------------------------------------------------------ */
+/* Notifikasi (Fase 2b: semua tulis lewat server function)             */
+/* ------------------------------------------------------------------ */
+
+async function pushNotificationToServer(input: {
+  id?: string;
+  user_id: string;
+  title: string;
+  message: string;
+  type?: string;
+  metadata?: Record<string, unknown>;
+}) {
+  try {
+    const { createNotificationFn } = await import("./notifications.functions");
+    await createNotificationFn({ data: input });
+  } catch (error) {
+    console.warn("[Customer] Gagal menyimpan notifikasi:", error);
+  }
+}
+
+async function deleteNotificationOnServer(id: string) {
+  try {
+    const { deleteNotificationFn } = await import("./notifications.functions");
+    await deleteNotificationFn({ data: { id } });
+  } catch (error) {
+    console.warn("[Customer] Gagal menghapus notifikasi:", error);
+  }
+}
+
+async function deletePendingNotificationsOnServer(campaignName: string) {
+  try {
+    const { deletePendingNotificationsFn } = await import("./notifications.functions");
+    await deletePendingNotificationsFn({ data: { campaignName } });
+  } catch (error) {
+    console.warn("[Customer] Gagal membersihkan notifikasi pending:", error);
+  }
+}
+
+async function markNotificationsReadOnServer(id?: string) {
+  try {
+    const mod = await import("./notifications.functions");
+    if (id) await mod.markNotificationReadFn({ data: { id } });
+    else await mod.markAllNotificationsReadFn({ data: {} });
+  } catch (error) {
+    console.warn("[Customer] Gagal menandai notifikasi:", error);
+  }
+}
+
 export type Platform =
   | "Instagram" | "TikTok" | "X (Twitter)" | "Facebook" | "YouTube"
   | "LinkedIn" | "Threads" | "Telegram";
@@ -1134,7 +1182,7 @@ export function useCustomerStore(
             const campKey = (extractCampaignNameFromBody(body) || extractCampaignNameFromBody(title)).toLowerCase();
             if (isPending && campKey && approvedTitles.has(campKey)) {
               stateChanged = true;
-              void supabase.from("notifications").delete().eq("id", dn.id);
+              void deleteNotificationOnServer(dn.id);
               continue;
             }
 
@@ -1213,12 +1261,11 @@ export function useCustomerStore(
                 read: false,
               });
               stateChanged = true;
-              void supabase.from("notifications").insert({
+              void pushNotificationToServer({
                 user_id: normalizedEmail,
                 title: "Pesanan Disetujui",
                 message: approvedBody,
                 type: "order",
-                is_read: false,
               });
             }
           }
@@ -1246,12 +1293,11 @@ export function useCustomerStore(
                 read: false,
               });
               stateChanged = true;
-              void supabase.from("notifications").insert({
+              void pushNotificationToServer({
                 user_id: normalizedEmail,
                 title: "Pesanan Disetujui",
                 message: approvedBody,
                 type: "order",
-                is_read: false,
               });
             }
           }
@@ -1383,12 +1429,11 @@ export function useCustomerStore(
     });
 
     if (email) {
-      void supabase.from("notifications").insert({
+      void pushNotificationToServer({
         user_id: email.trim().toLowerCase(),
         title: n.title,
         message: n.body,
         type: n.type,
-        is_read: false,
       });
     }
   };
@@ -1640,13 +1685,13 @@ export function useCustomerStore(
     markNotificationRead: (id: string) => {
       mutate((s) => ({ ...s, notifications: s.notifications.map((n) => n.id === id ? { ...n, read: true } : n) }));
       if (email) {
-        void supabase.from("notifications").update({ is_read: true, updated_at: new Date().toISOString() }).eq("id", id);
+        void markNotificationsReadOnServer(id);
       }
     },
     markAllRead: () => {
       mutate((s) => ({ ...s, notifications: s.notifications.map((n) => ({ ...n, read: true })) }));
       if (email) {
-        void supabase.from("notifications").update({ is_read: true, updated_at: new Date().toISOString() }).eq("user_id", email.trim().toLowerCase());
+        void markNotificationsReadOnServer();
       }
     },
 
@@ -1701,20 +1746,13 @@ export function useCustomerStore(
         };
       });
       if (email) {
-        // Hapus notif pending di Supabase
-        void supabase
-          .from("notifications")
-          .delete()
-          .eq("user_id", email.trim().toLowerCase())
-          .or("title.ilike.%menunggu%,title.ilike.%diverifikasi%")
-          .ilike("message", `%${cleanCampaign}%`);
-
-        void supabase.from("notifications").insert({
+        // Hapus notif pending di server, lalu simpan notifikasi disetujui.
+        void deletePendingNotificationsOnServer(cleanCampaign);
+        void pushNotificationToServer({
           user_id: email.trim().toLowerCase(),
           title: "Pesanan Disetujui",
           message: bodyText,
           type: "order",
-          is_read: false,
         });
       }
     },
@@ -1782,19 +1820,12 @@ export async function notifyCustomerPaymentApproved(
 
   // 1. Bersihkan notifikasi pending dari tabel notifications Supabase & simpan notifikasi baru
   try {
-    await supabase
-      .from("notifications")
-      .delete()
-      .eq("user_id", email)
-      .or("title.ilike.%menunggu%,title.ilike.%diverifikasi%")
-      .ilike("message", `%${cleanCampaign}%`);
-
-    await supabase.from("notifications").insert({
+    await deletePendingNotificationsOnServer(cleanCampaign);
+    await pushNotificationToServer({
       user_id: email,
       title: "Pesanan Disetujui",
       message: bodyText,
       type: "order",
-      is_read: false,
     });
   } catch (error) {
     console.error("Gagal sinkronisasi notifikasi pesanan disetujui ke database:", error);
@@ -1930,19 +1961,12 @@ export async function notifyCustomerPaymentRejected(
 
   // 1. Simpan ke database Supabase notifications
   try {
-    await supabase
-      .from("notifications")
-      .delete()
-      .eq("user_id", email)
-      .or("title.ilike.%menunggu%,title.ilike.%diverifikasi%")
-      .ilike("message", `%${cleanCampaign}%`);
-
-    await supabase.from("notifications").insert({
+    await deletePendingNotificationsOnServer(cleanCampaign);
+    await pushNotificationToServer({
       user_id: email,
       title: "Pesanan Ditolak",
       message: bodyText,
       type: "order",
-      is_read: false,
     });
   } catch (error) {
     console.error("Gagal menyimpan notifikasi penolakan pesanan ke database:", error);

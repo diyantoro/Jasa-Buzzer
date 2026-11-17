@@ -4071,6 +4071,7 @@ function BuzzerSection() {
     }
     const emailLc = editDraft.id.trim().toLowerCase();
     const { adminPatchAccountFn } = await import("@/lib/admin.functions");
+    const { adminUpdateBuzzerApplicationFn } = await import("@/lib/applications.functions");
     await Promise.all([
       adminPatchAccountFn({
         data: {
@@ -4083,15 +4084,18 @@ function BuzzerSection() {
           },
         },
       }),
-      supabase
-        .from("buzzer_applications")
-        .update({
-          name: editDraft.name,
-          username: editDraft.username,
-          platform: editDraft.platform,
-          followers: editDraft.followers,
-        })
-        .eq("email", emailLc),
+      // Fase 2b: buzzer_applications hanya bisa ditulis server (admin).
+      adminUpdateBuzzerApplicationFn({
+        data: {
+          email: emailLc,
+          patch: {
+            name: editDraft.name,
+            username: editDraft.username,
+            platform: editDraft.platform,
+            followers: editDraft.followers,
+          },
+        },
+      }),
     ]);
 
     if (editDraft.platform) {

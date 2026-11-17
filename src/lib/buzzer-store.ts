@@ -320,11 +320,8 @@ export function useBuzzerStore(
         ? walletFollowers
         : (source.followers ?? 0);
 
-      // app_accounts tidak lagi bisa ditulis langsung dari client. Nilai
-      // followers di app_accounts disinkronkan server lewat syncBuzzerLevelFn.
-      if (data && verifiedFollowers > 0 && data.followers !== verifiedFollowers) {
-        void supabase.from("buzzer_applications").update({ followers: verifiedFollowers }).eq("email", normalizedEmail);
-      }
+      // app_accounts dan buzzer_applications tidak lagi bisa ditulis langsung
+      // dari client. Followers/level disinkronkan server lewat syncBuzzerLevelFn.
 
       const totalReviews = Number(wallet?.total_reviews ?? (data as any)?.total_reviews ?? 0);
       const rawRating = Number(wallet?.rating ?? (data as any)?.rating ?? 0);
@@ -553,21 +550,9 @@ export function useBuzzerStore(
           },
         });
       } catch (error) {
-        // Fallback untuk akun yang masih ada di buzzer_applications.
-        console.warn("[Profile] update_profile gagal, coba buzzer_applications:", error);
-        const { error: applicationError } = await supabase
-          .from("buzzer_applications")
-          .update({
-            name: patch.name,
-            phone: patch.phone,
-            bio: patch.bio,
-            username: patch.username,
-            platform: patch.platform,
-            followers: patch.followers,
-          })
-          .eq("email", normalizedEmail)
-          .eq("status", "approved");
-        if (applicationError) return false;
+        // Fase 2b: fallback ke buzzer_applications juga dilakukan server.
+        console.warn("[Profile] Gagal menyimpan profil:", error);
+        return false;
       }
       mutate((s) => ({ ...s, profile: { ...s.profile, ...patch, email: s.profile.email } }));
       const session = getSession();

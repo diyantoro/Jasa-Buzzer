@@ -308,10 +308,9 @@ export function useBuzzerNotifications(buzzerEmail?: string | null) {
     });
 
     try {
-      await supabase
-        .from("notifications")
-        .update({ is_read: true, updated_at: new Date().toISOString() })
-        .eq("id", id);
+      // Fase 2b: notifikasi ditandai lewat server (sesi diverifikasi).
+      const { markNotificationReadFn } = await import("./notifications.functions");
+      await markNotificationReadFn({ data: { id } });
     } catch {
       // safe-fail
     }
@@ -327,11 +326,8 @@ export function useBuzzerNotifications(buzzerEmail?: string | null) {
     });
 
     try {
-      await supabase
-        .from("notifications")
-        .update({ is_read: true, updated_at: new Date().toISOString() })
-        .or(`user_id.eq.${normalizedEmail},buzzer_id.eq.${normalizedEmail}`)
-        .eq("is_read", false);
+      const { markAllNotificationsReadFn } = await import("./notifications.functions");
+      await markAllNotificationsReadFn({ data: {} });
     } catch {
       // safe-fail
     }
@@ -393,20 +389,21 @@ export async function createBuzzerNotification(input: {
   }
 
   try {
-    await supabase.from("notifications").insert({
-      id: newNotif.id,
-      user_id: email,
-      buzzer_id: newNotif.buzzer_id,
-      title: newNotif.title,
-      message: newNotif.message,
-      type: newNotif.type,
-      is_read: false,
-      metadata: newNotif.metadata ?? {},
-      created_at: newNotif.created_at,
-      updated_at: newNotif.updated_at,
+    // Fase 2b: insert notifikasi lewat server (target divalidasi).
+    const { createNotificationFn } = await import("./notifications.functions");
+    await createNotificationFn({
+      data: {
+        id: newNotif.id,
+        user_id: email,
+        buzzer_id: newNotif.buzzer_id,
+        title: newNotif.title,
+        message: newNotif.message,
+        type: newNotif.type,
+        metadata: newNotif.metadata ?? {},
+      },
     });
   } catch {
-    // safe-fail
+    // safe-fail (local storage sudah menyimpan notifikasi)
   }
 }
 
