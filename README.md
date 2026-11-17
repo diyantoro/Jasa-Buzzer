@@ -236,7 +236,10 @@ Hasil build berada di `.output/`.
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | Client + SSR | Ya    | Publishable/anon key. Aman dipakai di client.      |
 | `SUPABASE_URL`                  | SSR/server   | Tidak | Fallback server-side jika `VITE_*` tidak tersedia. |
 | `SUPABASE_PUBLISHABLE_KEY`      | SSR/server   | Tidak | Fallback server-side untuk publishable key.        |
-| `SUPABASE_SERVICE_ROLE_KEY`     | Server-only  | Tidak | Untuk script/admin. **Jangan expose ke client.**   |
+| `SUPABASE_SERVICE_ROLE_KEY`     | Server-only  | Ya    | Dipakai server function untuk operasi istimewa (uang, akun, upload). **Jangan expose ke client.** |
+| `SESSION_SECRET`                | Server-only  | Ya    | Kunci HMAC cookie sesi `buzzhub_sid`. Minimal 32 karakter acak. |
+
+Tanpa `SUPABASE_SERVICE_ROLE_KEY` yang valid, server function berjalan sebagai `anon` dan akan ditolak policy hasil migration hardening (fail closed).
 
 Client Supabase juga mendukung format key baru `sb_publishable_...`. Jika key tidak ada, aplikasi akan menampilkan warning dan fitur database tidak berjalan.
 
@@ -454,10 +457,15 @@ Skema lengkap, function, trigger, dan policy ada di `supabase/migrations/`.
 
 - Jangan commit `.env` atau service role key.
 - Gunakan publishable/anon key hanya untuk client.
-- Auth saat ini adalah auth aplikasi demo (`app_accounts` + SHA-256 salt statis). Untuk production, pertimbangkan Supabase Auth atau hashing Argon2/bcrypt, rate limiting, dan verifikasi email.
-- Review RLS dan storage policy sebelum production; beberapa policy dibuat permisif untuk kebutuhan demo.
+- Password disimpan sebagai **PBKDF2-SHA256** (210.000 iterasi, salt acak per akun). Hash lama SHA-256 dimigrasikan otomatis saat login berhasil.
+- Identitas untuk operasi istimewa diambil dari cookie sesi bertanda tangan HMAC (`buzzhub_sid`), bukan dari email yang dikirim client.
+- Semua tulis ke tabel uang, akun, social account, rating, pendaftaran buzzer, notifikasi, pesan, dan storage dilakukan lewat server function dengan `service_role`; client hanya membaca.
+- Rate limit best-effort diterapkan pada login, ganti password, upload bukti, dan pengajuan pencairan (in-memory per instance).
+- Operasi admin penting (pembayaran, pencairan, job, role, level, rating, campaign, pendaftaran) dicatat di `audit_logs` yang hanya bisa dibaca `service_role`.
+- Migration hardening Fase 1–2c ada di `supabase/migrations/2026111600000*`. Terapkan berurutan setelah `SUPABASE_SERVICE_ROLE_KEY` diisi.
+- Review RLS dan storage policy sebelum production; beberapa policy lama masih permisif untuk kebutuhan demo.
 - Hapus akun dan data demo sebelum go-live.
-- Batasi akses dashboard admin dan audit perubahan data sensitif.
+- Fase 3 (Supabase Auth penuh) direncanakan di `docs/AUTH_PHASE3_DESIGN.md` dan membutuhkan akses project Supabase.
 
 ---
 
