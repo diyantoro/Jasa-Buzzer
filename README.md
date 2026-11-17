@@ -243,6 +243,18 @@ Tanpa `SUPABASE_SERVICE_ROLE_KEY` yang valid, server function berjalan sebagai `
 
 Client Supabase juga mendukung format key baru `sb_publishable_...`. Jika key tidak ada, aplikasi akan menampilkan warning dan fitur database tidak berjalan.
 
+### Cek konfigurasi dan terapkan migration
+
+```bash
+npm run check:env   # validasi tanpa mencetak nilai rahasia
+npm run db:plan     # lihat urutan migration yang akan diterapkan
+npm run db:apply    # terapkan 6 migration hardening (butuh akses database)
+```
+
+`db:apply` memakai `psql` bila tersedia (`DATABASE_URL` atau `SUPABASE_DB_PASSWORD`), dan otomatis beralih ke Supabase Management API bila `SUPABASE_ACCESS_TOKEN` diisi. Script berhenti pada error pertama dan tidak menyentuh migration lama.
+
+> `supabase db push` belum dipakai karena project ini belum punya riwayat migration (`supabase_migrations.schema_migrations`). Jangan menjalankannya sebelum baseline riwayat dibuat — semua migration lama akan dianggap belum diterapkan.
+
 ---
 
 ## Docker
@@ -462,7 +474,7 @@ Skema lengkap, function, trigger, dan policy ada di `supabase/migrations/`.
 - Semua tulis ke tabel uang, akun, social account, rating, pendaftaran buzzer, notifikasi, pesan, dan storage dilakukan lewat server function dengan `service_role`; client hanya membaca.
 - Rate limit best-effort diterapkan pada login, ganti password, upload bukti, dan pengajuan pencairan (in-memory per instance).
 - Operasi admin penting (pembayaran, pencairan, job, role, level, rating, campaign, pendaftaran) dicatat di `audit_logs` yang hanya bisa dibaca `service_role`.
-- Migration hardening Fase 1–2c ada di `supabase/migrations/2026111600000*`. Terapkan berurutan setelah `SUPABASE_SERVICE_ROLE_KEY` diisi.
+- Migration hardening Fase 1–2c ada di `supabase/migrations/2026111600000*`. Terapkan berurutan dengan `npm run db:apply` setelah kredensial database diisi; lihat `docs/SECURITY_HARDENING.md`.
 - Review RLS dan storage policy sebelum production; beberapa policy lama masih permisif untuk kebutuhan demo.
 - Hapus akun dan data demo sebelum go-live.
 - Fase 3 (Supabase Auth penuh) direncanakan di `docs/AUTH_PHASE3_DESIGN.md` dan membutuhkan akses project Supabase.

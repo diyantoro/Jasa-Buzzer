@@ -9,6 +9,27 @@ function isNewSupabaseApiKey(value: string): boolean {
   return value.startsWith('sb_publishable_') || value.startsWith('sb_secret_');
 }
 
+function isServiceRoleKey(value: string): boolean {
+  if (value.startsWith('sb_secret_')) return true;
+  if (value.startsWith('sb_publishable_')) return false;
+
+  // Legacy keys are JWTs; only a JWT with role "service_role" bypasses RLS.
+  const parts = value.split('.');
+  if (parts.length !== 3) return false;
+  try {
+    const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8')) as {
+      role?: unknown;
+    };
+    return payload.role === 'service_role';
+  } catch {
+    return false;
+  }
+}
+
+function maskKey(value: string): string {
+  return `${value.slice(0, 12)}… (${value.length} chars)`;
+}
+
 function createSupabaseFetch(supabaseKey: string): typeof fetch {
   return (input, init) => {
     const headers = new Headers(
@@ -30,24 +51,42 @@ function createSupabaseFetch(supabaseKey: string): typeof fetch {
 }
 
 function createSupabaseAdminClient() {
-  const SUPABASE_URL = process.env['SUPABASE_URL'];
-  const SUPABASE_SERVICE_ROLE_KEY =
-    process.env['SUPABASE_SERVICE_ROLE_KEY'] ||
-    process.env['SUPABASE_SECRET_KEY'] ||
-    process.env['SUPABASE_PUBLISHABLE_KEY'];
+  const SUPABASE_URL = process.env['SUPABASE_URL'] || process.env['VITE_SUPABASE_URL'];
+  const explicitSecret =
+    process.env['SUPABASE_SERVICE_ROLE_KEY'] || process.env['SUPABASE_SECRET_KEY'];
+  // Publishable key hanya dipakai sebagai fallback development. Query berjalan
+  // sebagai role `anon`, jadi RLS tetap berlaku dan operasi istimewa ditolak.
+  const publicFallback =
+    process.env['SUPABASE_PUBLISHABLE_KEY'] || process.env['VITE_SUPABASE_PUBLISHABLE_KEY'];
 
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-    const missing = [
-      ...(!SUPABASE_URL ? ['SUPABASE_URL'] : []),
-      ...(!SUPABASE_SERVICE_ROLE_KEY ? ['SUPABASE_PUBLISHABLE_KEY'] : []),
-    ];
-    const message = `Missing Supabase environment variable(s): ${missing.join(', ')}. Connect Supabase in Lovable Cloud.`;
+  if (!SUPABASE_URL) {
+    const message =
+      'Missing SUPABASE_URL. Isi SUPABASE_URL (atau VITE_SUPABASE_URL) di environment server, lalu jalankan `npm run check:env`.';
     console.error(`[Supabase] ${message}`);
     throw new Error(message);
   }
 
-  if (SUPABASE_SERVICE_ROLE_KEY === 'LOVABLE_CRON_SECRET') {
-    throw new Error('Invalid SUPABASE_SERVICE_ROLE_KEY: LOVABLE_CRON_SECRET is not a Supabase API key.');
+  if (!explicitSecret && !publicFallback) {
+    const message =
+      'Missing SUPABASE_SERVICE_ROLE_KEY. Server function istimewa tidak bisa berjalan tanpa secret key. ' +
+      'Isi SUPABASE_SERVICE_ROLE_KEY dengan sb_secret_... dari Supabase Project Settings > API, lalu jalankan `npm run check:env`.';
+    console.error(`[Supabase] ${message}`);
+    throw new Error(message);
+  }
+
+  if (explicitSecret === 'LOVABLE_CRON_SECRET') {
+    throw new Error(
+      'Invalid SUPABASE_SERVICE_ROLE_KEY: LOVABLE_CRON_SECRET is not a Supabase API key. Jalankan `npm run check:env`.',
+    );
+  }
+
+  if (explicitSecret && !isServiceRoleKey(explicitSecret)) {
+    const message =
+      `Invalid SUPABASE_SERVICE_ROLE_KEY (${maskKey(explicitSecret)}): ` +
+      'nilai ini bukan sb_secret_... dan bukan JWT dengan role "service_role". ' +
+      'Ambil secret key dari Supabase Project Settings > API, lalu jalankan `npm run check:env`.';
+    console.error(`[Supabase] ${message}`);
+    throw new Error(message);
   }
 
   // ==== FALLBACK LOKAL (DITAMBAHKAN MANUAL — HAPUS BLOK INI KAPAN SAJA) ====
@@ -55,22 +94,28 @@ function createSupabaseAdminClient() {
   // "Server belum dikonfigurasi. Tambahkan SUPABASE_SERVICE_ROLE_KEY di environment server."
   // Di luar production, publishable key dipakai sebagai fallback supaya development bisa jalan
   // (query berjalan sebagai role `anon`, jadi RLS tetap berlaku).
-  // Kalau .env sudah berisi secret key asli (sb_secret_... / service_role JWT), blok ini tidak
-  // terpakai sama sekali — tidak perlu dihapus agar aplikasi benar.
-  if (SUPABASE_SERVICE_ROLE_KEY.startsWith('sb_publishable_')) {
+  // Setelah migration hardening diterapkan, jalur ini TIDAK bisa menulis tabel
+  // sensitif — isi secret key asli untuk pengujian end-to-end.
+  if (!explicitSecret) {
     if (process.env['NODE_ENV'] === 'production') {
-      throw new Error('Invalid SUPABASE_SERVICE_ROLE_KEY: value is a publishable key, not the service-role secret. Use the secret key from Supabase Project Settings > API.');
+      const message =
+        'SUPABASE_SERVICE_ROLE_KEY wajib diisi di production. Fallback publishable key dinonaktifkan agar operasi istimewa tidak berjalan sebagai anon. Jalankan `npm run check:env`.';
+      console.error(`[Supabase] ${message}`);
+      throw new Error(message);
     }
     console.warn(
       '[Supabase] SUPABASE_SERVICE_ROLE_KEY kosong: memakai publishable key sebagai fallback ' +
-        '(role anon, RLS berlaku). Isi secret key sb_secret_... di .env untuk memakai jalur service_role.',
+        '(role anon, RLS berlaku). Operasi istimewa akan ditolak setelah migration hardening. ' +
+        'Isi secret key sb_secret_... di .env lalu jalankan `npm run check:env`.',
     );
   }
   // ==== AKHIR FALLBACK LOKAL ====
 
-  return createClient<Database>(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+  const supabaseKey = explicitSecret || publicFallback!;
+
+  return createClient<Database>(SUPABASE_URL, supabaseKey, {
     global: {
-      fetch: createSupabaseFetch(SUPABASE_SERVICE_ROLE_KEY),
+      fetch: createSupabaseFetch(supabaseKey),
     },
     auth: {
       storage: undefined,

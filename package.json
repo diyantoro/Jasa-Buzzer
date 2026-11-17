@@ -9,7 +9,10 @@
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "check:env": "node scripts/check-env.mjs",
+    "db:plan": "powershell -ExecutionPolicy Bypass -File scripts/apply-hardening-migrations.ps1 -DryRun",
+    "db:apply": "powershell -ExecutionPolicy Bypass -File scripts/apply-hardening-migrations.ps1"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

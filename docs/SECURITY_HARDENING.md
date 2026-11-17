@@ -14,10 +14,21 @@ Isi `.env` (atau environment runtime) dengan:
 Tanpa service role key yang valid, server function berjalan sebagai `anon` dan
 ditolak policy hasil hardening (fail closed).
 
+## Cek konfigurasi
+
+```bash
+npm run check:env
+```
+
+Script ini memeriksa `SUPABASE_URL`, publishable key, service role key,
+`SESSION_SECRET`, dan (opsional) kredensial database. Nilai rahasia hanya
+ditampilkan sebagai prefix + panjang. Exit code non-zero berarti masih ada
+variabel wajib yang belum valid.
+
 ## Urutan migration
 
-Terapkan berurutan di Supabase SQL editor (atau `supabase db push` setelah
-riwayat migration tersedia):
+Terapkan berurutan. Jangan mengedit migration yang sudah dijalankan; buat file
+baru untuk perubahan berikutnya.
 
 | Urutan | File | Isi |
 | ------ | ---- | --- |
@@ -30,6 +41,29 @@ riwayat migration tersedia):
 
 > Jangan mengedit migration yang sudah dijalankan. Buat file baru untuk
 > perubahan berikutnya.
+
+### Menerapkan otomatis
+
+```bash
+npm run db:plan    # dry run, tidak menyentuh database
+npm run db:apply   # menerapkan berurutan, berhenti pada error pertama
+```
+
+`db:apply` memilih jalur koneksi secara otomatis:
+
+1. **psql** — jika `psql` tersedia dan ada `DATABASE_URL`, `SUPABASE_DB_URL`,
+   atau `SUPABASE_DB_PASSWORD` (script menyusun connection string dari project
+   ref / pooler URL).
+2. **Supabase Management API** — jika `psql` tidak ada tetapi
+   `SUPABASE_ACCESS_TOKEN` (`sbp_...`) dan project ref tersedia.
+
+Tanpa salah satu kredensial di atas, script berhenti dengan instruksi. Jalur
+manual terakhir: tempel isi keenam file SQL ke Supabase SQL Editor sesuai
+urutan tabel di atas.
+
+`supabase db push` sengaja belum dipakai: project ini belum memiliki tabel
+`supabase_migrations.schema_migrations`, sehingga CLI akan menganggap seluruh
+migration lama belum diterapkan dan memutar ulang semuanya.
 
 ## Batas kepercayaan
 
@@ -92,8 +126,14 @@ selalu dicatat di log server.
 
 ## Yang belum selesai
 
-- Menerapkan migration di atas ke project Supabase (butuh akses project /
-  `SUPABASE_SERVICE_ROLE_KEY` valid dan riwayat migration).
-- Fase 3: migrasi ke Supabase Auth (`auth.users`, `profiles`, custom claims,
-  RLS berbasis `auth.uid()`), termasuk rate limit terpusat dan verifikasi email.
-- Uji Docker build/deploy (Docker belum tersedia di lingkungan pengembangan).
+- **`SUPABASE_SERVICE_ROLE_KEY` masih kosong** di `.env` lokal. Selama kosong,
+  server function berjalan sebagai `anon` dan operasi istimewa ditolak
+  (fail closed). Isi dengan `sb_secret_...`, lalu jalankan `npm run check:env`.
+- **Migration belum diterapkan** ke project Supabase. Alatnya sudah siap
+  (`npm run db:plan` / `npm run db:apply`), tetapi butuh salah satu kredensial:
+  `DATABASE_URL`, `SUPABASE_DB_PASSWORD`, atau `SUPABASE_ACCESS_TOKEN`.
+- **Docker build belum diuji langsung** karena Docker belum terpasang. Yang
+  sudah diverifikasi: build dengan `NITRO_PRESET=node-server` menghasilkan server
+  Node yang merespons HTTP 200, dan Dockerfile memakai preset tersebut.
+- **Fase 3** (Supabase Auth penuh) menunggu akses project Supabase: pengaturan
+  auth, migrasi user, custom access token hook, dan rate limit terpusat.
