@@ -43,6 +43,13 @@ export const adminApprovePaymentFn = createServerFn({ method: "POST" })
       p_admin_email: session.email,
     });
     if (error) fail(error);
+    const { writeAuditLog } = await import("./audit.server");
+    await writeAuditLog({
+      actor: session,
+      action: "payment.approve",
+      targetType: "payment",
+      targetId: data.paymentId,
+    });
     return { ok: true as const };
   });
 
@@ -58,15 +65,30 @@ export const adminRejectPaymentFn = createServerFn({ method: "POST" })
       p_admin_email: session.email,
     });
     if (error) fail(error);
+    const { writeAuditLog } = await import("./audit.server");
+    await writeAuditLog({
+      actor: session,
+      action: "payment.reject",
+      targetType: "payment",
+      targetId: data.paymentId,
+      details: { reason },
+    });
     return { ok: true as const };
   });
 
 export const adminDeletePaymentFn = createServerFn({ method: "POST" })
   .validator((data: unknown) => data as { paymentId: string })
   .handler(async ({ data }) => {
-    const { db } = await buildAdminContext();
+    const { db, session } = await buildAdminContext();
     const { error } = await db.from("payments").delete().eq("id", data.paymentId);
     if (error) fail(error);
+    const { writeAuditLog } = await import("./audit.server");
+    await writeAuditLog({
+      actor: session,
+      action: "payment.delete",
+      targetType: "payment",
+      targetId: data.paymentId,
+    });
     return { ok: true as const };
   });
 
@@ -82,7 +104,7 @@ export const adminUpdatePaymentFn = createServerFn({ method: "POST" })
       },
   )
   .handler(async ({ data }) => {
-    const { db } = await buildAdminContext();
+    const { db, session } = await buildAdminContext();
     const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (data.amount !== undefined) patch["amount"] = data.amount;
     if (data.method !== undefined) patch["method"] = data.method;
@@ -94,6 +116,14 @@ export const adminUpdatePaymentFn = createServerFn({ method: "POST" })
       .update(patch as never)
       .eq("id", data.paymentId);
     if (error) fail(error);
+    const { writeAuditLog } = await import("./audit.server");
+    await writeAuditLog({
+      actor: session,
+      action: "payment.update",
+      targetType: "payment",
+      targetId: data.paymentId,
+      details: patch,
+    });
     return { ok: true as const };
   });
 
@@ -104,25 +134,41 @@ export const adminUpdatePaymentFn = createServerFn({ method: "POST" })
 export const adminApproveWithdrawalFn = createServerFn({ method: "POST" })
   .validator((data: unknown) => data as { withdrawalId: string; note?: string; proofUrl?: string })
   .handler(async ({ data }) => {
-    const { db } = await buildAdminContext();
+    const { db, session } = await buildAdminContext();
     const { error } = await db.rpc("approve_withdrawal", {
       p_withdrawal_id: data.withdrawalId,
       p_admin_note: data.note ?? null,
       p_proof_url: data.proofUrl ?? null,
     });
     if (error) fail(error);
+    const { writeAuditLog } = await import("./audit.server");
+    await writeAuditLog({
+      actor: session,
+      action: "withdrawal.approve",
+      targetType: "withdrawal",
+      targetId: data.withdrawalId,
+      details: { note: data.note ?? null, proofUrl: data.proofUrl ?? null },
+    });
     return { ok: true as const };
   });
 
 export const adminRejectWithdrawalFn = createServerFn({ method: "POST" })
   .validator((data: unknown) => data as { withdrawalId: string; reason: string })
   .handler(async ({ data }) => {
-    const { db } = await buildAdminContext();
+    const { db, session } = await buildAdminContext();
     const { error } = await db.rpc("reject_withdrawal", {
       p_withdrawal_id: data.withdrawalId,
       p_reason: data.reason ?? "",
     });
     if (error) fail(error);
+    const { writeAuditLog } = await import("./audit.server");
+    await writeAuditLog({
+      actor: session,
+      action: "withdrawal.reject",
+      targetType: "withdrawal",
+      targetId: data.withdrawalId,
+      details: { reason: data.reason ?? "" },
+    });
     return { ok: true as const };
   });
 
@@ -139,7 +185,7 @@ export const adminEditWithdrawalFn = createServerFn({ method: "POST" })
       },
   )
   .handler(async ({ data }) => {
-    const { db } = await buildAdminContext();
+    const { db, session } = await buildAdminContext();
     const { error } = await db.rpc("edit_withdrawal", {
       p_withdrawal_id: data.withdrawalId,
       p_status: data.status ?? null,
@@ -149,17 +195,37 @@ export const adminEditWithdrawalFn = createServerFn({ method: "POST" })
       p_admin_note: data.adminNote ?? null,
     });
     if (error) fail(error);
+    const { writeAuditLog } = await import("./audit.server");
+    await writeAuditLog({
+      actor: session,
+      action: "withdrawal.update",
+      targetType: "withdrawal",
+      targetId: data.withdrawalId,
+      details: {
+        status: data.status ?? null,
+        amount: data.amount ?? null,
+        method: data.method ?? null,
+        adminNote: data.adminNote ?? null,
+      },
+    });
     return { ok: true as const };
   });
 
 export const adminDeleteWithdrawalFn = createServerFn({ method: "POST" })
   .validator((data: unknown) => data as { withdrawalId: string })
   .handler(async ({ data }) => {
-    const { db } = await buildAdminContext();
+    const { db, session } = await buildAdminContext();
     const { error } = await db.rpc("delete_withdrawal", {
       p_withdrawal_id: data.withdrawalId,
     });
     if (error) fail(error);
+    const { writeAuditLog } = await import("./audit.server");
+    await writeAuditLog({
+      actor: session,
+      action: "withdrawal.delete",
+      targetType: "withdrawal",
+      targetId: data.withdrawalId,
+    });
     return { ok: true as const };
   });
 
@@ -173,7 +239,7 @@ export const adminReviewJobFn = createServerFn({ method: "POST" })
       data as { jobId: string; status: "Review" | "Selesai"; note?: string },
   )
   .handler(async ({ data }) => {
-    const { db } = await buildAdminContext();
+    const { db, session } = await buildAdminContext();
     const now = new Date().toISOString();
 
     const { error } = await db
@@ -193,6 +259,15 @@ export const adminReviewJobFn = createServerFn({ method: "POST" })
       .eq("job_id", data.jobId)
       .eq("status", "Review");
     if (submissionError) fail(submissionError);
+
+    const { writeAuditLog } = await import("./audit.server");
+    await writeAuditLog({
+      actor: session,
+      action: data.status === "Selesai" ? "job.approve" : "job.review",
+      targetType: "campaign_job",
+      targetId: data.jobId,
+      details: { status: data.status, note: data.note ?? null },
+    });
 
     return { ok: true as const };
   });
@@ -264,17 +339,33 @@ export const adminRejectJobProofFn = createServerFn({ method: "POST" })
       .eq("id", data.jobId);
     if (error) fail(error);
 
+    const { writeAuditLog } = await import("./audit.server");
+    await writeAuditLog({
+      actor: session,
+      action: "job.reject_proof",
+      targetType: "campaign_job",
+      targetId: data.jobId,
+      details: { reason, rejectedBy },
+    });
+
     return { ok: true as const };
   });
 
 export const adminDeleteJobFn = createServerFn({ method: "POST" })
   .validator((data: unknown) => data as { jobId: string })
   .handler(async ({ data }) => {
-    const { db } = await buildAdminContext();
+    const { db, session } = await buildAdminContext();
     await db.from("campaign_job_submissions").delete().eq("job_id", data.jobId);
     await db.from("buzzer_ratings").delete().eq("job_id", data.jobId);
     const { error } = await db.from("campaign_jobs").delete().eq("id", data.jobId);
     if (error) fail(error);
+    const { writeAuditLog } = await import("./audit.server");
+    await writeAuditLog({
+      actor: session,
+      action: "job.delete",
+      targetType: "campaign_job",
+      targetId: data.jobId,
+    });
     return { ok: true as const };
   });
 
@@ -312,7 +403,7 @@ export const adminUpdateJobFn = createServerFn({ method: "POST" })
 export const adminRejectCampaignFn = createServerFn({ method: "POST" })
   .validator((data: unknown) => data as { campaignId: string; note?: string })
   .handler(async ({ data }) => {
-    const { db } = await buildAdminContext();
+    const { db, session } = await buildAdminContext();
     const { error } = await db
       .from("campaigns")
       .update({
@@ -322,13 +413,21 @@ export const adminRejectCampaignFn = createServerFn({ method: "POST" })
       } as never)
       .eq("id", data.campaignId);
     if (error) fail(error);
+    const { writeAuditLog } = await import("./audit.server");
+    await writeAuditLog({
+      actor: session,
+      action: "campaign.reject",
+      targetType: "campaign",
+      targetId: data.campaignId,
+      details: { note: data.note ?? null },
+    });
     return { ok: true as const };
   });
 
 export const adminCompleteCampaignFn = createServerFn({ method: "POST" })
   .validator((data: unknown) => data as { campaignId: string })
   .handler(async ({ data }) => {
-    const { db } = await buildAdminContext();
+    const { db, session } = await buildAdminContext();
     const { data: campaign, error } = await db
       .from("campaigns")
       .select("status, payment_status, target_reached_at")
@@ -351,6 +450,13 @@ export const adminCompleteCampaignFn = createServerFn({ method: "POST" })
       .eq("id", data.campaignId)
       .neq("status", "Dibatalkan");
     if (updateError) fail(updateError);
+    const { writeAuditLog } = await import("./audit.server");
+    await writeAuditLog({
+      actor: session,
+      action: "campaign.complete",
+      targetType: "campaign",
+      targetId: data.campaignId,
+    });
     return { ok: true as const };
   });
 
@@ -360,7 +466,7 @@ export const adminUpdateCampaignFn = createServerFn({ method: "POST" })
       data as { campaignId: string; title: string; brief: string; deadline: string },
   )
   .handler(async ({ data }) => {
-    const { db } = await buildAdminContext();
+    const { db, session } = await buildAdminContext();
     const title = data.title.trim();
     if (!title) throw new Error("Judul kampanye wajib diisi.");
 
@@ -397,13 +503,22 @@ export const adminUpdateCampaignFn = createServerFn({ method: "POST" })
         .eq("brief", oldBrief);
     }
 
+    const { writeAuditLog } = await import("./audit.server");
+    await writeAuditLog({
+      actor: session,
+      action: "campaign.update",
+      targetType: "campaign",
+      targetId: data.campaignId,
+      details: { title, deadline: data.deadline },
+    });
+
     return { ok: true as const };
   });
 
 export const adminDeleteCampaignFn = createServerFn({ method: "POST" })
   .validator((data: unknown) => data as { campaignId: string })
   .handler(async ({ data }) => {
-    const { db } = await buildAdminContext();
+    const { db, session } = await buildAdminContext();
 
     const { data: jobs } = await db
       .from("campaign_jobs")
@@ -422,6 +537,14 @@ export const adminDeleteCampaignFn = createServerFn({ method: "POST" })
 
     const { error } = await db.from("campaigns").delete().eq("id", data.campaignId);
     if (error) fail(error);
+    const { writeAuditLog } = await import("./audit.server");
+    await writeAuditLog({
+      actor: session,
+      action: "campaign.delete",
+      targetType: "campaign",
+      targetId: data.campaignId,
+      details: { deletedJobs: jobIds.length },
+    });
     return { ok: true as const };
   });
 
@@ -531,13 +654,21 @@ export const adminUpdateLevelFn = createServerFn({ method: "POST" })
       data as { name: string; payoutPercentage?: number; payoutPerJob?: number },
   )
   .handler(async ({ data }) => {
-    const { db } = await buildAdminContext();
+    const { db, session } = await buildAdminContext();
     const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (data.payoutPercentage !== undefined) patch["payout_percentage"] = data.payoutPercentage;
     if (data.payoutPerJob !== undefined) patch["payout_per_job"] = data.payoutPerJob;
 
     const { error } = await db.from("buzzer_levels").update(patch as never).eq("name", data.name);
     if (error) fail(error);
+    const { writeAuditLog } = await import("./audit.server");
+    await writeAuditLog({
+      actor: session,
+      action: "level.update",
+      targetType: "buzzer_level",
+      targetId: data.name,
+      details: patch,
+    });
     return { ok: true as const };
   });
 
@@ -551,7 +682,7 @@ export const adminAssignLevelFn = createServerFn({ method: "POST" })
       data as { email: string; name?: string; verifiedFollowers: number },
   )
   .handler(async ({ data }) => {
-    const { db } = await buildAdminContext();
+    const { db, session } = await buildAdminContext();
     const email = data.email.trim().toLowerCase();
     if (!email) throw new Error("Email buzzer wajib diisi.");
 
@@ -607,18 +738,35 @@ export const adminAssignLevelFn = createServerFn({ method: "POST" })
       if (error) fail(error);
     }
 
+    const { writeAuditLog } = await import("./audit.server");
+    await writeAuditLog({
+      actor: session,
+      action: "buzzer.level_assign",
+      targetType: "buzzer_wallet",
+      targetId: email,
+      details: { level: levelName, verifiedFollowers: followers },
+    });
+
     return { ok: true as const, level: levelName };
   });
 
 export const adminUpdateOfflinePayoutFn = createServerFn({ method: "POST" })
   .validator((data: unknown) => data as { campaignId: string; payoutPerBuzzer: number })
   .handler(async ({ data }) => {
-    const { db } = await buildAdminContext();
+    const { db, session } = await buildAdminContext();
     const { error } = await db.rpc("update_offline_campaign_payout", {
       p_campaign_id: data.campaignId,
       p_payout_per_buzzer: data.payoutPerBuzzer,
     });
     if (error) fail(error);
+    const { writeAuditLog } = await import("./audit.server");
+    await writeAuditLog({
+      actor: session,
+      action: "campaign.update_payout",
+      targetType: "campaign",
+      targetId: data.campaignId,
+      details: { payoutPerBuzzer: data.payoutPerBuzzer },
+    });
     return { ok: true as const };
   });
 
@@ -786,7 +934,7 @@ export const adminUpdateAccountFn = createServerFn({ method: "POST" })
       data as { email: string; role?: string | null; name?: string | null; phone?: string | null },
   )
   .handler(async ({ data }) => {
-    const { db } = await buildAdminContext();
+    const { db, session } = await buildAdminContext();
     const { error } = await db.rpc("admin_update_account", {
       p_email: data.email,
       p_role: data.role ?? null,
@@ -794,6 +942,14 @@ export const adminUpdateAccountFn = createServerFn({ method: "POST" })
       p_phone: data.phone ?? null,
     });
     if (error) fail(error);
+    const { writeAuditLog } = await import("./audit.server");
+    await writeAuditLog({
+      actor: session,
+      action: "account.update",
+      targetType: "app_account",
+      targetId: String(data.email ?? "").trim().toLowerCase(),
+      details: { role: data.role ?? null, name: data.name ?? null },
+    });
     return { ok: true as const };
   });
 
@@ -821,7 +977,7 @@ export const adminPatchAccountFn = createServerFn({ method: "POST" })
       data as { email: string; patch: Record<string, string | number | null> },
   )
   .handler(async ({ data }) => {
-    const { db } = await buildAdminContext();
+    const { db, session } = await buildAdminContext();
     const allowed = new Set([
       "name",
       "role",
@@ -849,18 +1005,34 @@ export const adminPatchAccountFn = createServerFn({ method: "POST" })
       .update(patch as never)
       .eq("email", data.email.trim().toLowerCase());
     if (error) fail(error);
+    const { writeAuditLog } = await import("./audit.server");
+    await writeAuditLog({
+      actor: session,
+      action: "account.patch",
+      targetType: "app_account",
+      targetId: data.email.trim().toLowerCase(),
+      details: patch,
+    });
     return { ok: true as const };
   });
 
 export const adminDeleteAccountFn = createServerFn({ method: "POST" })
   .validator((data: unknown) => data as { email: string; role: "customer" | "buzzer" })
   .handler(async ({ data }) => {
-    const { db } = await buildAdminContext();
+    const { db, session } = await buildAdminContext();
     const { error } = await db.rpc("delete_management_account", {
       p_email: data.email,
       p_role: data.role,
     });
     if (error) fail(error);
+    const { writeAuditLog } = await import("./audit.server");
+    await writeAuditLog({
+      actor: session,
+      action: "account.delete",
+      targetType: "app_account",
+      targetId: String(data.email ?? "").trim().toLowerCase(),
+      details: { role: data.role },
+    });
     return { ok: true as const };
   });
 
@@ -883,6 +1055,14 @@ export const adminUpdateBuzzerRatingFn = createServerFn({ method: "POST" })
       p_comment: data.comment?.trim() || null,
     });
     if (error) fail(error);
+    const { writeAuditLog } = await import("./audit.server");
+    await writeAuditLog({
+      actor: session,
+      action: "rating.update",
+      targetType: "buzzer_rating",
+      targetId: data.id,
+      details: { stars, comment: data.comment?.trim() || null },
+    });
     return { ok: true as const };
   });
 
@@ -895,6 +1075,13 @@ export const adminDeleteBuzzerRatingFn = createServerFn({ method: "POST" })
       p_admin_email: session.email,
     });
     if (error) fail(error);
+    const { writeAuditLog } = await import("./audit.server");
+    await writeAuditLog({
+      actor: session,
+      action: "rating.delete",
+      targetType: "buzzer_rating",
+      targetId: data.id,
+    });
     return { ok: true as const };
   });
 

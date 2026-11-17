@@ -118,7 +118,7 @@ export const adminReviewBuzzerApplicationFn = createServerFn({ method: "POST" })
   .validator((data: unknown) => data as { id: string; status: "approved" | "rejected"; note?: string })
   .handler(async ({ data }) => {
     const { requireAdmin } = await import("./session.server");
-    await requireAdmin();
+    const session = await requireAdmin();
 
     const id = String(data?.id ?? "").trim();
     const status = data?.status;
@@ -139,6 +139,15 @@ export const adminReviewBuzzerApplicationFn = createServerFn({ method: "POST" })
       } as never)
       .eq("id", id);
     if (error) fail(error);
+
+    const { writeAuditLog } = await import("./audit.server");
+    await writeAuditLog({
+      actor: session,
+      action: status === "approved" ? "application.approve" : "application.reject",
+      targetType: "buzzer_application",
+      targetId: id,
+      details: { note: data.note?.trim() || null },
+    });
 
     return { ok: true as const };
   });

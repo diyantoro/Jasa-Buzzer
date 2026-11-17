@@ -2,13 +2,92 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 const SALT = "buzzhub::v1::";
+const PBKDF2_ITERATIONS = 210_000;
+const encoder = new TextEncoder();
 
-async function hashPassword(email: string, password: string): Promise<string> {
-  const data = new TextEncoder().encode(`${SALT}${email.toLowerCase()}::${password}`);
-  const digest = await crypto.subtle.digest("SHA-256", data);
-  return Array.from(new Uint8Array(digest))
+function toHex(bytes: Uint8Array): string {
+  return Array.from(bytes)
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
+}
+
+function fromHex(value: string): Uint8Array<ArrayBuffer> {
+  const clean = value.length % 2 === 0 ? value : `0${value}`;
+  const bytes = new Uint8Array(clean.length / 2);
+  for (let index = 0; index < bytes.length; index += 1) {
+    bytes[index] = parseInt(clean.slice(index * 2, index * 2 + 2), 16);
+  }
+  return bytes;
+}
+
+/** Hash lama (SHA-256 + salt global). Hanya dipakai untuk verifikasi migrasi. */
+async function legacyHash(email: string, password: string): Promise<string> {
+  const data = encoder.encode(`${SALT}${email.toLowerCase()}::${password}`);
+  const digest = await crypto.subtle.digest("SHA-256", data);
+  return toHex(new Uint8Array(digest));
+}
+
+async function derivePbkdf2(password: string, salt: Uint8Array<ArrayBuffer>): Promise<Uint8Array> {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(password),
+    "PBKDF2",
+    false,
+    ["deriveBits"],
+  );
+  const bits = await crypto.subtle.deriveBits(
+    { name: "PBKDF2", salt, iterations: PBKDF2_ITERATIONS, hash: "SHA-256" },
+    key,
+    256,
+  );
+  return new Uint8Array(bits);
+}
+
+/**
+ * Hash password dengan PBKDF2-SHA256 + salt acak per akun.
+ * Format: `pbkdf2$<iterations>$<saltHex>$<hashHex>`
+ */
+async function hashPassword(_email: string, password: string): Promise<string> {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const hash = await derivePbkdf2(password, salt);
+  return `pbkdf2$${PBKDF2_ITERATIONS}$${toHex(salt)}$${toHex(hash)}`;
+}
+
+/** Verifikasi password baru (PBKDF2) atau hash lama (SHA-256). */
+async function verifyPassword(email: string, password: string, stored: string | null | undefined) {
+  const value = String(stored ?? "");
+  if (!value) return { ok: false as const, needsRehash: false };
+
+  if (value.startsWith("pbkdf2$")) {
+    const [, iterationsRaw, saltHex, hashHex] = value.split("$");
+    const iterations = Number(iterationsRaw);
+    if (!iterations || !saltHex || !hashHex) return { ok: false as const, needsRehash: false };
+
+    const salt = fromHex(saltHex);
+    const key = await crypto.subtle.importKey(
+      "raw",
+      encoder.encode(password),
+      "PBKDF2",
+      false,
+      ["deriveBits"],
+    );
+    const bits = new Uint8Array(
+      await crypto.subtle.deriveBits(
+        { name: "PBKDF2", salt, iterations, hash: "SHA-256" },
+        key,
+        256,
+      ),
+    );
+    const expected = fromHex(hashHex);
+    if (bits.length !== expected.length) return { ok: false as const, needsRehash: false };
+    let diff = 0;
+    for (let index = 0; index < bits.length; index += 1) diff |= bits[index] ^ expected[index];
+    return { ok: diff === 0, needsRehash: false };
+  }
+
+  // Hash legacy: cocok -> perlu di-rehash ke PBKDF2 saat login berhasil.
+  const legacy = await legacyHash(email, password);
+  return { ok: value === legacy, needsRehash: value === legacy };
 }
 
 const registerSchema = z.object({
@@ -244,8 +323,22 @@ export const loginAccountFn = createServerFn({ method: "POST" })
 
     if (!row) return { ok: false as const, message: "Akun tidak ditemukan." };
 
-    if (row.password_hash !== (await hashPassword(email, data.password))) {
+    const passwordCheck = await verifyPassword(email, data.password, row.password_hash);
+    if (!passwordCheck.ok) {
       return { ok: false as const, message: "Kata sandi salah." };
+    }
+
+    // Migrasi transparan: hash lama (SHA-256) diganti PBKDF2 setelah login sukses.
+    if (passwordCheck.needsRehash) {
+      try {
+        const { error: rehashError } = await supabaseAdmin
+          .from("app_accounts")
+          .update({ password_hash: await hashPassword(email, data.password) })
+          .eq("email", email);
+        if (rehashError) console.warn("[Login] Gagal upgrade hash password:", rehashError);
+      } catch (rehashError) {
+        console.warn("[Login] Gagal upgrade hash password:", rehashError);
+      }
     }
 
     // Sesi server-side bertanda tangan. Dipakai server function admin
@@ -298,10 +391,12 @@ export const updateAccountFn = createServerFn({ method: "POST" })
       return { ok: false as const, message: "Akun admin tidak ditemukan." };
 
     if (data.newPassword) {
-      if (
-        !data.currentPassword ||
-        account.password_hash !== (await hashPassword(email, data.currentPassword))
-      ) {
+      const passwordCheck = await verifyPassword(
+        email,
+        data.currentPassword ?? "",
+        account.password_hash,
+      );
+      if (!data.currentPassword || !passwordCheck.ok) {
         return { ok: false as const, message: "Password lama tidak sesuai." };
       }
     }
@@ -334,7 +429,8 @@ export const changePasswordFn = createServerFn({ method: "POST" })
 
     if (accountError) throw accountError;
     if (!account) return { ok: false as const, message: "Akun tidak ditemukan." };
-    if (account.password_hash !== (await hashPassword(email, data.currentPassword))) {
+    const passwordCheck = await verifyPassword(email, data.currentPassword, account.password_hash);
+    if (!passwordCheck.ok) {
       return { ok: false as const, message: "Password lama tidak sesuai." };
     }
 
