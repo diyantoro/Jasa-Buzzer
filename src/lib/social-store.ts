@@ -197,14 +197,16 @@ export async function submitFollowerUpdateDirect(
   followers: number,
   proofUrl: string,
 ) {
-  const { error } = await (supabase as any).from("social_accounts").update({
-    pending_followers: followers,
-    pending_proof_url: proofUrl.trim(),
-    pending_submitted_at: new Date().toISOString(),
-    pending_verification: "Menunggu",
-    pending_rejection_note: null,
-  }).eq("id", id).eq("buzzer_email", buzzerEmail.trim().toLowerCase());
-  if (error) return { ok: false as const, message: error.message };
+  // Fase 2: social_accounts tidak bisa ditulis client; sesi diverifikasi server.
+  try {
+    const { submitFollowerUpdateFn } = await import("./social.functions");
+    await submitFollowerUpdateFn({ data: { id, followers, proofUrl } });
+  } catch (error) {
+    return {
+      ok: false as const,
+      message: error instanceof Error ? error.message : String(error),
+    };
+  }
   await refreshSocialAccounts();
   return { ok: true as const };
 }
@@ -225,23 +227,27 @@ export function useSocialAccounts(email: string | undefined, name: string | unde
       a: Omit<SocialAccount, "id" | "createdAt" | "updatedAt" | "verification"> & { verification?: VerificationStatus },
     ) => {
       if (!em || !isSupabaseConfigured()) return false;
-      const { error } = await supabase.from("social_accounts").insert({
-        buzzer_email: em,
-        buzzer_name: nm,
-        platform: a.platform,
-        username: a.username.trim(),
-        account_name: a.accountName,
-        profile_url: a.profileUrl,
-        followers: a.followers,
-        following_count: a.following,
-        posts: a.posts,
-        category: a.category,
-        bio: a.bio,
-        photo_url: a.photoUrl ?? null,
-        verification: "Menunggu",
-        is_active: false,
-      });
-      if (error) return false;
+      // Fase 2: penambahan akun lewat server (status dipaksa "Menunggu").
+      try {
+        const { addSocialAccountFn } = await import("./social.functions");
+        await addSocialAccountFn({
+          data: {
+            platform: a.platform,
+            username: a.username,
+            accountName: a.accountName,
+            profileUrl: a.profileUrl,
+            followers: a.followers,
+            following: a.following,
+            posts: a.posts,
+            category: a.category,
+            bio: a.bio,
+            photoUrl: a.photoUrl ?? null,
+          },
+        });
+      } catch (error) {
+        console.error("[Social] Gagal menambah akun:", error);
+        return false;
+      }
       await refreshSocialAccounts();
       return true;
     },
@@ -336,7 +342,13 @@ export async function syncBuzzerFollowersToProfile(buzzerEmail: string) {
 }
 
 export async function adminUpdateAccount(email: string, id: string, patch: Partial<SocialAccount>) {
-  await supabase.from("social_accounts").update(toRowPatch(patch)).eq("id", id);
+  // Fase 2: mutasi social account lewat server function admin.
+  try {
+    const { adminUpdateSocialAccountFn } = await import("./social.functions");
+    await adminUpdateSocialAccountFn({ data: { id, patch: toRowPatch(patch) } });
+  } catch (error) {
+    console.warn("[Social] Gagal memperbarui akun:", error);
+  }
   await refreshSocialAccounts();
   await syncBuzzerFollowersToProfile(email);
 }
@@ -350,23 +362,19 @@ export async function adminApproveSocialAccount(id: string) {
     }
   }
   if (!account) return false;
-  const update: Record<string, any> = {
-    verification: "Terverifikasi",
-    is_active: true,
-    pending_verification: null,
-    pending_rejection_note: null,
-    rejection_note: null,
-    updated_at: new Date().toISOString(),
-  };
-  if (account.pendingFollowers != null) {
-    update.followers = account.pendingFollowers;
-    update.pending_followers = null;
-    update.pending_proof_url = null;
-    update.pending_submitted_at = null;
+
+  // Fase 2: approval social account lewat server function admin.
+  let ok = false;
+  try {
+    const { adminApproveSocialAccountFn } = await import("./social.functions");
+    await adminApproveSocialAccountFn({ data: { id } });
+    ok = true;
+  } catch (error) {
+    console.warn("[Social] Gagal menyetujui akun:", error);
   }
-  const { error } = await (supabase as any).from("social_accounts").update(update).eq("id", id);
+
   await refreshSocialAccounts();
-  if (!error) {
+  if (ok) {
     await syncBuzzerFollowersToProfile(account.buzzerEmail);
     void notifySocialAccountVerified({
       buzzerEmail: account.buzzerEmail,
@@ -379,26 +387,26 @@ export async function adminApproveSocialAccount(id: string) {
       window.dispatchEvent(new Event("storage"));
     }
   }
-  return !error;
+  return ok;
 }
 
 export async function adminRejectSocialAccount(id: string, reason: string) {
   const account = CACHE.find((item) => item.id === id);
   if (!account) return false;
   const cleanReason = reason.trim() || "Pembaruan akun ditolak admin";
-  const update: Record<string, any> = {
-    pending_verification: "Ditolak",
-    pending_rejection_note: cleanReason,
-    updated_at: new Date().toISOString(),
-  };
-  if (account.verification === "Menunggu") {
-    update.verification = "Ditolak";
-    update.is_active = false;
-    update.rejection_note = cleanReason;
+
+  // Fase 2: penolakan lewat server function admin.
+  let ok = false;
+  try {
+    const { adminRejectSocialAccountFn } = await import("./social.functions");
+    await adminRejectSocialAccountFn({ data: { id, reason: cleanReason } });
+    ok = true;
+  } catch (error) {
+    console.warn("[Social] Gagal menolak akun:", error);
   }
-  const { error } = await (supabase as any).from("social_accounts").update(update).eq("id", id);
+
   await refreshSocialAccounts();
-  if (!error) {
+  if (ok) {
     void notifySocialAccountVerified({
       buzzerEmail: account.buzzerEmail,
       platform: account.platform,
@@ -407,12 +415,18 @@ export async function adminRejectSocialAccount(id: string, reason: string) {
       reason: cleanReason,
     });
   }
-  return !error;
+  return ok;
 }
 
 export async function adminRemoveAccount(_email: string, id: string) {
   const account = CACHE.find((item) => item.id === id);
-  await supabase.from("social_accounts").delete().eq("id", id);
+  // Fase 2: penghapusan lewat server function admin.
+  try {
+    const { adminDeleteSocialAccountFn } = await import("./social.functions");
+    await adminDeleteSocialAccountFn({ data: { id } });
+  } catch (error) {
+    console.warn("[Social] Gagal menghapus akun:", error);
+  }
   await refreshSocialAccounts();
   if (account?.buzzerEmail) {
     await syncBuzzerFollowersToProfile(account.buzzerEmail);
@@ -422,7 +436,13 @@ export async function adminRemoveAccount(_email: string, id: string) {
 export async function adminToggleActive(_email: string, id: string) {
   const cur = CACHE.find((a) => a.id === id);
   if (!cur) return;
-  await supabase.from("social_accounts").update({ is_active: !cur.isActive }).eq("id", id);
+  // Fase 2: toggle aktif lewat server function admin.
+  try {
+    const { adminToggleSocialAccountFn } = await import("./social.functions");
+    await adminToggleSocialAccountFn({ data: { id, isActive: !cur.isActive } });
+  } catch (error) {
+    console.warn("[Social] Gagal mengubah status aktif:", error);
+  }
   await refreshSocialAccounts();
   await syncBuzzerFollowersToProfile(cur.buzzerEmail);
 }
@@ -430,19 +450,12 @@ export async function adminToggleActive(_email: string, id: string) {
 export async function buzzerDeactivateAccount(email: string, id: string, reason?: string) {
   if (!isSupabaseConfigured() || !supabase) return false;
   const em = email.trim().toLowerCase();
-  const updateData: Record<string, any> = {
-    updated_at: new Date().toISOString(),
-  };
-  if (reason && reason.trim()) {
-    updateData.rejection_note = `[Permintaan Nonaktif/Hapus]: ${reason.trim()}`;
-  }
-  const { error } = await (supabase as any)
-    .from("social_accounts")
-    .update(updateData)
-    .eq("id", id)
-    .eq("buzzer_email", em);
 
-  if (error) {
+  // Fase 2: permintaan nonaktif lewat server function (sesi diverifikasi).
+  try {
+    const { requestSocialDeactivateFn } = await import("./social.functions");
+    await requestSocialDeactivateFn({ data: { id, reason } });
+  } catch (error) {
     console.error("Gagal menonaktifkan akun:", error);
     return false;
   }
@@ -455,29 +468,36 @@ export async function buzzerDeactivateAccount(email: string, id: string, reason?
 export async function adminApproveDeactivationRequest(id: string) {
   const account = CACHE.find((item) => item.id === id);
   if (!account) return false;
-  const update = {
-    is_active: false,
-    rejection_note: `[Nonaktif]: ${account.rejectionNote?.replace("[Permintaan Nonaktif/Hapus]: ", "") || ""}`,
-    updated_at: new Date().toISOString(),
-  };
-  const { error } = await supabase.from("social_accounts").update(update).eq("id", id);
+  // Fase 2: approval nonaktif lewat server function admin.
+  let ok = false;
+  try {
+    const { adminApproveDeactivationFn } = await import("./social.functions");
+    await adminApproveDeactivationFn({ data: { id } });
+    ok = true;
+  } catch (error) {
+    console.warn("[Social] Gagal menyetujui nonaktif:", error);
+  }
   await refreshSocialAccounts();
-  if (!error && account.buzzerEmail) {
+  if (ok && account.buzzerEmail) {
     await syncBuzzerFollowersToProfile(account.buzzerEmail);
   }
-  return !error;
+  return ok;
 }
 
 export async function adminRejectDeactivationRequest(id: string, reason: string) {
   const account = CACHE.find((item) => item.id === id);
   if (!account) return false;
-  const update = {
-    rejection_note: `[Penolakan Nonaktif/Hapus]: ${reason.trim()}`,
-    updated_at: new Date().toISOString(),
-  };
-  const { error } = await supabase.from("social_accounts").update(update).eq("id", id);
+  // Fase 2: penolakan nonaktif lewat server function admin.
+  let ok = false;
+  try {
+    const { adminRejectDeactivationFn } = await import("./social.functions");
+    await adminRejectDeactivationFn({ data: { id, reason } });
+    ok = true;
+  } catch (error) {
+    console.warn("[Social] Gagal menolak nonaktif:", error);
+  }
   await refreshSocialAccounts();
-  return !error;
+  return ok;
 }
 
 export async function buzzerUpdateAccount(
@@ -500,43 +520,32 @@ export async function buzzerUpdateAccount(
   if (!isSupabaseConfigured() || !supabase) return { ok: false, message: "Supabase tidak terhubung" };
   const em = email.trim().toLowerCase();
 
-  const existingAccount = CACHE.find((item) => item.id === id);
-  const updatePayload: Record<string, any> = {
-    platform: data.platform,
-    username: data.username.trim(),
-    account_name: data.accountName.trim(),
-    profile_url: data.profileUrl.trim(),
-    following_count: data.following,
-    posts: data.posts,
-    category: data.category,
-    bio: data.bio,
-    photo_url: data.photoUrl ?? null,
-    pending_verification: "Menunggu",
-    pending_submitted_at: new Date().toISOString(),
-    pending_rejection_note: null,
-    updated_at: new Date().toISOString(),
-  };
-
-  // Jika akun sebelumnya berstatus ditolak, kembalikan status verifikasi utama ke Menunggu
-  if (existingAccount && existingAccount.verification === "Ditolak") {
-    updatePayload.verification = "Menunggu";
-    updatePayload.rejection_note = null;
-  }
-
-  if (data.pendingFollowers !== undefined && data.pendingProofUrl) {
-    updatePayload.pending_followers = data.pendingFollowers;
-    updatePayload.pending_proof_url = data.pendingProofUrl;
-  }
-
-  const { error } = await (supabase as any)
-    .from("social_accounts")
-    .update(updatePayload)
-    .eq("id", id)
-    .eq("buzzer_email", em);
-
-  if (error) {
+  // Fase 2: pembaruan akun buzzer lewat server function. Server memverifikasi
+  // kepemilikan baris dan memaksa status verifikasi kembali ke "Menunggu".
+  try {
+    const { updateSocialAccountFn } = await import("./social.functions");
+    await updateSocialAccountFn({
+      data: {
+        id,
+        platform: data.platform,
+        username: data.username,
+        accountName: data.accountName,
+        profileUrl: data.profileUrl,
+        following: data.following,
+        posts: data.posts,
+        category: data.category,
+        bio: data.bio,
+        photoUrl: data.photoUrl ?? null,
+        pendingFollowers: data.pendingFollowers,
+        pendingProofUrl: data.pendingProofUrl,
+      },
+    });
+  } catch (error) {
     console.error("Gagal memperbarui akun buzzer:", error);
-    return { ok: false, message: error.message };
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : String(error),
+    };
   }
 
   await refreshSocialAccounts();
@@ -552,20 +561,26 @@ export async function submitSocialAccounts(
   accounts: Array<{ platform: SocialPlatform; username: string; profileUrl?: string; followers: number; category?: string }>,
 ) {
   const email = buzzerEmail.trim().toLowerCase();
-  const rows = accounts.map((a) => ({
-    buzzer_email: email,
-    buzzer_name: buzzerName,
-    platform: a.platform,
-    username: a.username.trim(),
-    account_name: buzzerName,
-    profile_url: a.profileUrl ?? "",
-    followers: a.followers,
-    category: a.category ?? "",
-    verification: "Menunggu",
-    is_active: false,
-  }));
-  const { error } = await supabase
-    .from("social_accounts")
-    .upsert(rows, { onConflict: "buzzer_email,platform,username" });
-  return !error;
+  // Fase 2: pendaftaran (belum login) lewat server function yang memaksa
+  // status "Menunggu" + is_active false.
+  try {
+    const { submitSocialAccountsFn } = await import("./social.functions");
+    await submitSocialAccountsFn({
+      data: {
+        buzzerEmail: email,
+        buzzerName,
+        accounts: accounts.map((a) => ({
+          platform: a.platform,
+          username: a.username,
+          profileUrl: a.profileUrl,
+          followers: a.followers,
+          category: a.category,
+        })),
+      },
+    });
+    return true;
+  } catch (error) {
+    console.error("[Social] Gagal menyimpan akun media sosial:", error);
+    return false;
+  }
 }

@@ -52,25 +52,6 @@ const changePasswordSchema = z.object({
   newPassword: z.string().min(8),
 });
 
-const updateAdminRatingSchema = z.object({
-  id: z.string().uuid(),
-  adminEmail: z.string().email(),
-  stars: z.number().int().min(1).max(5),
-  comment: z.string().optional(),
-});
-
-const deleteAdminRatingSchema = z.object({
-  id: z.string().uuid(),
-  adminEmail: z.string().email(),
-});
-
-const submitFollowerUpdateSchema = z.object({
-  id: z.string().uuid(),
-  buzzerEmail: z.string().email(),
-  followers: z.number().int().positive(),
-  proofUrl: z.string().url(),
-});
-
 export const registerAccountFn = createServerFn({ method: "POST" })
   .validator((data: unknown) => data as z.input<typeof registerSchema>)
   .handler(async ({ data: raw }) => {
@@ -366,90 +347,33 @@ export const changePasswordFn = createServerFn({ method: "POST" })
     return { ok: true as const };
   });
 
-export const updateAdminRatingFn = createServerFn({ method: "POST" })
-  .validator((data: unknown) => data as z.input<typeof updateAdminRatingSchema>)
-  .handler(async ({ data: raw }) => {
-    const parsed = updateAdminRatingSchema.safeParse(raw);
-    if (!parsed.success) return { ok: false as const, message: "Data ulasan tidak valid." };
+/**
+ * Sinkronisasi ringkasan akun customer setelah checkout.
+ *
+ * Fase 2: `customer_accounts` tidak bisa ditulis dari browser. Email selalu
+ * diambil dari sesi bertanda tangan, jadi client tidak bisa membuat atau
+ * mengubah ringkasan akun customer lain.
+ */
+export const syncCustomerAccountFn = createServerFn({ method: "POST" })
+  .validator((data: unknown) => data as { name?: string })
+  .handler(async ({ data }) => {
+    const { getServerSession } = await import("./session.server");
+    const session = (await getServerSession()) as
+      | { email: string; role: "admin" | "buzzer" | "customer" }
+      | null;
+    if (!session) return { ok: false as const, message: "Sesi tidak ditemukan." };
 
-    const data = parsed.data;
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const adminEmail = data.adminEmail.trim().toLowerCase();
-    const { data: account, error: accountError } = await supabaseAdmin
-      .from("app_accounts")
-      .select("email, role")
-      .eq("email", adminEmail)
-      .maybeSingle();
+    const name = String(data?.name ?? "").trim();
 
-    if (accountError) throw accountError;
-    if (!account || account.role !== "admin")
-      return { ok: false as const, message: "Akun admin tidak ditemukan." };
+    const patch: Record<string, unknown> = { active: true };
+    if (name) patch["name"] = name;
 
     const { error } = await supabaseAdmin
-      .from("buzzer_ratings")
-      .update({ stars: data.stars, comment: data.comment?.trim() || null })
-      .eq("id", data.id);
-
+      .from("customer_accounts")
+      .upsert({ email: session.email, ...patch } as never, { onConflict: "email" });
     if (error) throw error;
-    return { ok: true as const };
-  });
 
-export const deleteAdminRatingFn = createServerFn({ method: "POST" })
-  .validator((data: unknown) => data as z.input<typeof deleteAdminRatingSchema>)
-  .handler(async ({ data: raw }) => {
-    const parsed = deleteAdminRatingSchema.safeParse(raw);
-    if (!parsed.success) return { ok: false as const, message: "Data ulasan tidak valid." };
-
-    const data = parsed.data;
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const adminEmail = data.adminEmail.trim().toLowerCase();
-    const { data: account, error: accountError } = await supabaseAdmin
-      .from("app_accounts")
-      .select("email, role")
-      .eq("email", adminEmail)
-      .maybeSingle();
-
-    if (accountError) throw accountError;
-    if (!account || account.role !== "admin")
-      return { ok: false as const, message: "Akun admin tidak ditemukan." };
-
-    const { error } = await supabaseAdmin.from("buzzer_ratings").delete().eq("id", data.id);
-
-    if (error) throw error;
-    return { ok: true as const };
-  });
-
-export const submitFollowerUpdateFn = createServerFn({ method: "POST" })
-  .validator((data: unknown) => data as z.input<typeof submitFollowerUpdateSchema>)
-  .handler(async ({ data: raw }) => {
-    const parsed = submitFollowerUpdateSchema.safeParse(raw);
-    if (!parsed.success)
-      return { ok: false as const, message: "Data followers atau bukti tidak valid." };
-
-    const data = parsed.data;
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const email = data.buzzerEmail.trim().toLowerCase();
-    const { data: account, error: accountError } = await supabaseAdmin
-      .from("app_accounts")
-      .select("email, role")
-      .eq("email", email)
-      .maybeSingle();
-    if (accountError) throw accountError;
-    if (!account || account.role !== "buzzer")
-      return { ok: false as const, message: "Akun buzzer tidak ditemukan." };
-
-    const { error } = await (supabaseAdmin as any)
-      .from("social_accounts")
-      .update({
-        pending_followers: data.followers,
-        pending_proof_url: data.proofUrl,
-        pending_submitted_at: new Date().toISOString(),
-        pending_verification: "Menunggu",
-        pending_rejection_note: null,
-      })
-      .eq("id", data.id)
-      .eq("buzzer_email", email);
-    if (error) throw error;
     return { ok: true as const };
   });
 

@@ -172,12 +172,22 @@ export async function rateBuzzer(input: {
   comment?: string;
 }) {
   const stars = Math.min(5, Math.max(1, Math.round(input.stars)));
-  const { error } = await (supabase as any)
-    .from("buzzer_ratings")
-    .insert({ ...input, stars, comment: input.comment?.trim() || null });
-  if (error) {
-    if (error.code === "23505") throw new Error("Pesanan ini sudah diulas.");
-    throw error;
+  // Fase 2: ulasan ditulis server; identitas customer diambil dari sesi.
+  const { rateBuzzerFn } = await import("./rating.functions");
+  try {
+    await rateBuzzerFn({
+      data: {
+        jobId: input.job_id,
+        campaignId: input.campaign_id,
+        campaignTitle: input.campaign_title,
+        buzzerEmail: input.buzzer_email,
+        buzzerName: input.buzzer_name,
+        stars,
+        comment: input.comment?.trim() || null,
+      },
+    });
+  } catch (error) {
+    throw error instanceof Error ? error : new Error(String(error));
   }
 
   // Update rating & total_reviews buzzer terkait dengan metode weighted average
@@ -199,15 +209,18 @@ export async function rateCampaignForAllBuzzers(input: {
   comment?: string;
 }) {
   const stars = Math.min(5, Math.max(1, Math.round(input.stars)));
-  const { error } = await (supabase as any).rpc("rate_campaign_for_all_buzzers", {
-    p_customer_id: input.customer_id,
-    p_campaign_id: input.campaign_id,
-    p_stars: stars,
-    p_comment: input.comment?.trim() || null,
-  });
-  if (error) {
-    if (error.code === "23505") throw new Error("Campaign ini sudah diulas.");
-    throw error;
+  // Fase 2: RPC dijalankan server dengan identitas customer dari sesi.
+  const { rateCampaignForAllBuzzersFn } = await import("./rating.functions");
+  try {
+    await rateCampaignForAllBuzzersFn({
+      data: {
+        campaignId: input.campaign_id,
+        stars,
+        comment: input.comment?.trim() || null,
+      },
+    });
+  } catch (error) {
+    throw error instanceof Error ? error : new Error(String(error));
   }
 
   // Dapatkan buzzer pada campaign ini dan update rating mereka dengan weighted average
@@ -285,97 +298,12 @@ export async function updateCustomerBuzzerRating(input: {
   comment?: string;
 }) {
   const stars = Math.min(5, Math.max(1, Math.round(input.stars)));
-  const normalizedEmail = input.customer_email.trim().toLowerCase();
-
-  const { error: rpcError } = await (supabase as any).rpc("update_customer_buzzer_rating", {
-    p_rating_id: input.id,
-    p_customer_email: normalizedEmail,
-    p_stars: stars,
-    p_comment: input.comment?.trim() || null,
+  // Fase 2: edit ulasan dijalankan server. Identitas customer diambil dari
+  // sesi bertanda tangan, bukan dari parameter client.
+  const { updateCustomerRatingFn } = await import("./rating.functions");
+  await updateCustomerRatingFn({
+    data: { id: input.id, stars, comment: input.comment?.trim() || null },
   });
-
-  if (rpcError) {
-    const msg = rpcError.message || "";
-    if (msg.includes("Kesempatan edit") || msg.includes("Batas waktu") || msg.includes("bukan milik")) {
-      throw new Error(msg);
-    }
-
-    // Direct fallback jika RPC belum tersedia di schema cache
-    const { data: ratingRowRaw, error: fetchErr } = await (supabase as any)
-      .from("buzzer_ratings")
-      .select("*")
-      .eq("id", input.id)
-      .maybeSingle();
-
-    const ratingRow: any = ratingRowRaw;
-
-    if (fetchErr || !ratingRow) {
-      throw new Error("Ulasan tidak ditemukan.");
-    }
-
-    const ratingOwner = (ratingRow.customer_id || ratingRow.customer_email || "").trim().toLowerCase();
-    if (ratingOwner !== normalizedEmail) {
-      throw new Error("Ulasan bukan milik customer ini.");
-    }
-
-    if ((ratingRow.customer_edit_count ?? 0) >= 1) {
-      throw new Error("Kesempatan edit ulasan sudah digunakan (maksimal 1x).");
-    }
-
-    // Dapatkan waktu pesanan selesai
-    let completedTime = ratingRow.order_completed_at ? new Date(ratingRow.order_completed_at).getTime() : 0;
-    if (!completedTime && ratingRow.campaign_id) {
-      const { data: camp } = await (supabase as any)
-        .from("campaigns")
-        .select("target_reached_at, updated_at")
-        .eq("id", ratingRow.campaign_id)
-        .maybeSingle();
-      if (camp?.target_reached_at) {
-        completedTime = new Date(camp.target_reached_at).getTime();
-      } else if (camp?.updated_at) {
-        completedTime = new Date(camp.updated_at).getTime();
-      }
-    }
-    if (!completedTime) {
-      completedTime = new Date(ratingRow.created_at).getTime();
-    }
-
-    // Batas waktu: 1x24 jam dari sesudah selesainya pesanan
-    if (Date.now() > completedTime + 24 * 60 * 60 * 1000) {
-      throw new Error("Batas waktu edit ulasan sudah berakhir (melebihi 1x24 jam sejak pesanan selesai).");
-    }
-
-    const newEditCount = (ratingRow.customer_edit_count ?? 0) + 1;
-    const updatePayload: Record<string, any> = {
-      stars,
-      comment: input.comment?.trim() || null,
-      customer_edit_count: newEditCount,
-      updated_at: new Date().toISOString(),
-    };
-    if (!ratingRow.order_completed_at && completedTime) {
-      updatePayload.order_completed_at = new Date(completedTime).toISOString();
-    }
-
-    let updateErr: any = null;
-    if (ratingRow.campaign_id) {
-      const res = await (supabase as any)
-        .from("buzzer_ratings")
-        .update(updatePayload)
-        .eq("campaign_id", ratingRow.campaign_id)
-        .eq("customer_id", normalizedEmail);
-      updateErr = res.error;
-    } else {
-      const res = await (supabase as any)
-        .from("buzzer_ratings")
-        .update(updatePayload)
-        .eq("id", input.id);
-      updateErr = res.error;
-    }
-
-    if (updateErr) {
-      throw new Error(updateErr.message || "Gagal memperbarui ulasan.");
-    }
-  }
 
   try {
     const { data: ratingRow } = await (supabase as any)

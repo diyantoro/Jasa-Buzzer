@@ -332,11 +332,9 @@ export async function approveApplication(id: string, note?: string) {
     // setelah registrasi (oleh buzzer yang sudah aktif) tetap butuh persetujuan admin terpisah.
     const email = item.email.trim().toLowerCase();
     try {
-      await supabase
-        .from("social_accounts")
-        .update({ verification: "Terverifikasi", is_active: true })
-        .eq("buzzer_email", email)
-        .eq("verification", "Menunggu");
+      // Fase 2: verifikasi massal social account lewat server function admin.
+      const { adminBulkVerifySocialAccountsFn } = await import("./social.functions");
+      await adminBulkVerifySocialAccountsFn({ data: { buzzerEmail: email } });
       await syncBuzzerFollowersToProfile(email);
     } catch {
       // Jangan gagalkan approval akun buzzer hanya karena social media sync gagal

@@ -4095,39 +4095,22 @@ function BuzzerSection() {
     ]);
 
     if (editDraft.platform) {
-      const { data: existingSoc } = await supabase
-        .from("social_accounts")
-        .select("id")
-        .eq("buzzer_email", emailLc)
-        .ilike("platform", editDraft.platform)
-        .maybeSingle();
-
-      if (existingSoc) {
-        await supabase
-          .from("social_accounts")
-          .update({
-            verification: "Terverifikasi",
-            is_active: true,
-            followers: editDraft.followers,
+      // Fase 2: social_accounts hanya bisa ditulis server (admin).
+      try {
+        const { adminUpsertSocialAccountFn } = await import("@/lib/social.functions");
+        await adminUpsertSocialAccountFn({
+          data: {
+            buzzerEmail: emailLc,
+            buzzerName: editDraft.name,
+            platform: editDraft.platform,
             username: editDraft.username,
-          })
-          .eq("id", existingSoc.id);
-      } else {
-        await supabase.from("social_accounts").insert({
-          buzzer_email: emailLc,
-          buzzer_name: editDraft.name,
-          platform: editDraft.platform,
-          username: editDraft.username,
-          account_name: editDraft.name,
-          profile_url: "",
-          followers: editDraft.followers,
-          following_count: 0,
-          posts: 0,
-          category: "Umum",
-          bio: "",
-          verification: "Terverifikasi",
-          is_active: true,
+            followers: editDraft.followers,
+            verification: "Terverifikasi",
+            isActive: true,
+          },
         });
+      } catch (error) {
+        console.warn("[Admin] Gagal menyinkronkan akun media sosial:", error);
       }
     }
 

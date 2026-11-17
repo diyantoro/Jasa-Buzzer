@@ -1618,12 +1618,14 @@ export function useCustomerStore(
         payments: [payment, ...s.payments],
       }));
       if (email) {
-        const { error: customerError } = await supabase.from("customer_accounts").upsert({
-          email: email.trim().toLowerCase(),
-          name: nm,
-          active: true,
-        }, { onConflict: "email" });
-        if (customerError) console.error("[customer] gagal memperbarui ringkasan akun", customerError);
+        // Fase 2: ringkasan customer_accounts disinkronkan server dengan
+        // email dari sesi (client tidak menulis tabel ini langsung).
+        try {
+          const { syncCustomerAccountFn } = await import("./accounts.functions");
+          await syncCustomerAccountFn({ data: { name: nm } });
+        } catch (customerError) {
+          console.error("[customer] gagal memperbarui ringkasan akun", customerError);
+        }
       }
       pushNotif({
         id: "ntf-wait-" + (tNow + 500),
