@@ -14,6 +14,7 @@
  * followers terverifikasi maupun level.
  */
 import { createServerFn } from "@tanstack/react-start";
+import { describeDbError } from "./db-error";
 
 type Session = { email: string; role: "admin" | "buzzer" | "customer" };
 
@@ -28,13 +29,7 @@ async function adminClient() {
 }
 
 function fail(error: unknown): never {
-  const message =
-    error instanceof Error
-      ? error.message
-      : typeof error === "object" && error && "message" in error
-        ? String((error as { message: unknown }).message)
-        : String(error);
-  throw new Error(message);
+  throw new Error(describeDbError(error));
 }
 
 /** Ambil baris social account dan pastikan milik email tertentu. */

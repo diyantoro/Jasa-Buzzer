@@ -7,6 +7,7 @@
  * bisa menulis dan tipe/ukuran file divalidasi di server.
  */
 import { createServerFn } from "@tanstack/react-start";
+import { describeDbError } from "./db-error";
 
 const PROOF_BUCKET = "bukti-pengerjaan";
 const THUMBNAIL_BUCKET = "campaign-thumbnails";
@@ -31,13 +32,7 @@ async function currentSession(): Promise<Session | null> {
 }
 
 function fail(error: unknown): never {
-  const message =
-    error instanceof Error
-      ? error.message
-      : typeof error === "object" && error && "message" in error
-        ? String((error as { message: unknown }).message)
-        : String(error);
-  throw new Error(message);
+  throw new Error(describeDbError(error));
 }
 
 function decodeBase64(value: unknown): Uint8Array {

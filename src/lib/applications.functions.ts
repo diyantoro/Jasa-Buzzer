@@ -9,6 +9,7 @@
  *   * client hanya boleh membaca.
  */
 import { createServerFn } from "@tanstack/react-start";
+import { describeDbError } from "./db-error";
 
 type ApplicationInput = {
   name: string;
@@ -31,13 +32,7 @@ async function adminClient() {
 }
 
 function fail(error: unknown): never {
-  const message =
-    error instanceof Error
-      ? error.message
-      : typeof error === "object" && error && "message" in error
-        ? String((error as { message: unknown }).message)
-        : String(error);
-  throw new Error(message);
+  throw new Error(describeDbError(error));
 }
 
 function bioWithCategory(bio: string | undefined, category: string): string {

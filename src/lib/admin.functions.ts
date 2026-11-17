@@ -10,6 +10,7 @@
  * hasil migrasi 20261116000000_harden_rls_phase1.
  */
 import { createServerFn } from "@tanstack/react-start";
+import { describeDbError } from "./db-error";
 
 type AdminContext = Awaited<ReturnType<typeof buildAdminContext>>;
 
@@ -21,13 +22,7 @@ async function buildAdminContext() {
 }
 
 function fail(error: unknown): never {
-  const message =
-    error instanceof Error
-      ? error.message
-      : typeof error === "object" && error && "message" in error
-        ? String((error as { message: unknown }).message)
-        : String(error);
-  throw new Error(message);
+  throw new Error(describeDbError(error));
 }
 
 /* ------------------------------------------------------------------ */

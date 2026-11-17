@@ -247,6 +247,7 @@ Client Supabase juga mendukung format key baru `sb_publishable_...`. Jika key ti
 
 ```bash
 npm run check:env   # validasi tanpa mencetak nilai rahasia
+npm run check:db    # cek key online + kesiapan RPC/tabel hasil migration
 npm run db:plan     # lihat urutan migration yang akan diterapkan
 npm run db:apply    # terapkan 6 migration hardening (butuh akses database)
 ```

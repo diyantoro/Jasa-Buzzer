@@ -18,12 +18,13 @@ ditolak policy hasil hardening (fail closed).
 
 ```bash
 npm run check:env
+npm run check:db
 ```
 
-Script ini memeriksa `SUPABASE_URL`, publishable key, service role key,
-`SESSION_SECRET`, dan (opsional) kredensial database. Nilai rahasia hanya
-ditampilkan sebagai prefix + panjang. Exit code non-zero berarti masih ada
-variabel wajib yang belum valid.
+`check:env` memeriksa kelengkapan variabel. `check:db` memanggil Supabase untuk
+memastikan publishable/secret key diterima dan RPC/tabel hasil migration sudah
+ada. Keduanya tidak mencetak nilai rahasia. Exit code non-zero berarti masih ada
+yang harus diperbaiki.
 
 ## Urutan migration
 

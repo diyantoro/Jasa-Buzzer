@@ -6,6 +6,7 @@
  * sehingga client tidak bisa memalsukan identitas pengirim.
  */
 import { createServerFn } from "@tanstack/react-start";
+import { describeDbError } from "./db-error";
 
 export const SUPPORT_ADMIN_EMAIL = "admin@buzzhub.id";
 
@@ -22,13 +23,7 @@ async function currentSession(): Promise<Session | null> {
 }
 
 function fail(error: unknown): never {
-  const message =
-    error instanceof Error
-      ? error.message
-      : typeof error === "object" && error && "message" in error
-        ? String((error as { message: unknown }).message)
-        : String(error);
-  throw new Error(message);
+  throw new Error(describeDbError(error));
 }
 
 /** Pastikan sesi berhak mengirim pesan pada campaign tertentu. */

@@ -8,6 +8,7 @@
  *   * customer/buzzer boleh mengirim notifikasi ke akun admin (mis. pesanan baru).
  */
 import { createServerFn } from "@tanstack/react-start";
+import { describeDbError } from "./db-error";
 
 type Session = { email: string; role: "admin" | "buzzer" | "customer" };
 
@@ -22,13 +23,7 @@ async function currentSession(): Promise<Session | null> {
 }
 
 function fail(error: unknown): never {
-  const message =
-    error instanceof Error
-      ? error.message
-      : typeof error === "object" && error && "message" in error
-        ? String((error as { message: unknown }).message)
-        : String(error);
-  throw new Error(message);
+  throw new Error(describeDbError(error));
 }
 
 function normalizeEmail(value: unknown): string {

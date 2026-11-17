@@ -10,6 +10,7 @@
  * mengaku sebagai buzzer lain.
  */
 import { createServerFn } from "@tanstack/react-start";
+import { describeDbError } from "./db-error";
 
 async function requireSessionEmail() {
   const { getServerSession } = await import("./session.server");
@@ -48,7 +49,7 @@ export const requestWithdrawalFn = createServerFn({ method: "POST" })
       p_method: data.method,
       p_account_no: data.accountNo,
     });
-    if (error) throw new Error(error.message || "Gagal mengajukan pencairan.");
+    if (error) throw new Error(describeDbError(error));
 
     return { ok: true as const, withdrawalId: withdrawalId as string | null };
   });
@@ -68,7 +69,7 @@ export const submitJobProofFn = createServerFn({ method: "POST" })
       .select("buzzer_email")
       .eq("id", data.jobId)
       .maybeSingle();
-    if (jobError) throw new Error(jobError.message);
+    if (jobError) throw new Error(describeDbError(jobError));
     if (!job) throw new Error("Job tidak ditemukan.");
 
     const owner = String(job.buzzer_email ?? "").trim().toLowerCase();
@@ -81,7 +82,7 @@ export const submitJobProofFn = createServerFn({ method: "POST" })
       p_buzzer_email: owner,
       p_proof_url: data.proofUrl,
     });
-    if (error) throw new Error(error.message || "Bukti gagal disimpan.");
+    if (error) throw new Error(describeDbError(error));
 
     return { ok: true as const };
   });
@@ -123,7 +124,7 @@ export const updateOwnProfileFn = createServerFn({ method: "POST" })
       p_avatar_url: data.avatarUrl ?? null,
       p_buzzer_category: data.buzzerCategory ?? null,
     });
-    if (error) throw new Error(error.message || "Gagal menyimpan profil.");
+    if (error) throw new Error(describeDbError(error));
 
     // Akun lama yang belum punya baris app_accounts tetap bisa menyimpan
     // profil lewat tabel pendaftaran. Ditulis server, bukan dari browser.

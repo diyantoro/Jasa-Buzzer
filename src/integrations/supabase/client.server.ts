@@ -9,6 +9,14 @@ function isNewSupabaseApiKey(value: string): boolean {
   return value.startsWith('sb_publishable_') || value.startsWith('sb_secret_');
 }
 
+function decodeBase64Url(value: string): string {
+  const base64 = value.replace(/-/g, '+').replace(/_/g, '/');
+  const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=');
+  const binary = atob(padded);
+  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
+}
+
 function isServiceRoleKey(value: string): boolean {
   if (value.startsWith('sb_secret_')) return true;
   if (value.startsWith('sb_publishable_')) return false;
@@ -17,7 +25,7 @@ function isServiceRoleKey(value: string): boolean {
   const parts = value.split('.');
   if (parts.length !== 3) return false;
   try {
-    const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8')) as {
+    const payload = JSON.parse(decodeBase64Url(parts[1])) as {
       role?: unknown;
     };
     return payload.role === 'service_role';
