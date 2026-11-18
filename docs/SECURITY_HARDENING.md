@@ -58,6 +58,13 @@ npm run db:apply   # menerapkan berurutan, berhenti pada error pertama
 2. **Supabase Management API** — jika `psql` tidak ada tetapi
    `SUPABASE_ACCESS_TOKEN` (`sbp_...`) dan project ref tersedia.
 
+> **Penting — scope token.** Token yang dibuat di Dashboard Supabase sekarang
+> *scoped* secara default. Token dengan permission **Database: Read** dapat
+> membaca database tetapi setiap DDL ditolak dengan
+> `25006: cannot execute ... in a read-only transaction`. Untuk `db:apply`,
+> buat token yang di-scope ke project ini dengan permission
+> **Database: Read-write**.
+
 Tanpa salah satu kredensial di atas, script berhenti dengan instruksi. Jalur
 manual terakhir: jalankan `npm run db:bundle`, lalu tempel seluruh isi
 `supabase/hardening_bundle.sql` ke Supabase SQL Editor dan Run. File bundle

@@ -215,6 +215,67 @@ function Invoke-Psql {
   }
 }
 
+function Get-ApiErrorDetail {
+  param($ErrorRecord)
+
+  # PowerShell 5.1 mengisi ErrorDetails untuk error HTTP; stream response
+  # hanya dipakai sebagai cadangan karena sering sudah habis dibaca.
+  if ($ErrorRecord.ErrorDetails -and $ErrorRecord.ErrorDetails.Message) {
+    return $ErrorRecord.ErrorDetails.Message
+  }
+
+  $response = $ErrorRecord.Exception.Response
+  if ($response) {
+    try {
+      $stream = $response.GetResponseStream()
+      if ($stream) {
+        $reader = New-Object System.IO.StreamReader($stream)
+        $payload = $reader.ReadToEnd()
+        if ($payload) { return $payload }
+      }
+    } catch {
+      # lanjut ke pesan exception
+    }
+  }
+
+  return $ErrorRecord.Exception.Message
+}
+
+function Get-ApiErrorMessage {
+  param([string]$Detail)
+
+  try {
+    $parsed = $Detail | ConvertFrom-Json
+    if ($parsed -and $parsed.message) { return [string]$parsed.message }
+  } catch {
+    # bukan JSON, pakai apa adanya
+  }
+  return $Detail
+}
+
+function Test-ManagementApiAccess {
+  param(
+    [string]$AccessToken,
+    [string]$ProjectRef
+  )
+
+  $headers = @{
+    Authorization = "Bearer $AccessToken"
+    'Content-Type' = 'application/json'
+  }
+  $body = @{ query = 'select 1 as ok' } | ConvertTo-Json -Compress
+  $uri = "https://api.supabase.com/v1/projects/$ProjectRef/database/query"
+
+  try {
+    Invoke-RestMethod -Uri $uri -Method Post -Headers $headers -Body $body -TimeoutSec 30 | Out-Null
+  } catch {
+    $detail = Get-ApiErrorDetail $_
+    $status = 0
+    if ($_.Exception.Response) { $status = $_.Exception.Response.StatusCode.value__ }
+    throw "Token ditolak Management API (HTTP $status). $(Get-ApiErrorMessage $detail)"
+  }
+}
+
 function Invoke-ManagementApi {
   param(
     [string]$AccessToken,
@@ -223,7 +284,9 @@ function Invoke-ManagementApi {
     [string]$MigrationName
   )
 
-  $sql = Get-Content -LiteralPath $MigrationPath -Raw
+  # Get-Content -Raw di PowerShell 5.1 membungkus string sehingga
+  # ConvertTo-Json menghasilkan {"query":{"value":...}} dan ditolak server.
+  $sql = [System.IO.File]::ReadAllText((Resolve-Path -LiteralPath $MigrationPath).ProviderPath)
   $body = @{ query = $sql } | ConvertTo-Json -Depth 5 -Compress
   $headers = @{
     Authorization = "Bearer $AccessToken"
@@ -236,18 +299,22 @@ function Invoke-ManagementApi {
   try {
     Invoke-RestMethod -Uri $uri -Method Post -Headers $headers -Body $body -TimeoutSec 120 | Out-Null
   } catch {
-    $detail = $_.Exception.Message
-    $response = $_.Exception.Response
-    if ($response) {
-      try {
-        $reader = New-Object System.IO.StreamReader($response.GetResponseStream())
-        $payload = $reader.ReadToEnd()
-        if ($payload) { $detail = $payload }
-      } catch {
-        # pakai pesan awal
-      }
+    $detail = Get-ApiErrorDetail $_
+    $message = Get-ApiErrorMessage $detail
+
+    if ($detail -match 'read-only transaction|25006') {
+      throw @"
+Management API menolak ${MigrationName}: token hanya punya izin BACA.
+Token yang dibuat di Dashboard sekarang di-scope, dan token Anda berhenti
+di permission "Database: Read". Buat token baru di
+  https://supabase.com/dashboard/account/tokens
+scope ke project ini, lalu beri permission "Database: Read-write".
+Tempel sebagai SUPABASE_ACCESS_TOKEN di .env, kemudian jalankan ulang.
+Pesan server: $message
+"@
     }
-    throw "Management API gagal menerapkan $MigrationName. $detail"
+
+    throw "Management API gagal menerapkan $MigrationName. $message"
   }
 }
 
@@ -303,6 +370,7 @@ if ($DryRun) {
   Write-Host 'Cara mengaktifkan penerapan:'
   Write-Host '  - Jalur psql: isi DATABASE_URL / SUPABASE_DB_PASSWORD di .env, atau'
   Write-Host '  - Jalur API : isi SUPABASE_ACCESS_TOKEN (sbp_...) di .env.'
+  Write-Host '                token harus punya permission Database: Read-write.'
   exit 0
 }
 
@@ -315,7 +383,9 @@ if ($mode -eq 'tidak-tersedia') {
   Write-Host '       SUPABASE_DB_PASSWORD="<database password>"'
   Write-Host '     Password ada di Supabase Dashboard -> Project Settings -> Database.'
   Write-Host '  2. Buat Personal Access Token di https://supabase.com/dashboard/account/tokens'
+  Write-Host '     scope ke project ini dengan permission Database: Read-write,'
   Write-Host '     lalu isi SUPABASE_ACCESS_TOKEN="sbp_..." di .env.'
+  Write-Host '     Token dengan permission "Database: Read" saja akan ditolak (read-only).'
   Write-Host '  3. Tanpa kredensial: tempel isi keenam file SQL ke Supabase SQL Editor,'
   Write-Host '     berurutan sesuai daftar di atas.'
   exit 1
@@ -333,6 +403,8 @@ if ($mode -eq 'management-api') {
   }
 
   Write-Host "Menerapkan lewat Management API untuk project $projectRef ..." -ForegroundColor Cyan
+  Write-Host 'Memeriksa izin token ...' -ForegroundColor DarkGray
+  Test-ManagementApiAccess -AccessToken $accessToken -ProjectRef $projectRef
   foreach ($file in $migrations) {
     $path = Join-Path $repoRoot "supabase\migrations\$file"
     if (-not (Test-Path -LiteralPath $path)) { throw "Migration tidak ditemukan: $file" }

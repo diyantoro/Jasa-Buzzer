@@ -255,6 +255,8 @@ npm run db:bundle   # gabungkan menjadi supabase/hardening_bundle.sql
 
 `db:apply` memakai `psql` bila tersedia (`DATABASE_URL` atau `SUPABASE_DB_PASSWORD`), dan otomatis beralih ke Supabase Management API bila `SUPABASE_ACCESS_TOKEN` diisi. Script berhenti pada error pertama dan tidak menyentuh migration lama.
 
+> Token `sbp_...` harus punya permission **Database: Read-write**. Token bawaan Dashboard kini di-scope; yang hanya **Database: Read** akan gagal dengan `25006: cannot execute ... in a read-only transaction`.
+
 > `supabase db push` belum dipakai karena project ini belum punya riwayat migration (`supabase_migrations.schema_migrations`). Jangan menjalankannya sebelum baseline riwayat dibuat — semua migration lama akan dianggap belum diterapkan.
 
 ---
