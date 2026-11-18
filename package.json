@@ -13,7 +13,8 @@
     "check:env": "node scripts/check-env.mjs",
     "check:db": "node scripts/check-db.mjs",
     "db:plan": "powershell -ExecutionPolicy Bypass -File scripts/apply-hardening-migrations.ps1 -DryRun",
-    "db:apply": "powershell -ExecutionPolicy Bypass -File scripts/apply-hardening-migrations.ps1"
+    "db:apply": "powershell -ExecutionPolicy Bypass -File scripts/apply-hardening-migrations.ps1",
+    "db:bundle": "node scripts/bundle-migrations.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

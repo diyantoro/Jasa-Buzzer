@@ -20,6 +20,7 @@ GRANT SELECT ON public.buzzer_applications TO anon, authenticated;
 
 DROP POLICY IF EXISTS "demo_all" ON public.buzzer_applications;
 DROP POLICY IF EXISTS "management buzzer applications read" ON public.buzzer_applications;
+DROP POLICY IF EXISTS "buzzer applications read" ON public.buzzer_applications;
 CREATE POLICY "buzzer applications read"
   ON public.buzzer_applications FOR SELECT TO anon, authenticated
   USING (true);
@@ -35,6 +36,7 @@ GRANT SELECT ON public.notifications TO anon, authenticated;
 
 DROP POLICY IF EXISTS "notifications_all_access" ON public.notifications;
 DROP POLICY IF EXISTS "notifications read" ON public.notifications;
+DROP POLICY IF EXISTS "notifications read" ON public.notifications;
 CREATE POLICY "notifications read"
   ON public.notifications FOR SELECT TO anon, authenticated
   USING (true);
@@ -48,6 +50,7 @@ REVOKE INSERT, UPDATE, DELETE, TRUNCATE
 GRANT SELECT ON public.campaign_messages TO anon, authenticated;
 
 DROP POLICY IF EXISTS "demo_all" ON public.campaign_messages;
+DROP POLICY IF EXISTS "campaign messages read" ON public.campaign_messages;
 DROP POLICY IF EXISTS "campaign messages read" ON public.campaign_messages;
 CREATE POLICY "campaign messages read"
   ON public.campaign_messages FOR SELECT TO anon, authenticated

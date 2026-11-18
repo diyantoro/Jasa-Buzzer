@@ -865,40 +865,6 @@ export const adminRequestWalletWithdrawalFn = createServerFn({ method: "POST" })
     return { ok: true as const };
   });
 
-export const adminCreateCampaignFn = createServerFn({ method: "POST" })
-  .validator(
-    (data: unknown) =>
-      data as {
-        title: string;
-        platform: string;
-        serviceType: string;
-        pricePerSlot: number;
-        slots: number;
-        deadline: string;
-        brief: string;
-        thumbnailUrl: string;
-        customerEmail: string;
-        customerName: string;
-      },
-  )
-  .handler(async ({ data }) => {
-    const { db } = await buildAdminContext();
-    const { error } = await db.rpc("create_admin_campaign", {
-      p_title: data.title,
-      p_platform: data.platform,
-      p_service_type: data.serviceType,
-      p_price_per_slot: data.pricePerSlot,
-      p_slots: data.slots,
-      p_deadline: data.deadline,
-      p_brief: data.brief,
-      p_thumbnail_url: data.thumbnailUrl,
-      p_customer_email: data.customerEmail,
-      p_customer_name: data.customerName,
-    });
-    if (error) fail(error);
-    return { ok: true as const };
-  });
-
 /* ------------------------------------------------------------------ */
 /* Akun                                                                */
 /* ------------------------------------------------------------------ */

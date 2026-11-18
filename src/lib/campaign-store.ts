@@ -695,36 +695,6 @@ export function allocateJobPrices(total: number, slots: number) {
   return Array.from({ length: safeSlots }, (_, index) => base + (index < remainder ? 1 : 0));
 }
 
-export async function createCampaign(input: Omit<Campaign, "id" | "created_at" | "updated_at" | "status"> & { status?: CampaignStatus }) {
-  const { adminCreateCampaignFn } = await import("./admin.functions");
-  const row = input as unknown as {
-    title: string;
-    platform: string;
-    service_type?: string;
-    price_per_buzzer?: number;
-    slots: number;
-    deadline: string;
-    brief?: string;
-    thumbnail_url?: string;
-    customer_email?: string;
-    customer_name?: string;
-  };
-  await adminCreateCampaignFn({
-    data: {
-      title: row.title,
-      platform: row.platform,
-      serviceType: row.service_type ?? "",
-      pricePerSlot: Number(row.price_per_buzzer ?? 0),
-      slots: Number(row.slots ?? 0),
-      deadline: row.deadline,
-      brief: row.brief ?? "",
-      thumbnailUrl: row.thumbnail_url ?? "",
-      customerEmail: row.customer_email ?? "",
-      customerName: row.customer_name ?? "",
-    },
-  });
-}
-
 /** Menghitung split pendapatan buzzer dan komisi admin berdasarkan persentase level (Bronze 40%, Silver 45%, Gold 50%, Platinum 55%, Diamond 60%). */
 export function calculateCampaignJobSplit(
   job: (

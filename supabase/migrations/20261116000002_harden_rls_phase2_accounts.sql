@@ -15,6 +15,10 @@ DROP POLICY IF EXISTS "demo_all" ON public.social_accounts;
 DROP POLICY IF EXISTS "demo_all" ON public.buzzer_ratings;
 DROP POLICY IF EXISTS "demo_all" ON public.campaign_job_submissions;
 
+DROP POLICY IF EXISTS "social accounts read" ON public.social_accounts;
+DROP POLICY IF EXISTS "buzzer ratings read" ON public.buzzer_ratings;
+DROP POLICY IF EXISTS "job submissions read" ON public.campaign_job_submissions;
+
 CREATE POLICY "social accounts read" ON public.social_accounts
   FOR SELECT TO anon, authenticated USING (true);
 CREATE POLICY "buzzer ratings read" ON public.buzzer_ratings
@@ -26,6 +30,7 @@ REVOKE INSERT, UPDATE, DELETE, TRUNCATE
   ON public.customer_accounts FROM anon, authenticated;
 GRANT SELECT ON public.customer_accounts TO anon, authenticated;
 DROP POLICY IF EXISTS "demo_all" ON public.customer_accounts;
+DROP POLICY IF EXISTS "customer accounts read" ON public.customer_accounts;
 CREATE POLICY "customer accounts read" ON public.customer_accounts
   FOR SELECT TO anon, authenticated USING (true);
 

@@ -59,8 +59,10 @@ npm run db:apply   # menerapkan berurutan, berhenti pada error pertama
    `SUPABASE_ACCESS_TOKEN` (`sbp_...`) dan project ref tersedia.
 
 Tanpa salah satu kredensial di atas, script berhenti dengan instruksi. Jalur
-manual terakhir: tempel isi keenam file SQL ke Supabase SQL Editor sesuai
-urutan tabel di atas.
+manual terakhir: jalankan `npm run db:bundle`, lalu tempel seluruh isi
+`supabase/hardening_bundle.sql` ke Supabase SQL Editor dan Run. File bundle
+dibuat dari keenam migration, jadi jangan diedit manual — regenerate dengan
+`npm run db:bundle` setiap kali migration berubah.
 
 `supabase db push` sengaja belum dipakai: project ini belum memiliki tabel
 `supabase_migrations.schema_migrations`, sehingga CLI akan menganggap seluruh

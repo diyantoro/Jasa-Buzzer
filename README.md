@@ -250,6 +250,7 @@ npm run check:env   # validasi tanpa mencetak nilai rahasia
 npm run check:db    # cek key online + kesiapan RPC/tabel hasil migration
 npm run db:plan     # lihat urutan migration yang akan diterapkan
 npm run db:apply    # terapkan 6 migration hardening (butuh akses database)
+npm run db:bundle   # gabungkan menjadi supabase/hardening_bundle.sql
 ```
 
 `db:apply` memakai `psql` bila tersedia (`DATABASE_URL` atau `SUPABASE_DB_PASSWORD`), dan otomatis beralih ke Supabase Management API bila `SUPABASE_ACCESS_TOKEN` diisi. Script berhenti pada error pertama dan tidak menyentuh migration lama.
