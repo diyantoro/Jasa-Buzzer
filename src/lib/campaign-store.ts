@@ -848,6 +848,10 @@ export async function createCustomerPaymentCampaign(input: {
   };
 
 
+  const { createCheckoutCampaignFn } = await import("./checkout.functions");
+  return createCheckoutCampaignFn({ data: input });
+
+  /* Legacy direct-RPC implementation retained below for reference only.
   if (input.catalog_id) {
     if (input.package_id) {
       const { data, error } = await (supabase as any).rpc("create_customer_catalog_package_scheduled_payment_campaign", {
@@ -897,6 +901,7 @@ export async function createCustomerPaymentCampaign(input: {
   const customRow = Array.isArray(customData) ? customData[0] : customData;
   if (!customRow?.payment_id || !customRow?.campaign_id) throw new Error("Database tidak mengembalikan ID pembayaran dan campaign.");
   return { paymentId: customRow.payment_id as string, campaignId: customRow.campaign_id as string };
+  */
 }
 
 /** Admin menyetujui kampanye: status jadi Aktif + job dibuka untuk buzzer sesuai jumlah slot. */

@@ -260,6 +260,23 @@ const PRIVILEGED_RPCS = [
   ["admin_update_account", { p_email: "" }],
   ["mark_finance_notification_read", { p_id: zero }],
   ["claim_campaign_job", { p_job_id: zero, p_buzzer_email: "", p_buzzer_name: "" }],
+  [
+    "create_customer_custom_scheduled_payment_campaign",
+    {
+      p_invoice_no: "",
+      p_customer_name: "",
+      p_customer_email: "",
+      p_campaign_name: "",
+      p_platform: "",
+      p_service_type: "",
+      p_method: "",
+      p_note: "",
+      p_brief: "",
+      p_slots: 1,
+      p_start_date: "2026-11-18",
+      p_deadline: "2026-11-30",
+    },
+  ],
 ];
 
 console.log("\nBuzzHub database check\n");
@@ -277,6 +294,7 @@ if (publishableOk) {
     await checkPrivilegedRpc(name, body);
   }
   await checkProtectedTable("audit_logs");
+  await checkProtectedTable("financial_ledger");
 }
 
 console.log("Status:");

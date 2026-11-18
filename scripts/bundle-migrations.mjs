@@ -23,6 +23,8 @@ const migrations = [
   "20261116000005_audit_logs.sql",
   "20261116000006_harden_bridge_rpc_grants.sql",
   "20261116000007_fix_relations_and_constraints.sql",
+  "20261116000008_lock_guest_checkout_rpcs.sql",
+  "20261116000009_financial_ledger.sql",
 ];
 
 const header = `-- =====================================================================

@@ -41,6 +41,8 @@ baru untuk perubahan berikutnya.
 | 6 | `20261116000005_audit_logs.sql` | Tabel `audit_logs` (khusus `service_role`). |
 | 7 | `20261116000006_harden_bridge_rpc_grants.sql` | Cabut `EXECUTE` eksplisit milik `anon`/`authenticated` pada 15 RPC istimewa; hanya `service_role`. |
 | 8 | `20261116000007_fix_relations_and_constraints.sql` | Validasi 4 FK tertunda, CHECK domain (`role`, `stars`, singleton wallet, format tanggal), FK dua arah `campaigns`↔`payments`, `catalog_id` → `uuid` + FK, FK akun untuk `buzzer_wallets`/`social_accounts`, index yang hilang, dan seed akun demo customer. |
+| 9 | `20261116000008_lock_guest_checkout_rpcs.sql` | Tutup 4 RPC checkout customer dari akses `anon`/`authenticated` (hanya `service_role`); alur checkout dipindahkan ke server function `createCheckoutCampaignFn` dengan validasi server & rate limit; constraint `campaigns_date_range_check` (`deadline >= start_date`). |
+| 10 | `20261116000009_financial_ledger.sql` | Buku besar keuangan append-only (`financial_ledger`) untuk audit finansial immutable: trigger otomatis mencatat pembayaran customer, payout buzzer, komisi admin, dan pencairan dana; RLS hanya untuk `service_role`. |
 
 > Jangan mengedit migration yang sudah dijalankan. Buat file baru untuk
 > perubahan berikutnya.
@@ -93,6 +95,7 @@ migration lama belum diterapkan dan memutar ulang semuanya.
 | Admin (uang, job, campaign, akun, level, rating) | `src/lib/admin.functions.ts` |
 | Akun & login | `src/lib/accounts.functions.ts` |
 | Buzzer (pencairan, bukti, profil, ambil job) | `src/lib/buzzer.functions.ts` |
+| Checkout customer (guest & terdaftar) | `src/lib/checkout.functions.ts` |
 | Pendaftaran buzzer | `src/lib/applications.functions.ts` |
 | Social account | `src/lib/social.functions.ts` |
 | Rating | `src/lib/rating.functions.ts` |
@@ -138,15 +141,6 @@ selalu dicatat di log server.
 
 ## Yang belum selesai
 
-- **RPC checkout customer masih bisa dipanggil `anon`.** Empat fungsi
-  `create_customer_catalog_scheduled_payment_campaign` (dua overload),
-  `create_customer_catalog_package_scheduled_payment_campaign`, dan
-  `create_customer_custom_scheduled_payment_campaign` sengaja dibiarkan
-  terbuka karena alur tamu (guest checkout) memanggilnya langsung dari
-  browser. Nominalnya dihitung di server, jadi bukan jalur pencurian uang,
-  tetapi anon bisa membanjiri antrean pesanan. Penutupnya: pindahkan checkout
-  ke server function (butuh identitas customer, atau pembatasan rate limit
-  per IP) lalu jalankan `REVOKE` seperti pada migration 7.
 - **`SUPABASE_SERVICE_ROLE_KEY`** kini terisi JWT `service_role` legacy
   (key `sb_secret_...` project ini ditolak PostgREST dengan `401`).
 - **`SUPABASE_ACCESS_TOKEN` harus punya permission Database: Read-write.**
@@ -154,13 +148,10 @@ selalu dicatat di log server.
 - **Docker build belum diuji langsung** karena Docker belum terpasang. Yang
   sudah diverifikasi: build dengan `NITRO_PRESET=node-server` menghasilkan server
   Node yang merespons HTTP 200, dan Dockerfile memakai preset tersebut.
-- **Normalisasi lanjutan:** `customer_accounts` dan `buzzer_applications` tetap
-  boleh berdiri tanpa pasangan `app_accounts` karena guest checkout dan
+- **Normalisasi relasi akun tamu & riwayat:** `customer_accounts` dan `buzzer_applications`
+  tetap boleh berdiri tanpa pasangan `app_accounts` karena guest checkout dan
   pendaftaran buzzer publik memang terjadi sebelum akun dibuat. Riwayat
-  transaksi juga tetap memakai email/snapshot agar penghapusan akun tidak
-  menghapus histori keuangan.
-- **Ledger uang:** saldo wallet masih merupakan kolom materialized yang
-  dipelihara trigger/RPC. Untuk audit keuangan produksi, tahap berikutnya
-  adalah ledger append-only sehingga saldo dapat dihitung ulang dari jurnal.
+  transaksi juga sengaja mempertahankan snapshot finansial agar penghapusan akun
+  tidak merusak laporan pembukuan.
 - **Fase 3** (Supabase Auth penuh) menunggu akses project Supabase: pengaturan
   auth, migrasi user, custom access token hook, dan rate limit terpusat.
