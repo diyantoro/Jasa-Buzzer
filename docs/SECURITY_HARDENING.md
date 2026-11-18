@@ -40,6 +40,7 @@ baru untuk perubahan berikutnya.
 | 5 | `20261116000004_harden_storage_writes.sql` | Hapus policy tulis client pada bucket `bukti-pengerjaan` dan `campaign-thumbnails`. |
 | 6 | `20261116000005_audit_logs.sql` | Tabel `audit_logs` (khusus `service_role`). |
 | 7 | `20261116000006_harden_bridge_rpc_grants.sql` | Cabut `EXECUTE` eksplisit milik `anon`/`authenticated` pada 15 RPC istimewa; hanya `service_role`. |
+| 8 | `20261116000007_fix_relations_and_constraints.sql` | Validasi 4 FK tertunda, CHECK domain (`role`, `stars`, singleton wallet, format tanggal), FK dua arah `campaigns`↔`payments`, `catalog_id` → `uuid` + FK, FK akun untuk `buzzer_wallets`/`social_accounts`, index yang hilang, dan seed akun demo customer. |
 
 > Jangan mengedit migration yang sudah dijalankan. Buat file baru untuk
 > perubahan berikutnya.
@@ -153,5 +154,13 @@ selalu dicatat di log server.
 - **Docker build belum diuji langsung** karena Docker belum terpasang. Yang
   sudah diverifikasi: build dengan `NITRO_PRESET=node-server` menghasilkan server
   Node yang merespons HTTP 200, dan Dockerfile memakai preset tersebut.
+- **Normalisasi lanjutan:** `customer_accounts` dan `buzzer_applications` tetap
+  boleh berdiri tanpa pasangan `app_accounts` karena guest checkout dan
+  pendaftaran buzzer publik memang terjadi sebelum akun dibuat. Riwayat
+  transaksi juga tetap memakai email/snapshot agar penghapusan akun tidak
+  menghapus histori keuangan.
+- **Ledger uang:** saldo wallet masih merupakan kolom materialized yang
+  dipelihara trigger/RPC. Untuk audit keuangan produksi, tahap berikutnya
+  adalah ledger append-only sehingga saldo dapat dihitung ulang dari jurnal.
 - **Fase 3** (Supabase Auth penuh) menunggu akses project Supabase: pengaturan
   auth, migrasi user, custom access token hook, dan rate limit terpusat.
