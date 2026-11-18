@@ -160,3 +160,34 @@ export const updateOwnProfileFn = createServerFn({ method: "POST" })
 
     return { ok: true as const, updated: Boolean(updated) };
   });
+
+/**
+ * Buzzer mengambil job. Email diambil dari sesi bertanda tangan, bukan dari
+ * kiriman client, dan RPC `claim_campaign_job` hanya boleh dieksekusi
+ * service_role.
+ */
+export const claimCampaignJobFn = createServerFn({ method: "POST" })
+  .validator((data: unknown) => data as { jobId: string; buzzerName: string })
+  .handler(async ({ data }) => {
+    const session = await requireSessionEmail();
+    if (session.role !== "buzzer") {
+      throw new Error("Hanya akun buzzer yang bisa mengambil job.");
+    }
+
+    const jobId = String(data?.jobId ?? "").trim();
+    if (!jobId) throw new Error("ID job wajib diisi.");
+
+    const { supabaseAdmin: adminClient } = await import(
+      "@/integrations/supabase/client.server"
+    );
+    const supabaseAdmin = adminClient as any;
+
+    const { error } = await supabaseAdmin.rpc("claim_campaign_job", {
+      p_job_id: jobId,
+      p_buzzer_email: session.email,
+      p_buzzer_name: String(data?.buzzerName ?? "").trim(),
+    });
+    if (error) throw new Error(describeDbError(error));
+
+    return { ok: true as const };
+  });

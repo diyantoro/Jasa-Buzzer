@@ -381,11 +381,13 @@ export async function rejectPayment(id: string, reason: string, _adminEmail = "a
 }
 
 export async function markNotificationRead(id: string) {
-  await (supabase as any).rpc("mark_finance_notification_read", { p_id: id });
+  const { markFinanceNotificationReadFn } = await import("./notifications.functions");
+  await markFinanceNotificationReadFn({ data: { id } });
 }
 
 export async function markAllNotificationsRead() {
-  await (supabase as any).rpc("mark_all_finance_notifications_read");
+  const { markAllFinanceNotificationsReadFn } = await import("./notifications.functions");
+  await markAllFinanceNotificationsReadFn({ data: {} });
 }
 
 export const formatIDR = (n: number) =>

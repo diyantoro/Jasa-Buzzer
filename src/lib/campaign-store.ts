@@ -463,13 +463,10 @@ export async function takeCampaignJob(id: string, buzzerEmail: string, buzzerNam
     }
   }
 
-  // The database function locks the campaign and enforces payment, target, and duplicate rules atomically.
-  const { error } = await (supabase as any).rpc("claim_campaign_job", {
-    p_job_id: id,
-    p_buzzer_email: email,
-    p_buzzer_name: buzzerName,
-  });
-  if (error) throw new Error(error.message || "Job sudah tidak tersedia.");
+  // RPC claim_campaign_job hanya bisa dipanggil service_role. Email buzzer
+  // diambil dari sesi bertanda tangan di server, bukan dari client.
+  const { claimCampaignJobFn } = await import("./buzzer.functions");
+  await claimCampaignJobFn({ data: { jobId: id, buzzerName } });
 }
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 

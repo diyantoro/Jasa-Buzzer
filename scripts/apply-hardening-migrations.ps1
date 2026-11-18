@@ -1,10 +1,10 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-  Terapkan migration hardening BuzzHub (20261116000000 - 20261116000005).
+  Terapkan migration hardening BuzzHub (20261116000000 - 20261116000006).
 
 .DESCRIPTION
-  Script ini hanya menerapkan enam migration hardening, berurutan, dan berhenti
+  Script ini hanya menerapkan migration hardening, berurutan, dan berhenti
   pada error pertama. Migration lama tidak disentuh.
 
   Dua jalur koneksi yang didukung:
@@ -49,7 +49,8 @@ $migrations = @(
   '20261116000002_harden_rls_phase2_accounts.sql',
   '20261116000003_harden_rls_phase2b.sql',
   '20261116000004_harden_storage_writes.sql',
-  '20261116000005_audit_logs.sql'
+  '20261116000005_audit_logs.sql',
+  '20261116000006_harden_bridge_rpc_grants.sql'
 )
 
 # ---------------------------------------------------------------------------
@@ -434,7 +435,7 @@ if ($mode -eq 'management-api') {
 }
 
 Write-Host ''
-Write-Host 'Selesai. Enam migration hardening sudah diterapkan.' -ForegroundColor Green
+Write-Host "Selesai. $($migrations.Count) migration hardening sudah diterapkan." -ForegroundColor Green
 Write-Host ''
 Write-Host 'Langkah berikutnya:'
 Write-Host '  1. Pastikan SUPABASE_SERVICE_ROLE_KEY berisi secret key (bukan publishable).'

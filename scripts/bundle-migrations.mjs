@@ -21,6 +21,7 @@ const migrations = [
   "20261116000003_harden_rls_phase2b.sql",
   "20261116000004_harden_storage_writes.sql",
   "20261116000005_audit_logs.sql",
+  "20261116000006_harden_bridge_rpc_grants.sql",
 ];
 
 const header = `-- =====================================================================

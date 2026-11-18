@@ -39,6 +39,7 @@ baru untuk perubahan berikutnya.
 | 4 | `20261116000003_harden_rls_phase2b.sql` | Tutup tulis langsung ke `buzzer_applications`, `notifications`, `campaign_messages`. |
 | 5 | `20261116000004_harden_storage_writes.sql` | Hapus policy tulis client pada bucket `bukti-pengerjaan` dan `campaign-thumbnails`. |
 | 6 | `20261116000005_audit_logs.sql` | Tabel `audit_logs` (khusus `service_role`). |
+| 7 | `20261116000006_harden_bridge_rpc_grants.sql` | Cabut `EXECUTE` eksplisit milik `anon`/`authenticated` pada 15 RPC istimewa; hanya `service_role`. |
 
 > Jangan mengedit migration yang sudah dijalankan. Buat file baru untuk
 > perubahan berikutnya.
@@ -68,7 +69,7 @@ npm run db:apply   # menerapkan berurutan, berhenti pada error pertama
 Tanpa salah satu kredensial di atas, script berhenti dengan instruksi. Jalur
 manual terakhir: jalankan `npm run db:bundle`, lalu tempel seluruh isi
 `supabase/hardening_bundle.sql` ke Supabase SQL Editor dan Run. File bundle
-dibuat dari keenam migration, jadi jangan diedit manual — regenerate dengan
+dibuat dari seluruh migration, jadi jangan diedit manual — regenerate dengan
 `npm run db:bundle` setiap kali migration berubah.
 
 `supabase db push` sengaja belum dipakai: project ini belum memiliki tabel
@@ -90,11 +91,11 @@ migration lama belum diterapkan dan memutar ulang semuanya.
 | ------ | ----- |
 | Admin (uang, job, campaign, akun, level, rating) | `src/lib/admin.functions.ts` |
 | Akun & login | `src/lib/accounts.functions.ts` |
-| Buzzer (pencairan, bukti, profil) | `src/lib/buzzer.functions.ts` |
+| Buzzer (pencairan, bukti, profil, ambil job) | `src/lib/buzzer.functions.ts` |
 | Pendaftaran buzzer | `src/lib/applications.functions.ts` |
 | Social account | `src/lib/social.functions.ts` |
 | Rating | `src/lib/rating.functions.ts` |
-| Notifikasi | `src/lib/notifications.functions.ts` |
+| Notifikasi (termasuk notifikasi finance admin) | `src/lib/notifications.functions.ts` |
 | Pesan campaign/support | `src/lib/messages.functions.ts` |
 | Upload storage | `src/lib/uploads.functions.ts` |
 | Audit | `src/lib/audit.server.ts` |
@@ -136,12 +137,19 @@ selalu dicatat di log server.
 
 ## Yang belum selesai
 
-- **`SUPABASE_SERVICE_ROLE_KEY` masih kosong** di `.env` lokal. Selama kosong,
-  server function berjalan sebagai `anon` dan operasi istimewa ditolak
-  (fail closed). Isi dengan `sb_secret_...`, lalu jalankan `npm run check:env`.
-- **Migration belum diterapkan** ke project Supabase. Alatnya sudah siap
-  (`npm run db:plan` / `npm run db:apply`), tetapi butuh salah satu kredensial:
-  `DATABASE_URL`, `SUPABASE_DB_PASSWORD`, atau `SUPABASE_ACCESS_TOKEN`.
+- **RPC checkout customer masih bisa dipanggil `anon`.** Empat fungsi
+  `create_customer_catalog_scheduled_payment_campaign` (dua overload),
+  `create_customer_catalog_package_scheduled_payment_campaign`, dan
+  `create_customer_custom_scheduled_payment_campaign` sengaja dibiarkan
+  terbuka karena alur tamu (guest checkout) memanggilnya langsung dari
+  browser. Nominalnya dihitung di server, jadi bukan jalur pencurian uang,
+  tetapi anon bisa membanjiri antrean pesanan. Penutupnya: pindahkan checkout
+  ke server function (butuh identitas customer, atau pembatasan rate limit
+  per IP) lalu jalankan `REVOKE` seperti pada migration 7.
+- **`SUPABASE_SERVICE_ROLE_KEY`** kini terisi JWT `service_role` legacy
+  (key `sb_secret_...` project ini ditolak PostgREST dengan `401`).
+- **`SUPABASE_ACCESS_TOKEN` harus punya permission Database: Read-write.**
+  Token dengan akses baca saja gagal dengan `25006`.
 - **Docker build belum diuji langsung** karena Docker belum terpasang. Yang
   sudah diverifikasi: build dengan `NITRO_PRESET=node-server` menghasilkan server
   Node yang merespons HTTP 200, dan Dockerfile memakai preset tersebut.

@@ -216,3 +216,40 @@ export const deletePendingNotificationsFn = createServerFn({ method: "POST" })
 
     return { ok: true as const, deleted: ids.length };
   });
+
+/* ------------------------------------------------------------------ */
+/* Notifikasi finance (admin)                                          */
+/* ------------------------------------------------------------------ */
+
+async function requireAdminSession(): Promise<Session> {
+  const session = await currentSession();
+  if (!session) throw new Error("Sesi tidak ditemukan. Silakan masuk ulang.");
+  if (session.role !== "admin") throw new Error("Akses ditolak: hanya admin.");
+  return session;
+}
+
+export const markFinanceNotificationReadFn = createServerFn({ method: "POST" })
+  .validator((data: unknown) => data as { id: string })
+  .handler(async ({ data }) => {
+    await requireAdminSession();
+    const id = String(data?.id ?? "").trim();
+    if (!id) throw new Error("ID notifikasi wajib diisi.");
+
+    const db = await adminClient();
+    const { error } = await db.rpc("mark_finance_notification_read", { p_id: id });
+    if (error) fail(error);
+
+    return { ok: true as const };
+  });
+
+export const markAllFinanceNotificationsReadFn = createServerFn({ method: "POST" })
+  .validator((data: unknown) => data as unknown)
+  .handler(async () => {
+    await requireAdminSession();
+
+    const db = await adminClient();
+    const { error } = await db.rpc("mark_all_finance_notifications_read");
+    if (error) fail(error);
+
+    return { ok: true as const };
+  });
