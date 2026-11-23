@@ -468,7 +468,7 @@ function AdminPage() {
         </aside>
 
         {/* Main */}
-        <main className="min-w-0 flex-1 pb-24 md:pb-0">
+        <main className="min-w-0 flex-1 pb-[calc(6.5rem+env(safe-area-inset-bottom))] md:pb-0">
           <div className="mx-auto w-full max-w-[1200px] px-3 py-4 sm:px-6 lg:px-8">
           <header className="mb-6 flex min-h-[56px] sm:min-h-[60px] items-center justify-between gap-3">
             <div className="flex items-center gap-2 sm:gap-3 min-w-0">
@@ -749,7 +749,7 @@ function RingkasanSection() {
       </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-3">
-        <div className="rounded-2xl border border-border bg-card shadow-sm lg:col-span-2">
+        <div className="min-w-0 rounded-2xl border border-border bg-card shadow-sm lg:col-span-2">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-5">
             <div>
               <h3 className="font-display text-lg font-bold">Kampanye Terbaru</h3>
@@ -880,7 +880,7 @@ function RingkasanSection() {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+        <div className="min-w-0 rounded-2xl border border-border bg-card p-5 shadow-sm">
           <h3 className="font-display text-lg font-bold">Top Buzzer</h3>
           <p className="text-sm text-muted-foreground">Pendapatan dari job selesai</p>
           <ul className="mt-4 space-y-3">

@@ -750,7 +750,7 @@ function BuzzerPage() {
           </div>
         </aside>
 
-        <main className="min-w-0 flex-1 pb-24 md:pb-0">
+        <main className="min-w-0 flex-1 pb-[calc(6.5rem+env(safe-area-inset-bottom))] md:pb-0">
           <div className="mx-auto w-full max-w-[1200px] px-3 py-4 sm:px-6 lg:px-8">
             <header className="sticky top-0 z-30 -mx-3 mb-5 border-b border-border/60 bg-background/85 px-3 py-2.5 backdrop-blur-md sm:-mx-6 sm:px-6 md:static md:mx-0 md:mb-6 md:border-none md:bg-transparent md:px-0 md:py-0 md:backdrop-blur-none">
               <div className="flex min-h-[48px] items-center justify-between gap-3 md:min-h-[60px]">

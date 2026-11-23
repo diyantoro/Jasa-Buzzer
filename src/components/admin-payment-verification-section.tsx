@@ -64,6 +64,16 @@ function statusLabel(status: string) {
   return status === "Menunggu Verifikasi" ? "Verifikasi" : status;
 }
 
+// Status yang bisa dipilih admin di dialog edit. Nilai lain yang sudah
+// tersimpan (mis. "Berhasil" dari data lama) tetap ditampilkan apa adanya
+// agar dropdown tidak kosong.
+const EDITABLE_PAYMENT_STATUSES: PaymentStatus[] = [
+  "Menunggu Verifikasi",
+  "Lunas",
+  "Gagal",
+  "Refund",
+];
+
 export function AdminPaymentVerificationSection() {
   const { data: payments, loading, refetch } = usePayments();
   const { data: jobs, loading: jobsLoading } = useCampaignJobs();
@@ -710,6 +720,9 @@ export function AdminPaymentVerificationSection() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
+                    {!EDITABLE_PAYMENT_STATUSES.includes(editPaymentForm.status) && (
+                      <SelectItem value={editPaymentForm.status}>{editPaymentForm.status}</SelectItem>
+                    )}
                     <SelectItem value="Lunas">Lunas / Berhasil</SelectItem>
                     <SelectItem value="Menunggu Verifikasi">Menunggu Verifikasi</SelectItem>
                     <SelectItem value="Gagal">Gagal / Ditolak</SelectItem>

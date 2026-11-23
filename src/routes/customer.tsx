@@ -491,7 +491,7 @@ function CustomerPage() {
           </div>
         </aside>
 
-        <main className="min-w-0 flex-1 pb-24 md:pb-0">
+        <main className="min-w-0 flex-1 pb-[calc(6.5rem+env(safe-area-inset-bottom))] md:pb-0">
           <div className="mx-auto w-full max-w-[1200px] px-3 py-4 sm:px-6 lg:px-8">
             <header className="mb-6 flex min-h-[56px] sm:min-h-[60px] items-center justify-between gap-4">
               <div className="flex min-w-0 items-center gap-2 sm:gap-3">

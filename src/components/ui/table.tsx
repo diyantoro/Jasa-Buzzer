@@ -3,11 +3,59 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(
-  ({ className, ...props }, ref) => (
-    <div className="relative w-full overflow-auto">
-      <table ref={ref} className={cn("w-full caption-bottom text-sm", className)} {...props} />
-    </div>
-  ),
+  ({ className, ...props }, ref) => {
+    const scrollRef = React.useRef<HTMLDivElement>(null);
+    const [canScroll, setCanScroll] = React.useState(false);
+    const [atEnd, setAtEnd] = React.useState(false);
+
+    React.useEffect(() => {
+      const el = scrollRef.current;
+      if (!el) return;
+
+      const sync = () => {
+        const max = el.scrollWidth - el.clientWidth;
+        setCanScroll(max > 1);
+        setAtEnd(max <= 1 || el.scrollLeft >= max - 1);
+      };
+
+      sync();
+      el.addEventListener("scroll", sync, { passive: true });
+      const observer = new ResizeObserver(sync);
+      observer.observe(el);
+      if (el.firstElementChild) observer.observe(el.firstElementChild);
+
+      return () => {
+        el.removeEventListener("scroll", sync);
+        observer.disconnect();
+      };
+    }, []);
+
+    return (
+      <div className="relative w-full">
+        {canScroll && (
+          <p
+            className={cn(
+              "mb-1.5 text-right text-[11px] font-medium text-muted-foreground transition-opacity duration-200",
+              atEnd ? "opacity-0" : "opacity-100",
+            )}
+          >
+            Geser ke samping untuk lihat kolom lain →
+          </p>
+        )}
+        <div className="relative">
+          <div ref={scrollRef} className="w-full overflow-auto">
+            <table ref={ref} className={cn("w-full caption-bottom text-sm", className)} {...props} />
+          </div>
+          {canScroll && !atEnd && (
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-background/90 to-transparent"
+            />
+          )}
+        </div>
+      </div>
+    );
+  },
 );
 Table.displayName = "Table";
 
