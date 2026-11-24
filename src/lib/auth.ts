@@ -131,27 +131,58 @@ export async function registerAccount(acc: Account): Promise<{ ok: boolean; mess
   }
 }
 
-export async function findAccount(email: string, password: string): Promise<Session | null> {
+export type AccountLookup = {
+  user: Session | null;
+  /** Pesan dari server, mis. "Terlalu banyak percobaan ...". */
+  message?: string;
+};
+
+/**
+ * Versi `findAccount` yang meneruskan pesan kegagalan server ke pemanggil.
+ * Dipakai halaman login supaya pesan rate limit tidak ditimpa pesan
+ * "Email atau kata sandi salah" yang generik.
+ */
+export async function findAccountWithMessage(
+  email: string,
+  password: string,
+): Promise<AccountLookup> {
   try {
     const res = await loginAccountFn({ data: { email: email.trim().toLowerCase(), password } });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      // Pesan spesifik ("Akun tidak ditemukan" / "Kata sandi salah")
+      // membocorkan keberadaan akun. Hanya pesan rate limit yang diteruskan;
+      // kegagalan kredensial tetap memakai pesan generik.
+      const message = res.message ?? "";
+      return {
+        user: null,
+        message: message.startsWith("Terlalu banyak percobaan")
+          ? message
+          : "Email atau kata sandi salah.",
+      };
+    }
     return {
-      role: res.account.role as Role,
-      name: res.account.name,
-      email: res.account.email,
-      phone: res.account.profile?.phone,
-      city: res.account.profile?.city,
-      bio: res.account.profile?.bio,
-      company: res.account.profile?.company,
-      industry: res.account.profile?.industry,
-      username: res.account.profile?.username,
-      platform: res.account.profile?.platform,
-      followers: res.account.profile?.followers,
-      avatarUrl: res.account.profile?.avatarUrl,
+      user: {
+        role: res.account.role as Role,
+        name: res.account.name,
+        email: res.account.email,
+        phone: res.account.profile?.phone,
+        city: res.account.profile?.city,
+        bio: res.account.profile?.bio,
+        company: res.account.profile?.company,
+        industry: res.account.profile?.industry,
+        username: res.account.profile?.username,
+        platform: res.account.profile?.platform,
+        followers: res.account.profile?.followers,
+        avatarUrl: res.account.profile?.avatarUrl,
+      },
     };
   } catch {
-    return null;
+    return { user: null, message: "Gagal terhubung ke server. Coba lagi." };
   }
+}
+
+export async function findAccount(email: string, password: string): Promise<Session | null> {
+  return (await findAccountWithMessage(email, password)).user;
 }
 
 export async function changePassword(

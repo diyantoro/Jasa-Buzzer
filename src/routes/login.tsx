@@ -5,7 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
-import { setSession, findAccount, registerAccount, type Role, type Session } from "@/lib/auth";
+import {
+  setSession,
+  findAccountWithMessage,
+  registerAccount,
+  type Role,
+  type Session,
+} from "@/lib/auth";
 
 import { getApplicationByEmail } from "@/lib/buzzer-verification";
 import { toast } from "sonner";
@@ -22,6 +28,12 @@ const USERS: DemoUser[] = [
   { name: "Buzzer Premium", email: "buzzer@buzzhub.id", password: "Buzzer123!", role: "buzzer" },
   { name: "Customer Utama", email: "customer@buzzhub.id", password: "Customer123!", role: "customer" },
 ];
+
+// Jalur demo (membuat sesi tanpa verifikasi database & bootstrap admin) hanya
+// aktif saat development. Di production login tetap divalidasi ke database.
+// Untuk demo publik yang memang butuh jalur ini, set VITE_ENABLE_DEMO_LOGIN=true.
+const DEMO_LOGIN_ENABLED =
+  import.meta.env.DEV || import.meta.env["VITE_ENABLE_DEMO_LOGIN"] === "true";
 
 function LoginPage() {
   const navigate = useNavigate();
@@ -51,10 +63,13 @@ function LoginPage() {
     await new Promise((r) => setTimeout(r, 700));
 
     const emailLc = email.trim().toLowerCase();
-    const demo = USERS.find(
-      (u) => u.email.toLowerCase() === emailLc && u.password === password,
-    );
-    let user: Session | null = await findAccount(emailLc, password);
+    const demo = DEMO_LOGIN_ENABLED
+      ? USERS.find((u) => u.email.toLowerCase() === emailLc && u.password === password)
+      : undefined;
+    let loginMessage: string | undefined;
+    let lookup = await findAccountWithMessage(emailLc, password);
+    let user: Session | null = lookup.user;
+    loginMessage = lookup.message;
 
     if (demo?.role === "admin" && !user) {
       const provisioned = await registerAccount({
@@ -66,7 +81,9 @@ function LoginPage() {
       if (provisioned.ok) {
         user = { role: demo.role, name: demo.name, email: demo.email };
       } else {
-        user = await findAccount(emailLc, password);
+        lookup = await findAccountWithMessage(emailLc, password);
+        user = lookup.user;
+        if (lookup.message) loginMessage = lookup.message;
       }
     } else if (demo && !user) {
       user = { role: demo.role, name: demo.name, email: demo.email };
@@ -93,20 +110,15 @@ function LoginPage() {
         // Level buzzer ditetapkan admin saat verifikasi. Registrasi sendiri
         // tidak boleh menentukan level karena level memengaruhi payout.
 
-        const restoredUser = await findAccount(app.email, password);
-        setSession(
-          restoredUser ?? {
-            role: "buzzer",
-            name: app.name,
-            email: app.email,
-            phone: app.phone,
-            city: app.city,
-            bio: app.bio,
-            username: app.username,
-            platform: app.platform,
-            followers: app.followers,
-          }
-        );
+        const restored = await findAccountWithMessage(app.email, password);
+        if (!restored.user) {
+          // Jangan pernah membuat sesi dari data aplikasi bila verifikasi
+          // kredensial gagal (termasuk saat rate limit aktif).
+          setLoading(false);
+          setError(restored.message ?? "Email atau kata sandi salah.");
+          return;
+        }
+        setSession(restored.user);
         if (remember) localStorage.setItem("buzzhub.remember", app.email);
         try {
           await navigate({ to: `/buzzer` });
@@ -122,7 +134,12 @@ function LoginPage() {
 
     if (!user) {
       setLoading(false);
-      setError("Email atau kata sandi salah. Coba akun demo di bawah.");
+      setError(
+        loginMessage ??
+          (DEMO_LOGIN_ENABLED
+            ? "Email atau kata sandi salah. Coba akun demo di bawah."
+            : "Email atau kata sandi salah."),
+      );
       return;
     }
 

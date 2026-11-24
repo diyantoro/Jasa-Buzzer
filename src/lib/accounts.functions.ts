@@ -143,6 +143,21 @@ export const registerAccountFn = createServerFn({ method: "POST" })
         };
       }
       const data = parsed.data;
+
+      // Akun admin tidak boleh dibuat lewat endpoint publik saat production.
+      // Di development tetap diizinkan agar bootstrap demo mudah.
+      if (data.role === "admin" && process.env["NODE_ENV"] === "production") {
+        try {
+          const { requireAdmin } = await import("./session.server");
+          await requireAdmin();
+        } catch {
+          return {
+            ok: false as const,
+            message: "Hanya admin yang sudah masuk yang bisa membuat akun admin.",
+          };
+        }
+      }
+
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const email = data.email.trim().toLowerCase();
 
@@ -292,13 +307,13 @@ export const loginAccountFn = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const email = data.email.trim().toLowerCase();
 
-    // Batasi percobaan login per email (best-effort, lihat rate-limit.server.ts).
-    const { rateLimitMessage, resetRateLimit, RATE_LIMITS } = await import("./rate-limit.server");
-    const limited = rateLimitMessage(
-      `login:${email}`,
-      RATE_LIMITS.login.limit,
-      RATE_LIMITS.login.windowMs,
-    );
+    // Batasi percobaan login per email dan per IP (lihat rate-limit.server.ts).
+    const { rateLimitMessage, RATE_LIMITS } = await import("./rate-limit.server");
+    const limited = await rateLimitMessage({
+      scope: "login",
+      identity: email,
+      rule: RATE_LIMITS.login,
+    });
     if (limited) return { ok: false as const, message: limited };
 
     const selectColumns =
@@ -360,7 +375,12 @@ export const loginAccountFn = createServerFn({ method: "POST" })
     }
 
     // Login berhasil: bersihkan hitungan percobaan untuk email ini.
-    resetRateLimit(`login:${email}`);
+    try {
+      const { resetRateLimit } = await import("./rate-limit.server");
+      await resetRateLimit({ scope: "login", identity: email });
+    } catch (resetError) {
+      console.warn("[Login] Gagal mereset rate limit:", resetError);
+    }
 
     return {
       ok: true as const,
@@ -440,11 +460,11 @@ export const changePasswordFn = createServerFn({ method: "POST" })
     const email = (session?.email ?? data.email).trim().toLowerCase();
 
     const { rateLimitMessage, RATE_LIMITS } = await import("./rate-limit.server");
-    const limited = rateLimitMessage(
-      `change-password:${email}`,
-      RATE_LIMITS.changePassword.limit,
-      RATE_LIMITS.changePassword.windowMs,
-    );
+    const limited = await rateLimitMessage({
+      scope: "change-password",
+      identity: email,
+      rule: RATE_LIMITS.changePassword,
+    });
     if (limited) return { ok: false as const, message: limited };
 
     const { data: account, error: accountError } = await supabaseAdmin

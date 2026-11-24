@@ -53,9 +53,14 @@ export const createCheckoutCampaignFn = createServerFn({ method: "POST" })
   .validator((data: unknown) => data as CheckoutInput)
   .handler(async ({ data }) => {
     const input = validate(data);
-    const { rateLimitMessage, resetRateLimit, RATE_LIMITS } = await import("./rate-limit.server");
-    const key = `checkout:${input.customer_email}:${input.invoice_no}`;
-    const limited = rateLimitMessage(key, 5, RATE_LIMITS.login.windowMs);
+    const { rateLimitMessage, RATE_LIMITS } = await import("./rate-limit.server");
+    // Key tidak lagi memakai nomor invoice: invoice dibuat acak di client,
+    // sehingga key lama selalu baru dan batasnya tidak pernah tercapai.
+    const limited = await rateLimitMessage({
+      scope: "checkout",
+      identity: input.customer_email,
+      rule: RATE_LIMITS.checkout,
+    });
     if (limited) throw new Error(limited);
 
     const client = await db();
@@ -113,6 +118,5 @@ export const createCheckoutCampaignFn = createServerFn({ method: "POST" })
     if (error) throw new Error(describeDbError(error));
     const row = Array.isArray(result) ? result[0] : result;
     if (!row?.payment_id || !row?.campaign_id) throw new Error("Database tidak mengembalikan ID pembayaran dan campaign.");
-    resetRateLimit(key);
     return { paymentId: row.payment_id as string, campaignId: row.campaign_id as string };
   });

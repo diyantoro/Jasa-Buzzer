@@ -31,11 +31,11 @@ export const requestWithdrawalFn = createServerFn({ method: "POST" })
     }
 
     const { enforceRateLimit, RATE_LIMITS } = await import("./rate-limit.server");
-    enforceRateLimit(
-      `request-withdrawal:${session.email}`,
-      RATE_LIMITS.requestWithdrawal.limit,
-      RATE_LIMITS.requestWithdrawal.windowMs,
-    );
+    await enforceRateLimit({
+      scope: "request-withdrawal",
+      identity: session.email,
+      rule: RATE_LIMITS.requestWithdrawal,
+    });
 
     const { supabaseAdmin: adminClient } = await import(
       "@/integrations/supabase/client.server"
