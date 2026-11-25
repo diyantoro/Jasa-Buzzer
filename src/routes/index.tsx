@@ -134,8 +134,17 @@ function Landing() {
             {services.map((s, i) => (
               <article
                 key={s.id}
-                className="group relative flex flex-col overflow-hidden rounded-2xl border border-border/70 bg-card/80 p-5 shadow-sm backdrop-blur-md transition-[transform,box-shadow,border-color] duration-300 hover:border-brand/40 hover:shadow-lg motion-safe:hover:-translate-y-1 sm:p-6"
+                className={`group relative flex flex-col overflow-hidden rounded-2xl border bg-card p-5 shadow-[0_1px_2px_rgba(2,6,23,0.06),0_20px_45px_-30px_rgba(2,6,23,0.45)] ring-1 ring-foreground/[0.04] transition-[transform,box-shadow,border-color] duration-300 hover:-translate-y-1 hover:border-brand/50 hover:shadow-[0_28px_60px_-32px_rgba(2,6,23,0.5)] motion-safe:transition-transform sm:p-6 ${
+                  i === 2 ? "border-brand/40" : "border-border/90"
+                }`}
               >
+                {/* Strip aksen di tepi atas supaya batas kartu terbaca jelas. */}
+                <span
+                  aria-hidden="true"
+                  className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-brand via-brand-glow to-accent-warm transition-opacity duration-300 ${
+                    i === 2 ? "opacity-100" : "opacity-45 group-hover:opacity-100"
+                  }`}
+                />
                 <div
                   aria-hidden="true"
                   className="pointer-events-none absolute -right-12 -top-12 h-28 w-28 rounded-full bg-brand/10 opacity-0 blur-2xl transition-opacity duration-300 group-hover:opacity-100"
@@ -169,7 +178,7 @@ function Landing() {
                 </h3>
                 <p className="mb-5 mt-2 text-sm leading-relaxed text-muted-foreground">{s.desc}</p>
 
-                <div className="mt-auto flex items-end justify-between gap-3 border-t border-border/60 pt-4">
+                <div className="mt-auto flex items-end justify-between gap-3 border-t border-border/80 pt-4">
                   <div className="min-w-0">
                     <p className="text-[0.62rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
                       Mulai dari
@@ -197,7 +206,7 @@ function Landing() {
       {/* Process */}
       <section
         id="proses"
-        className="relative scroll-mt-24 overflow-hidden bg-muted/40 py-16 sm:py-24"
+        className="relative scroll-mt-24 overflow-hidden border-y border-border/60 bg-gradient-to-b from-muted/60 via-muted/35 to-background py-16 sm:py-24"
       >
         <div
           aria-hidden="true"
@@ -216,12 +225,16 @@ function Landing() {
               {processSteps.map((step, idx) => (
                 <div
                   key={step.title}
-                  className="group relative rounded-2xl border border-border bg-card p-5 pt-7 shadow-md shadow-brand/5 backdrop-blur-md transition-[transform,box-shadow,border-color] duration-300 hover:border-brand/50 hover:shadow-xl motion-safe:hover:-translate-y-1"
+                  className="group relative rounded-2xl border border-border/90 bg-card p-5 pt-7 shadow-[0_1px_2px_rgba(2,6,23,0.06),0_22px_45px_-30px_rgba(2,6,23,0.45)] ring-1 ring-foreground/[0.04] transition-[transform,box-shadow,border-color] duration-300 hover:-translate-y-1 hover:border-brand/50 hover:shadow-[0_28px_55px_-32px_rgba(2,6,23,0.5)] motion-safe:transition-transform"
                 >
-                  <span className="absolute -top-3.5 left-5 grid h-7 w-7 place-items-center rounded-full gradient-cta font-numeric text-xs font-bold text-white shadow-glow">
+                  <span
+                    aria-hidden="true"
+                    className="absolute inset-x-0 top-0 h-1 rounded-t-2xl bg-gradient-to-r from-brand/70 via-brand-glow/60 to-accent-warm/70 opacity-60 transition-opacity duration-300 group-hover:opacity-100"
+                  />
+                  <span className="absolute -top-3.5 left-5 grid h-7 w-7 place-items-center rounded-full gradient-cta font-numeric text-xs font-bold text-white shadow-glow ring-2 ring-background">
                     {idx + 1}
                   </span>
-                  <span className="grid h-10 w-10 place-items-center rounded-xl bg-brand/10 text-brand dark:text-brand-glow">
+                  <span className="grid h-10 w-10 place-items-center rounded-xl bg-brand/10 text-brand ring-1 ring-brand/15 dark:text-brand-glow">
                     <step.icon className="h-5 w-5" aria-hidden="true" />
                   </span>
                   <h3 className="mt-3 font-display text-base font-bold leading-snug text-foreground">
@@ -236,7 +249,10 @@ function Landing() {
       </section>
 
       {/* Testimonials */}
-      <section id="testimoni" className="relative scroll-mt-24 py-16 sm:py-24">
+      <section
+        id="testimoni"
+        className="relative scroll-mt-24 overflow-hidden bg-gradient-to-b from-muted/35 via-background to-background py-16 sm:py-24"
+      >
         <div className="relative mx-auto max-w-7xl px-4 sm:px-6">
           <SectionHeading
             kicker="Testimoni"
@@ -248,7 +264,7 @@ function Landing() {
             {testimonials.map((t, idx) => (
               <figure
                 key={t.name}
-                className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-border/70 bg-card/80 p-5 shadow-sm backdrop-blur-md transition-[transform,box-shadow,border-color] duration-300 hover:border-brand/40 hover:shadow-lg motion-safe:hover:-translate-y-1 sm:p-6"
+                className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-border/90 bg-card p-5 shadow-[0_1px_2px_rgba(2,6,23,0.06),0_20px_45px_-30px_rgba(2,6,23,0.45)] ring-1 ring-foreground/[0.04] transition-[transform,box-shadow,border-color] duration-300 hover:-translate-y-1 hover:border-brand/50 hover:shadow-[0_28px_60px_-32px_rgba(2,6,23,0.5)] motion-safe:transition-transform sm:p-6"
               >
                 <Quote
                   aria-hidden="true"

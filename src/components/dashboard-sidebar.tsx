@@ -505,17 +505,24 @@ export function MobileBottomNav<K extends string>({
         onPointerDown={() => onPrefetch?.(item.key)}
         aria-current={active ? "page" : undefined}
         className={cn(
-          "relative flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-1 py-1 text-[10px] font-medium transition-colors duration-200 min-[380px]:text-[11px]",
-          active ? "text-brand" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+          "group relative flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-1 py-1 text-[10px] font-medium transition-all duration-200 active:scale-[0.97] min-[380px]:text-[11px]",
+          active
+            ? "bg-brand/10 text-brand"
+            : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
         )}
       >
         <span
           className={cn(
-            "relative grid place-items-center transition-colors duration-200 [&>svg]:h-[19px] [&>svg]:w-[19px]",
+            "relative grid place-items-center transition-all duration-200 [&>svg]:h-[19px] [&>svg]:w-[19px]",
             featured
-              ? "h-11 w-11 -translate-y-2.5 rounded-full bg-brand text-white shadow-lg ring-4 ring-background [&>svg]:h-5 [&>svg]:w-5"
-              : cn("h-8 w-8 rounded-xl", active ? "bg-brand/12 text-brand" : "text-muted-foreground"),
-            featured && active && "bg-brand-glow",
+              ? "h-11 w-11 -translate-y-2.5 rounded-full gradient-cta text-white shadow-glow ring-4 ring-background [&>svg]:h-5 [&>svg]:w-5"
+              : cn(
+                  "h-8 w-8 rounded-xl",
+                  active
+                    ? "gradient-cta text-white shadow-[0_8px_18px_-6px_rgba(2,6,23,0.55)] ring-1 ring-white/25"
+                    : "text-muted-foreground group-hover:bg-brand/10 group-hover:text-brand",
+                ),
+            featured && active && "brightness-110",
           )}
         >
           {item.icon}
@@ -547,16 +554,18 @@ export function MobileBottomNav<K extends string>({
               aria-haspopup="dialog"
               aria-expanded={moreOpen}
               className={cn(
-                "relative flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-1 py-1 text-[10px] font-medium transition-colors duration-200 min-[380px]:text-[11px]",
+                "group relative flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-1 py-1 text-[10px] font-medium transition-all duration-200 active:scale-[0.97] min-[380px]:text-[11px]",
                 activeInOverflow
-                  ? "text-brand"
+                  ? "bg-brand/10 text-brand"
                   : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
               )}
             >
               <span
                 className={cn(
-                  "relative grid h-8 w-8 place-items-center rounded-xl transition-colors duration-200",
-                  activeInOverflow ? "bg-brand/12 text-brand" : "text-muted-foreground",
+                  "relative grid h-8 w-8 place-items-center rounded-xl transition-all duration-200",
+                  activeInOverflow
+                    ? "gradient-cta text-white shadow-[0_8px_18px_-6px_rgba(2,6,23,0.55)] ring-1 ring-white/25"
+                    : "text-muted-foreground group-hover:bg-brand/10 group-hover:text-brand",
                 )}
               >
                 <Menu className="h-[19px] w-[19px]" aria-hidden="true" />
@@ -603,7 +612,9 @@ export function MobileBottomNav<K extends string>({
                       aria-hidden="true"
                       className={cn(
                         "grid h-8 w-8 shrink-0 place-items-center rounded-xl [&>svg]:h-[18px] [&>svg]:w-[18px]",
-                        active ? "bg-brand/15" : "bg-muted",
+                        active
+                          ? "gradient-cta text-white shadow-glow"
+                          : "bg-muted text-muted-foreground",
                       )}
                     >
                       {item.icon}
